@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "listing.submitted",
+  "description": "A listing entered moderation (draft published). The moderation boundary: a future stapel-moderation module consumes this and replies with moderation.completed. stapel-listings does NOT run the moderation pipeline.",
+  "type": "object",
+  "required": ["listing_id", "owner_id", "category_id"],
+  "properties": {
+    "listing_id": { "type": "integer" },
+    "owner_id": { "type": "string", "description": "Opaque owner (user) id." },
+    "category_id": { "type": "string", "description": "Opaque category id." },
+    "title": { "type": "string" },
+    "description": { "type": "string" },
+    "language": { "type": "string" }
+  },
+  "additionalProperties": false
+}

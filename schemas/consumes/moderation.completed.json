@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "moderation.completed",
+  "description": "Consumed from a future stapel-moderation module. Carries the verdict for a submitted listing; listings flips moderation_status and (on approval) publishes. Contract owned by the emitter — the shape below is what listings relies on.",
+  "type": "object",
+  "required": ["listing_id", "decision"],
+  "properties": {
+    "listing_id": { "type": "integer" },
+    "decision": {
+      "type": "string",
+      "enum": ["approved", "rejected", "needs_review"]
+    },
+    "note": { "type": "string" }
+  },
+  "additionalProperties": false
+}

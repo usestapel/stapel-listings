@@ -1,0 +1,385 @@
+"""Models for stapel-listings.
+
+Ported from legacy-catalog's ``ads`` app (the ``Ad`` model), generalized to a
+framework-neutral ``Listing`` and decoupled from its sibling services:
+
+- **category is opaque**: ``category_id`` is a plain string, never a FK to
+  stapel-categories. The feature schema used to validate attribute values is
+  fetched through the ``categories.features`` comm Function
+  (``services.category_schema``); a ``category.changed`` subscription
+  invalidates the cache.
+- **currency is opaque**: ``currency`` is a bare ISO code; ``price_base`` is
+  computed through the ``PRICE_BASE_CONVERTER`` seam (identity by default),
+  not a FK to stapel-currencies.
+- the ``UserAdLike`` / ``UserAdView`` external-stats read-caches are dropped —
+  engagement is a first-class :class:`Favorite`.
+
+House rules (docs/library-standard.md §3.8): cross-service references are
+opaque id fields (no FK across a service boundary); the user is only
+``settings.AUTH_USER_MODEL``; index names must be <= 30 chars.
+"""
+from __future__ import annotations
+
+from decimal import Decimal
+
+from django.conf import settings
+from django.db import models
+from django.utils import timezone
+
+from .conf import listings_settings
+
+
+class ListingStatus(models.TextChoices):
+    """Lifecycle state machine of a listing."""
+
+    DRAFT = "draft", "Draft"
+    PENDING = "pending", "Pending Moderation"
+    PUBLISHED = "published", "Published"
+    PAUSED = "paused", "Paused"
+    EXPIRED = "expired", "Expired"
+    SOLD = "sold", "Sold"
+    REJECTED = "rejected", "Rejected"
+    ARCHIVED = "archived", "Archived"
+
+
+class ModerationStatus(models.TextChoices):
+    """Content-moderation state machine (independent of the lifecycle)."""
+
+    PENDING = "pending", "Pending Review"
+    APPROVED = "approved", "Approved"
+    REJECTED = "rejected", "Rejected"
+    NEEDS_REVIEW = "needs_review", "Needs Manual Review"
+
+
+# Allowed lifecycle transitions. The value set is the whitelist of statuses a
+# listing may move to *from* the key status. Enforced by ``transition_to``.
+LISTING_TRANSITIONS: dict[str, set[str]] = {
+    ListingStatus.DRAFT: {ListingStatus.PENDING, ListingStatus.ARCHIVED},
+    ListingStatus.PENDING: {
+        ListingStatus.PUBLISHED,
+        ListingStatus.REJECTED,
+        ListingStatus.DRAFT,
+        ListingStatus.ARCHIVED,
+    },
+    ListingStatus.PUBLISHED: {
+        ListingStatus.PAUSED,
+        ListingStatus.EXPIRED,
+        ListingStatus.SOLD,
+        ListingStatus.ARCHIVED,
+    },
+    ListingStatus.PAUSED: {
+        ListingStatus.PUBLISHED,
+        ListingStatus.ARCHIVED,
+        ListingStatus.EXPIRED,
+    },
+    ListingStatus.EXPIRED: {
+        ListingStatus.PENDING,
+        ListingStatus.PUBLISHED,
+        ListingStatus.ARCHIVED,
+    },
+    ListingStatus.SOLD: {ListingStatus.ARCHIVED, ListingStatus.PUBLISHED},
+    ListingStatus.REJECTED: {ListingStatus.DRAFT, ListingStatus.ARCHIVED},
+    ListingStatus.ARCHIVED: {ListingStatus.DRAFT},
+}
+
+# Statuses in which a listing is part of the public/search index. Entering the
+# set emits ``listing.published``; leaving it emits ``listing.removed``.
+INDEXED_STATUSES: frozenset[str] = frozenset({ListingStatus.PUBLISHED})
+
+
+class TransitionError(Exception):
+    """Raised when a lifecycle transition is not permitted."""
+
+
+class ListingQuerySet(models.QuerySet):
+    """QuerySet helpers for listings."""
+
+    def published(self):
+        return self.filter(status=ListingStatus.PUBLISHED, deleted_at__isnull=True)
+
+    def owned_by(self, user):
+        return self.filter(owner=user)
+
+    def with_favorited(self, user):
+        """Annotate ``is_favorited`` for *user* (None for anonymous)."""
+        from django.db.models import BooleanField, Exists, OuterRef, Value
+
+        if not user or not getattr(user, "is_authenticated", False):
+            return self.annotate(
+                is_favorited=Value(None, output_field=BooleanField())
+            )
+        return self.annotate(
+            is_favorited=Exists(
+                Favorite.objects.filter(user_id=user.id, listing_id=OuterRef("pk"))
+            )
+        )
+
+
+class ListingManager(models.Manager.from_queryset(ListingQuerySet)):
+    """Manager that hides soft-deleted listings by default.
+
+    Built from ``ListingQuerySet`` so its helpers (``published``, ``owned_by``,
+    ``with_favorited``) are reachable straight off ``Listing.objects``.
+    """
+
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
+    def with_deleted(self):
+        return ListingQuerySet(self.model, using=self._db)
+
+    def only_deleted(self):
+        return self.with_deleted().filter(deleted_at__isnull=False)
+
+
+class Listing(models.Model):
+    """A marketplace listing with polymorphic, typed attribute values.
+
+    Attribute values live in JSON projections built by the value-validation
+    pipeline (see ``services.publish`` / ``services.features``):
+
+    - ``features``: ordered list of DAOs (display metadata included);
+    - ``features_title`` / ``features_badges``: DAOs flagged for title / badge;
+    - ``features_search``: ``{slug: [values]}`` document a future
+      stapel-search indexer consumes (built here, queried there).
+
+    User-editable content lives in ``*_draft`` twins promoted to the published
+    fields by :func:`stapel_listings.services.publish.publish_listing`.
+    """
+
+    objects = ListingManager()
+    all_objects = models.Manager()  # includes soft-deleted
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="listings",
+    )
+    # Opaque category reference — NEVER a FK to stapel-categories. May hold an
+    # int-like string or a UUID string; validated via the categories.features
+    # comm Function, not a DB constraint.
+    category_id = models.CharField(max_length=64, db_index=True)
+
+    title = models.CharField(max_length=255, blank=True, default="")
+    description = models.TextField(blank=True, default="")
+    language = models.CharField(max_length=10, blank=True, default="", db_index=True)
+
+    # Opaque currency code (e.g. "EUR"); no FK to stapel-currencies.
+    currency = models.CharField(max_length=8, default="EUR")
+    price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    price_base = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+
+    # Opaque list of CDN image references (validated/synced by stapel-cdn).
+    images = models.JSONField(blank=True, null=True, default=list)
+
+    # Generic, optional geo fields (geo is an app-layer concern; no hard dep).
+    location_id = models.CharField(max_length=64, blank=True, default="")
+    location_label = models.CharField(max_length=255, blank=True, default="")
+    geohash = models.CharField(max_length=12, blank=True, default="", db_index=True)
+
+    status = models.CharField(
+        max_length=20,
+        choices=ListingStatus.choices,
+        default=ListingStatus.DRAFT,
+        db_index=True,
+    )
+    moderation_status = models.CharField(
+        max_length=20,
+        choices=ModerationStatus.choices,
+        default=ModerationStatus.PENDING,
+    )
+    moderation_note = models.TextField(blank=True, default="")
+
+    auto_republish = models.BooleanField(default=True)
+
+    published_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    expiry_notification_sent = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    # Published attribute projections.
+    features = models.JSONField(blank=True, null=True, default=list)
+    features_title = models.JSONField(blank=True, null=True, default=list)
+    features_badges = models.JSONField(blank=True, null=True, default=list)
+    features_search = models.JSONField(blank=True, null=True, default=dict)
+
+    # Draft twins (promoted on publish).
+    features_draft = models.JSONField(blank=True, null=True, default=dict)
+    title_draft = models.CharField(max_length=255, blank=True, default="")
+    description_draft = models.TextField(blank=True, default="")
+    price_draft = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    images_draft = models.JSONField(blank=True, null=True, default=list)
+    location_id_draft = models.CharField(max_length=64, blank=True, default="")
+    location_label_draft = models.CharField(max_length=255, blank=True, default="")
+    geohash_draft = models.CharField(max_length=12, blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["owner", "status"], name="listing_owner_status_idx"),
+            models.Index(fields=["category_id", "status"], name="listing_cat_status_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"Listing #{self.pk} ({self.status})"
+
+    # -- price_base ---------------------------------------------------------
+
+    def compute_price_base(self) -> Decimal | None:
+        """Compute ``price_base`` via the PRICE_BASE_CONVERTER seam."""
+        if self.price is None:
+            return None
+        converter = listings_settings.PRICE_BASE_CONVERTER
+        base = listings_settings.BASE_CURRENCY
+        try:
+            return converter(Decimal(str(self.price)), self.currency or base, base)
+        except Exception:
+            # Degrade rather than fail a save if the converter errors.
+            return Decimal(str(self.price))
+
+    def save(self, *args, **kwargs):
+        # Keep price_base in sync unless the caller manages update_fields
+        # without touching price.
+        update_fields = kwargs.get("update_fields")
+        if update_fields is None or "price" in update_fields or "price_base" in update_fields:
+            self.price_base = self.compute_price_base()
+            if update_fields is not None and "price_base" not in update_fields:
+                kwargs["update_fields"] = list(update_fields) + ["price_base"]
+        if self.status == ListingStatus.PUBLISHED and self.published_at is None:
+            self.published_at = timezone.now()
+        super().save(*args, **kwargs)
+
+    # -- lifecycle state machine -------------------------------------------
+
+    def can_transition_to(self, new_status: str) -> bool:
+        if new_status == self.status:
+            return True
+        return new_status in LISTING_TRANSITIONS.get(self.status, set())
+
+    def transition_to(self, new_status: str, *, save: bool = True) -> None:
+        """Move the lifecycle to *new_status*, emitting search events.
+
+        Emits ``listing.published`` when entering an indexed status and
+        ``listing.removed`` when leaving one, so a future stapel-search
+        indexer stays in sync without this module knowing it exists.
+        """
+        if new_status == self.status:
+            return
+        if not self.can_transition_to(new_status):
+            raise TransitionError(
+                f"cannot move listing {self.pk} from {self.status} to {new_status}"
+            )
+        old_status = self.status
+        self.status = new_status
+        if new_status == ListingStatus.PUBLISHED and self.published_at is None:
+            self.published_at = timezone.now()
+        if save:
+            self.save(update_fields=["status", "published_at", "updated_at"])
+
+        from . import events
+
+        was_indexed = old_status in INDEXED_STATUSES
+        now_indexed = new_status in INDEXED_STATUSES
+        if now_indexed and not was_indexed:
+            events.emit_listing_published(self)
+        elif was_indexed and not now_indexed:
+            events.emit_listing_removed(self, reason=new_status)
+
+    def apply_moderation(
+        self, decision: str, *, note: str = "", auto_publish: bool = True
+    ) -> None:
+        """Apply a moderation *decision* to a PENDING listing.
+
+        ``approved`` -> moderation APPROVED and (if ``auto_publish``) the
+        lifecycle moves PENDING->PUBLISHED; ``rejected`` -> both statuses
+        REJECTED; ``needs_review`` -> moderation NEEDS_REVIEW, lifecycle
+        unchanged.
+        """
+        if decision == "approved":
+            self.moderation_status = ModerationStatus.APPROVED
+            self.moderation_note = note or ""
+            self.save(update_fields=["moderation_status", "moderation_note", "updated_at"])
+            if auto_publish and self.status == ListingStatus.PENDING:
+                self.transition_to(ListingStatus.PUBLISHED)
+        elif decision == "rejected":
+            self.moderation_status = ModerationStatus.REJECTED
+            self.moderation_note = note or "Content policy violation"
+            if self.status == ListingStatus.PENDING:
+                self.status = ListingStatus.REJECTED
+            self.save(
+                update_fields=["moderation_status", "moderation_note", "status", "updated_at"]
+            )
+        elif decision == "needs_review":
+            self.moderation_status = ModerationStatus.NEEDS_REVIEW
+            self.moderation_note = note or "Flagged for manual review"
+            self.save(update_fields=["moderation_status", "moderation_note", "updated_at"])
+        else:
+            raise ValueError(f"unknown moderation decision: {decision!r}")
+
+    # -- soft delete --------------------------------------------------------
+
+    def delete(self, using=None, keep_parents=False):
+        """Soft delete; emits ``listing.removed`` if it was indexed."""
+        was_indexed = self.status in INDEXED_STATUSES
+        self.deleted_at = timezone.now()
+        self.save(update_fields=["deleted_at", "updated_at"])
+        if was_indexed:
+            from . import events
+
+            events.emit_listing_removed(self, reason="deleted")
+
+    def hard_delete(self, using=None, keep_parents=False):
+        super().delete(using=using, keep_parents=keep_parents)
+
+    def restore(self):
+        self.deleted_at = None
+        self.save(update_fields=["deleted_at", "updated_at"])
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
+
+    @property
+    def is_expired(self) -> bool:
+        return self.expires_at is not None and timezone.now() > self.expires_at
+
+    @property
+    def is_active(self) -> bool:
+        return (
+            not self.is_deleted
+            and self.status == ListingStatus.PUBLISHED
+            and not self.is_expired
+        )
+
+
+class Favorite(models.Model):
+    """A user's favorite (first-class engagement, replacing the stats caches)."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="listing_favorites",
+    )
+    listing = models.ForeignKey(
+        Listing, on_delete=models.CASCADE, related_name="favorites"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "listing"], name="uniq_user_listing_fav"
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user", "-created_at"], name="fav_user_created_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"User {self.user_id} ♥ Listing {self.listing_id}"

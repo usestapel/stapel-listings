@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "listing.removed",
+  "description": "A listing left the public/search index (paused, expired, sold, archived, rejected, deleted). Search boundary: the stapel-search indexer drops the document.",
+  "type": "object",
+  "required": ["listing_id", "owner_id", "category_id", "status", "reason"],
+  "properties": {
+    "listing_id": { "type": "integer" },
+    "owner_id": { "type": "string", "description": "Opaque owner (user) id." },
+    "category_id": { "type": "string", "description": "Opaque category id." },
+    "status": { "type": "string" },
+    "reason": {
+      "type": "string",
+      "description": "Why it left the index (new status, 'deleted', or 'user_deleted')."
+    }
+  },
+  "additionalProperties": false
+}

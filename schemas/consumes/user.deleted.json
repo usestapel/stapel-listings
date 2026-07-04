@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "user.deleted",
+  "description": "Consumed from stapel-auth/gdpr. All user PII must be erased after the grace period; listings erases the user's listings and favorites. Contract owned by the emitter.",
+  "type": "object",
+  "required": ["user_id"],
+  "properties": {
+    "user_id": { "type": "string" },
+    "deleted_at": { "type": "string", "format": "date-time" },
+    "trigger": { "type": "string", "enum": ["manual", "inactivity", "platform"] }
+  },
+  "additionalProperties": true
+}

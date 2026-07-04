@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "listing.published",
+  "description": "A listing entered the public/search index. Search boundary: a future stapel-search indexer consumes this to (re)index the document built from features_search. stapel-listings implements no search/filter endpoints itself.",
+  "type": "object",
+  "required": ["listing_id", "owner_id", "category_id", "status"],
+  "properties": {
+    "listing_id": { "type": "integer" },
+    "owner_id": { "type": "string", "description": "Opaque owner (user) id." },
+    "category_id": { "type": "string", "description": "Opaque category id." },
+    "status": { "type": "string" },
+    "features_search": {
+      "type": "object",
+      "description": "Search projection {slug: [values]} the indexer ingests.",
+      "additionalProperties": { "type": "array", "items": {} }
+    }
+  },
+  "additionalProperties": false
+}

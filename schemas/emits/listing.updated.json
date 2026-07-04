@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "listing.updated",
+  "description": "An indexed listing's content changed. Search boundary: the stapel-search indexer re-indexes the document.",
+  "type": "object",
+  "required": ["listing_id", "owner_id", "category_id", "status"],
+  "properties": {
+    "listing_id": { "type": "integer" },
+    "owner_id": { "type": "string", "description": "Opaque owner (user) id." },
+    "category_id": { "type": "string", "description": "Opaque category id." },
+    "status": { "type": "string" },
+    "features_search": {
+      "type": "object",
+      "additionalProperties": { "type": "array", "items": {} }
+    }
+  },
+  "additionalProperties": false
+}

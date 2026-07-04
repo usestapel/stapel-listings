@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "listings.status",
+  "description": "Resolve a listing's lifecycle and moderation state for another service (moderation, reviews, search) without an import or HTTP round-trip.",
+  "type": "object",
+  "required": ["listing_id"],
+  "properties": {
+    "listing_id": {
+      "type": "integer",
+      "description": "Primary key of the listing to probe."
+    }
+  },
+  "additionalProperties": false
+}

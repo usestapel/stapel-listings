@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "category.changed",
+  "description": "Consumed from stapel-categories. A category (or a feature belonging to it) changed; listings drops any cached categories.features result for this category_id. Contract owned by the emitter.",
+  "type": "object",
+  "required": ["category_id", "revision"],
+  "properties": {
+    "category_id": { "type": "integer" },
+    "revision": { "type": "integer" }
+  },
+  "additionalProperties": false
+}
