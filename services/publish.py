@@ -16,6 +16,7 @@ import logging
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.utils import timezone
 
 from stapel_attributes import normalize_to_dao, validate_description, validate_dto
@@ -101,17 +102,19 @@ def publish_listing(listing) -> None:
     listing.status = ListingStatus.PENDING
     listing.moderation_status = ModerationStatus.PENDING
     listing.moderation_note = ""
-    listing.save()
 
-    # Request moderation (transactional-outbox emit). A future
-    # stapel-moderation module consumes this and replies with moderation.completed.
     from .. import events
 
-    events.emit_listing_submitted(listing)
-    logger.info("listing %s submitted for moderation", listing.pk)
+    # The promotion write and the moderation-request emit commit together: a
+    # listing must never reach PENDING without the listing.submitted event a
+    # moderation module needs (nor emit for a promotion that rolled back).
+    with transaction.atomic():
+        listing.save()
+        events.emit_listing_submitted(listing)
+        if listings_settings.AUTO_APPROVE_ON_PUBLISH:
+            listing.apply_moderation("approved", note="auto-approved (no moderation module)")
 
-    if listings_settings.AUTO_APPROVE_ON_PUBLISH:
-        listing.apply_moderation("approved", note="auto-approved (no moderation module)")
+    logger.info("listing %s submitted for moderation", listing.pk)
 
 
 def is_valid(result: ValidationBatchResult) -> bool:

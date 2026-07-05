@@ -58,6 +58,22 @@ def test_publish_missing_mandatory_feature_is_invalid(draft_listing):
     assert any(r.slug == "mileage" for r in result.results)
 
 
+def test_failing_submit_emit_rolls_back_publish(draft_listing, monkeypatch):
+    """Atomicity: if the listing.submitted emit fails, the whole promotion rolls
+    back — the listing stays DRAFT, never PENDING-without-an-event."""
+    from stapel_listings import events
+
+    def boom(_listing):
+        raise RuntimeError("bus down")
+
+    monkeypatch.setattr(events, "emit_listing_submitted", boom)
+    with pytest.raises(RuntimeError):
+        publish_service.publish_listing(draft_listing)
+
+    draft_listing.refresh_from_db()
+    assert draft_listing.status == ListingStatus.DRAFT
+
+
 def test_auto_approve_on_publish_publishes_immediately(draft_listing, settings):
     settings.STAPEL_LISTINGS = {"AUTO_APPROVE_ON_PUBLISH": True}
     publish_service.publish_listing(draft_listing)

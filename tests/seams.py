@@ -5,3 +5,8 @@ from decimal import Decimal
 def halving_converter(amount: Decimal, currency: str, base: str) -> Decimal:
     """A price_base converter that halves the amount (proves the seam is used)."""
     return Decimal(amount) / 2
+
+
+def exploding_converter(amount: Decimal, currency: str, base: str) -> Decimal:
+    """A price_base converter that always fails (proves NULL-on-failure)."""
+    raise RuntimeError("rate provider unavailable")

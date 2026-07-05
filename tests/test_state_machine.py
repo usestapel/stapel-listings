@@ -81,6 +81,43 @@ def test_unknown_moderation_decision_raises(user):
         listing.apply_moderation("banana")
 
 
+def test_failing_emit_rolls_back_transition(user, monkeypatch):
+    """Atomicity: if the listing.published emit fails, the status change rolls
+    back — never committed-but-unannounced (no published-but-unindexed row)."""
+    from stapel_listings import events
+
+    listing = Listing.objects.create(owner=user, category_id="7", status=ListingStatus.PENDING)
+
+    def boom(_listing):
+        raise RuntimeError("bus down")
+
+    monkeypatch.setattr(events, "emit_listing_published", boom)
+    with pytest.raises(RuntimeError):
+        listing.transition_to(ListingStatus.PUBLISHED)
+
+    listing.refresh_from_db()
+    assert listing.status == ListingStatus.PENDING
+
+
+def test_failing_emit_rolls_back_moderation_approval(user, monkeypatch):
+    """Atomicity: a failed publish emit rolls back BOTH the moderation flip and
+    the lifecycle transition (one verdict, one transaction)."""
+    from stapel_listings import events
+
+    listing = Listing.objects.create(owner=user, category_id="7", status=ListingStatus.PENDING)
+
+    def boom(_listing):
+        raise RuntimeError("bus down")
+
+    monkeypatch.setattr(events, "emit_listing_published", boom)
+    with pytest.raises(RuntimeError):
+        listing.apply_moderation("approved")
+
+    listing.refresh_from_db()
+    assert listing.status == ListingStatus.PENDING
+    assert listing.moderation_status == ModerationStatus.PENDING
+
+
 def test_soft_delete_hides_and_emits_removed_if_indexed(user, capture_events):
     removed = capture_events("listing.removed")
     listing = Listing.objects.create(owner=user, category_id="7", status=ListingStatus.PENDING)

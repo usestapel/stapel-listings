@@ -25,6 +25,19 @@ def test_default_price_base_is_identity(user):
     assert listing.price_base == Decimal("100.00")
 
 
+def test_failing_price_converter_yields_null_not_wrong_value(user, settings):
+    """A broken converter must store NULL (unknown), never the raw price as if
+    it were already in the base currency."""
+    settings.STAPEL_LISTINGS = {
+        "PRICE_BASE_CONVERTER": "stapel_listings.tests.seams.exploding_converter",
+    }
+    listing = Listing.objects.create(
+        owner=user, category_id="7", price=Decimal("10000.00"), currency="USD"
+    )
+    listing.refresh_from_db()
+    assert listing.price_base is None
+
+
 def test_category_features_function_seam(user, settings):
     """The comm Function name is overridable — point it at a different provider."""
     from stapel_core.comm import register_function

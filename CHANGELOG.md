@@ -56,6 +56,19 @@ marketplace/catalog vertical core.
 - The "auto-approve after N failed moderation retries" availability-over-safety
   behavior is not ported; moderation policy lives in stapel-moderation.
 
+### Fixed (adversarial review)
+- **Atomic status-change + emit.** `transition_to`, `apply_moderation`, the
+  soft-delete `delete`, and the publish service now wrap each status mutation
+  and its outbox emit in a single `transaction.atomic()` — they commit together
+  or roll back together. Previously the save committed before the emit, so a
+  crash between them could leave a published-but-unindexed listing (or a PENDING
+  listing with no `listing.submitted` event). Added rollback tests asserting a
+  failing emit reverts the status change.
+- **No silently-wrong `price_base`.** A failing `PRICE_BASE_CONVERTER` now
+  stores `NULL` (unknown) and logs a warning, instead of degrading to the raw
+  price treated as the base currency — a plausible-but-wrong value that
+  corrupted base-price sort/filter. Added a test asserting NULL on failure.
+
 > **Not released.** Opus-authored; per the no-Fable protocol this package must
 > not be tagged or published until an independent adversarial review and a PyPI
 > pending trusted-publisher registration are in place.

@@ -20,13 +20,16 @@ opaque id fields (no FK across a service boundary); the user is only
 """
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
 from .conf import listings_settings
+
+logger = logging.getLogger(__name__)
 
 
 class ListingStatus(models.TextChoices):
@@ -232,7 +235,13 @@ class Listing(models.Model):
     # -- price_base ---------------------------------------------------------
 
     def compute_price_base(self) -> Decimal | None:
-        """Compute ``price_base`` via the PRICE_BASE_CONVERTER seam."""
+        """Compute ``price_base`` via the PRICE_BASE_CONVERTER seam.
+
+        On converter failure store ``None`` (unknown) — never the raw price in
+        the listing's own currency, which would be a plausible-but-wrong base
+        value that silently corrupts base-price sort/filter. A NULL sorts
+        predictably; a wrong number lies. The failure is logged.
+        """
         if self.price is None:
             return None
         converter = listings_settings.PRICE_BASE_CONVERTER
@@ -240,8 +249,12 @@ class Listing(models.Model):
         try:
             return converter(Decimal(str(self.price)), self.currency or base, base)
         except Exception:
-            # Degrade rather than fail a save if the converter errors.
-            return Decimal(str(self.price))
+            logger.warning(
+                "price_base conversion failed for listing %s (price=%s %s); "
+                "storing NULL rather than a wrong base value",
+                self.pk, self.price, self.currency, exc_info=True,
+            )
+            return None
 
     def save(self, *args, **kwargs):
         # Keep price_base in sync unless the caller manages update_fields
@@ -268,6 +281,12 @@ class Listing(models.Model):
         Emits ``listing.published`` when entering an indexed status and
         ``listing.removed`` when leaving one, so a future stapel-search
         indexer stays in sync without this module knowing it exists.
+
+        The status write and the outbox emit share one ``transaction.atomic()``
+        block: they commit together or roll back together. Without it a crash
+        (or emit failure) between the save and the emit would leave a
+        published-but-unindexed listing forever — the whole point of the
+        transactional outbox is that the row and its event never disagree.
         """
         if new_status == self.status:
             return
@@ -275,21 +294,22 @@ class Listing(models.Model):
             raise TransitionError(
                 f"cannot move listing {self.pk} from {self.status} to {new_status}"
             )
-        old_status = self.status
-        self.status = new_status
-        if new_status == ListingStatus.PUBLISHED and self.published_at is None:
-            self.published_at = timezone.now()
-        if save:
-            self.save(update_fields=["status", "published_at", "updated_at"])
-
         from . import events
 
+        old_status = self.status
         was_indexed = old_status in INDEXED_STATUSES
         now_indexed = new_status in INDEXED_STATUSES
-        if now_indexed and not was_indexed:
-            events.emit_listing_published(self)
-        elif was_indexed and not now_indexed:
-            events.emit_listing_removed(self, reason=new_status)
+
+        with transaction.atomic():
+            self.status = new_status
+            if new_status == ListingStatus.PUBLISHED and self.published_at is None:
+                self.published_at = timezone.now()
+            if save:
+                self.save(update_fields=["status", "published_at", "updated_at"])
+            if now_indexed and not was_indexed:
+                events.emit_listing_published(self)
+            elif was_indexed and not now_indexed:
+                events.emit_listing_removed(self, reason=new_status)
 
     def apply_moderation(
         self, decision: str, *, note: str = "", auto_publish: bool = True
@@ -301,38 +321,55 @@ class Listing(models.Model):
         REJECTED; ``needs_review`` -> moderation NEEDS_REVIEW, lifecycle
         unchanged.
         """
-        if decision == "approved":
-            self.moderation_status = ModerationStatus.APPROVED
-            self.moderation_note = note or ""
-            self.save(update_fields=["moderation_status", "moderation_note", "updated_at"])
-            if auto_publish and self.status == ListingStatus.PENDING:
-                self.transition_to(ListingStatus.PUBLISHED)
-        elif decision == "rejected":
-            self.moderation_status = ModerationStatus.REJECTED
-            self.moderation_note = note or "Content policy violation"
-            if self.status == ListingStatus.PENDING:
-                self.status = ListingStatus.REJECTED
-            self.save(
-                update_fields=["moderation_status", "moderation_note", "status", "updated_at"]
-            )
-        elif decision == "needs_review":
-            self.moderation_status = ModerationStatus.NEEDS_REVIEW
-            self.moderation_note = note or "Flagged for manual review"
-            self.save(update_fields=["moderation_status", "moderation_note", "updated_at"])
-        else:
+        if decision not in ("approved", "rejected", "needs_review"):
             raise ValueError(f"unknown moderation decision: {decision!r}")
+
+        # The moderation write and any resulting lifecycle transition (which
+        # itself saves + emits) commit as one unit — an approval must not leave
+        # moderation_status APPROVED without the listing.published event that a
+        # search indexer needs, nor vice versa.
+        with transaction.atomic():
+            if decision == "approved":
+                self.moderation_status = ModerationStatus.APPROVED
+                self.moderation_note = note or ""
+                self.save(
+                    update_fields=["moderation_status", "moderation_note", "updated_at"]
+                )
+                if auto_publish and self.status == ListingStatus.PENDING:
+                    self.transition_to(ListingStatus.PUBLISHED)
+            elif decision == "rejected":
+                self.moderation_status = ModerationStatus.REJECTED
+                self.moderation_note = note or "Content policy violation"
+                if self.status == ListingStatus.PENDING:
+                    self.status = ListingStatus.REJECTED
+                self.save(
+                    update_fields=[
+                        "moderation_status", "moderation_note", "status", "updated_at"
+                    ]
+                )
+            else:  # needs_review
+                self.moderation_status = ModerationStatus.NEEDS_REVIEW
+                self.moderation_note = note or "Flagged for manual review"
+                self.save(
+                    update_fields=["moderation_status", "moderation_note", "updated_at"]
+                )
 
     # -- soft delete --------------------------------------------------------
 
     def delete(self, using=None, keep_parents=False):
-        """Soft delete; emits ``listing.removed`` if it was indexed."""
-        was_indexed = self.status in INDEXED_STATUSES
-        self.deleted_at = timezone.now()
-        self.save(update_fields=["deleted_at", "updated_at"])
-        if was_indexed:
-            from . import events
+        """Soft delete; emits ``listing.removed`` if it was indexed.
 
-            events.emit_listing_removed(self, reason="deleted")
+        Soft-delete write and the removal emit share one transaction (see
+        ``transition_to``) so a deleted listing is never left in a search index.
+        """
+        from . import events
+
+        was_indexed = self.status in INDEXED_STATUSES
+        with transaction.atomic():
+            self.deleted_at = timezone.now()
+            self.save(update_fields=["deleted_at", "updated_at"])
+            if was_indexed:
+                events.emit_listing_removed(self, reason="deleted")
 
     def hard_delete(self, using=None, keep_parents=False):
         super().delete(using=using, keep_parents=keep_parents)
