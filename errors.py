@@ -16,6 +16,12 @@ ERR_400_PUBLISH_VALIDATION_FAILED = "error.400.publish_validation_failed"
 ERR_400_IMAGE_REQUIRED = "error.400.image_required"
 ERR_409_INVALID_TRANSITION = "error.409.invalid_listing_transition"
 ERR_409_ALREADY_FAVORITED = "error.409.already_favorited"
+# M-7: a draft feature whose slug is not in the category's schema. Owned here
+# transitionally — stapel-attributes has no NOT_ALLOWED ValidationErrorCode and
+# is out of scope for this change (see the follow-up note in the task result);
+# the structured validator uses this as the localizable key so validate-draft
+# and publish agree (both reject unknown slugs) instead of diverging.
+ERR_400_FEATURE_NOT_ALLOWED = "error.400.listing_feature_not_allowed"
 
 STAPEL_LISTINGS_ERRORS = {
     ERR_404_LISTING_NOT_FOUND: "Listing not found",
@@ -28,6 +34,7 @@ STAPEL_LISTINGS_ERRORS = {
     ERR_400_IMAGE_REQUIRED: "At least one image is required to publish",
     ERR_409_INVALID_TRANSITION: "Invalid status transition for {from_status}",
     ERR_409_ALREADY_FAVORITED: "Listing already favorited",
+    ERR_400_FEATURE_NOT_ALLOWED: "Feature '{feature}' is not allowed for this category",
 }
 
 register_service_errors(STAPEL_LISTINGS_ERRORS)
@@ -42,4 +49,5 @@ __all__ = [
     "ERR_400_IMAGE_REQUIRED",
     "ERR_409_INVALID_TRANSITION",
     "ERR_409_ALREADY_FAVORITED",
+    "ERR_400_FEATURE_NOT_ALLOWED",
 ]

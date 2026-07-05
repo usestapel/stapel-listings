@@ -21,10 +21,15 @@ from django.utils import timezone
 from stapel_core.comm import mutate_and_emit
 
 from stapel_attributes import normalize_to_dao, validate_description, validate_dto
-from stapel_attributes.results import ValidationBatchResult, ValidationStatus
+from stapel_attributes.results import (
+    FeatureValidationResult,
+    ValidationBatchResult,
+    ValidationStatus,
+)
 from stapel_attributes import validate_dto_structured
 
 from ..conf import listings_settings
+from ..errors import ERR_400_FEATURE_NOT_ALLOWED
 from ..models import ListingStatus, ModerationStatus
 from . import category_schema
 from .features import (
@@ -38,15 +43,54 @@ from .features import (
 logger = logging.getLogger(__name__)
 
 
+def _unknown_slug_results(configs, features_draft) -> list:
+    """Structured results for draft keys not present in the category schema.
+
+    M-7: ``validate_dto_structured`` silently ignores unknown slugs, but
+    ``publish_listing``'s ``validate_dto`` raises on them — so a draft holding a
+    feature since removed from the category validated clean yet failed publish
+    with an opaque error. We converge the policy on the *reject* side (with
+    per-feature detail) here, in listings, without touching stapel-attributes.
+    """
+    allowed = set()
+    for cfg in configs or []:
+        slug = cfg.get("slug") if isinstance(cfg, dict) else getattr(cfg, "slug", None)
+        fid = cfg.get("id") if isinstance(cfg, dict) else getattr(cfg, "id", None)
+        if slug:
+            allowed.add(str(slug))
+        if fid is not None:
+            allowed.add(str(fid))
+
+    results = []
+    for key in (features_draft or {}):
+        if str(key) not in allowed:
+            results.append(
+                FeatureValidationResult(
+                    slug=str(key),
+                    status=ValidationStatus.VALIDATION_FAILED,
+                    localizable_error=ERR_400_FEATURE_NOT_ALLOWED,
+                    params={"feature": str(key), "slug": str(key)},
+                    message=f"Feature '{key}' is not allowed for this category",
+                )
+            )
+    return results
+
+
 def validate_draft(listing) -> ValidationBatchResult:
     """Structured validation of a listing's draft against its category schema.
 
     Combines feature-value validation (via the comm-fetched configs) with the
     free-text description length check. Used by the validate/publish views to
-    return machine-readable results.
+    return machine-readable results. Unknown feature slugs are flagged (M-7) so
+    this agrees with ``publish_listing``.
     """
     configs = category_schema.get_feature_configs(listing.category_id)
     result = validate_dto_structured(configs, listing.features_draft or {})
+
+    unknown = _unknown_slug_results(configs, listing.features_draft or {})
+    if unknown:
+        result.results.extend(unknown)
+        result.valid = False
 
     desc_error = validate_description(
         listing.description_draft,

@@ -4,6 +4,48 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.2.0] — unreleased
+
+Internal code-review fixes to draft validation and the category-schema cache.
+Observable behaviour changes (validate-draft now rejects unknown slugs) →
+minor bump.
+
+### Fixed
+- **`validate-draft` and `publish` now agree on unknown feature slugs (M-7).**
+  A draft holding a feature since removed from the category schema used to
+  validate clean (structured validation silently ignores unknown slugs) yet
+  fail `publish` with an opaque `ERR_400_PUBLISH_VALIDATION_FAILED`.
+  `validate_draft` now flags each unknown slug as `VALIDATION_FAILED` with
+  per-feature detail (`error.400.listing_feature_not_allowed`), so the publish
+  view returns the structured `400` result and the user can see exactly which
+  feature to remove.
+- **Feature-config cache closes the read-then-set race (M-6).** Configs are now
+  stored under a revision-versioned key with a separate pointer key naming the
+  current revision, advanced from the `category.changed` event's revision. A
+  `category.changed` arriving mid-fetch only advances the pointer, so a
+  concurrent fetch can no longer re-cache a stale schema under the live key
+  (previously stale until the 300 s TTL). `categories.features`' revision is
+  used to key the entry.
+
+### Added
+- Error key `error.400.listing_feature_not_allowed` (owned here transitionally;
+  see the follow-up note below).
+- `category_schema.note_changed(category_id, revision)` — advances the cache
+  pointer from a `category.changed` event.
+
+### Migration notes
+- `validate-draft`/`publish` now **reject** unknown feature slugs instead of
+  ignoring them. Clients that submitted stray slugs (relying on silent drop)
+  will now see a `400` with a per-feature `validation_failed` entry. Strip
+  removed features from the draft before publishing.
+
+### Follow-up (not done here — out of scope)
+- The unknown-slug localizable key lives in stapel-listings because
+  stapel-attributes has no `NOT_ALLOWED` `ValidationErrorCode`. A cleaner
+  convergence is a new attributes error code owned by the engine (and reused by
+  categories' `validate-dto`); tracked separately since stapel-attributes was
+  out of scope for this change.
+
 ## [0.1.1] — unreleased
 
 ### Changed

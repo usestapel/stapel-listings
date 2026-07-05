@@ -52,3 +52,57 @@ def test_invalid_value_type_blocks_publish(draft_listing):
     draft_listing.save()
     with pytest.raises(ValidationError):
         publish_service.publish_listing(draft_listing)
+
+
+# --- M-7: validate-draft and publish agree on unknown slugs -----------------
+
+
+def test_m7_unknown_slug_flagged_by_validate_draft(draft_listing, stub_categories):
+    """A draft feature removed from the category schema: validate_draft must
+    report it invalid (per-feature detail), matching publish's rejection —
+    instead of the old 'valid=True here, opaque 400 on publish' divergence."""
+    # Remove 'condition' from the category schema; the draft still carries it.
+    stub_categories[:] = [d for d in stub_categories if d["slug"] != "condition"]
+    category_schema.invalidate("7")
+
+    result = publish_service.validate_draft(draft_listing)
+    assert result.valid is False
+    unknown = next(r for r in result.results if r.slug == "condition")
+    assert unknown.status.value == "validation_failed"
+    assert unknown.localizable_error == "error.400.listing_feature_not_allowed"
+
+
+def test_m7_publish_rejects_same_unknown_slug(draft_listing, stub_categories):
+    """publish_listing() rejects exactly what validate_draft flags (convergence)."""
+    from django.core.exceptions import ValidationError
+
+    stub_categories[:] = [d for d in stub_categories if d["slug"] != "condition"]
+    category_schema.invalidate("7")
+    with pytest.raises(ValidationError):
+        publish_service.publish_listing(draft_listing)
+
+
+# --- M-6: versioned cache pointer closes the read-then-set race -------------
+
+
+def test_m6_stale_fetch_not_promoted_after_pointer_advance(stub_categories):
+    """A category.changed advancing the pointer during a fetch means the
+    stale-revision result is never served as current."""
+    from django.core.cache import cache
+
+    from stapel_listings.services import category_schema as cs
+
+    cache.clear()  # start from a cold cache (the suite shares LocMemCache)
+
+    # Warm at revision 1.
+    assert len(cs.get_feature_configs("7")) == 2
+
+    # Schema grows and the event announces revision 2 (pointer -> 2).
+    stub_categories.append(
+        {"id": 9, "slug": "color", "name": "Color", "mandatory": False,
+         "config": {"type": "string"}}
+    )
+    cs.note_changed("7", 2)
+
+    # Next read misses data@2 -> refetches -> sees the grown schema.
+    assert len(cs.get_feature_configs("7")) == 3

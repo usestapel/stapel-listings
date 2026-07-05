@@ -40,6 +40,15 @@
   minimal-deployment escape hatch, not a moderation policy.)
 - **Category schema** lives in **stapel-categories**; this module never imports
   it — it calls the `categories.features` comm Function and caches by revision.
+  The cache uses a revision-versioned data key plus a pointer key advanced from
+  the `category.changed` event's revision (`category_schema.note_changed`), so a
+  `category.changed` arriving mid-fetch can't re-cache a stale schema under the
+  live key. **Unknown-slug policy**: `validate_draft` rejects any draft feature
+  whose slug is not in the category schema (per-feature `validation_failed`,
+  key `error.400.listing_feature_not_allowed`), so `validate-draft` and
+  `publish` agree — a draft carrying a feature removed from the category after
+  it was written fails validation with actionable detail rather than an opaque
+  publish `400`.
 - **Currency conversion** lives in a currencies module; `price_base` is
   computed through the `PRICE_BASE_CONVERTER` seam (identity by default).
 

@@ -27,9 +27,11 @@ def handle_category_changed(event):
     if category_id is None:
         logger.warning("category.changed without category_id: %s", event.event_id)
         return
-    category_schema.invalidate(category_id)
-    # Categories may key their id as int; our cache keys stringify — clear both.
-    category_schema.invalidate(str(category_id))
+    revision = event.payload.get("revision")
+    # Advance the cache's revision pointer (M-6). Categories key their id as int
+    # while callers may pass a str (listing.category_id); cover both key forms.
+    category_schema.note_changed(category_id, revision)
+    category_schema.note_changed(str(category_id), revision)
 
 
 @on_action("moderation.completed")
