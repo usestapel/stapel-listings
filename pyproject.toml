@@ -4,16 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-listings"
-version = "0.2.0"
+version = "0.2.1"
 description = "Listings and catalog for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 keywords = ["django", "stapel", "listings"]
 classifiers = [
+    "Development Status :: 4 - Beta",
     "Framework :: Django",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
 ]
 dependencies = [
     "stapel-core>=0.3.3,<0.4",
@@ -23,15 +30,30 @@ dependencies = [
     "drf-spectacular>=0.27",
 ]
 
+[project.urls]
+Homepage = "https://github.com/usestapel/stapel-listings"
+Repository = "https://github.com/usestapel/stapel-listings"
+Documentation = "https://github.com/usestapel/stapel-listings#readme"
+Changelog = "https://github.com/usestapel/stapel-listings/blob/main/CHANGELOG.md"
+Issues = "https://github.com/usestapel/stapel-listings/issues"
+
 [project.optional-dependencies]
 all = []
 
 [tool.setuptools]
 package-dir = {"stapel_listings" = "."}
-packages = ["stapel_listings", "stapel_listings.migrations", "stapel_listings.services", "stapel_listings.tests"]
+packages = ["stapel_listings", "stapel_listings.migrations", "stapel_listings.services"]
 
 [tool.setuptools.package-data]
 stapel_listings = ["py.typed", "migrations/*.py", "schemas/**/*.json"]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+# Single source for the git hooks and CI (they pass the same flags on the CLI).
+select = ["E", "F", "W"]
+ignore = ["E501"]
 
 [tool.pytest.ini_options]
 django_find_project = false

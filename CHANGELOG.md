@@ -4,6 +4,16 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.2.1] — unreleased
+
+### Packaging
+- Tests excluded from the built wheel/sdist (the `stapel_listings.tests`
+  subpackage is no longer listed in `[tool.setuptools] packages`). Added
+  `[project.urls]`, completed the trove classifiers (MIT/OSI, Python 3.13,
+  `Typing :: Typed`, OS Independent, `3 :: Only`, Development Status) and a
+  `[tool.ruff]` lint section (single source shared with the git hooks/CI).
+
+
 ## [0.2.0] — unreleased
 
 Internal code-review fixes to draft validation and the category-schema cache.
