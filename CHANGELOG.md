@@ -4,6 +4,23 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.1.1] — unreleased
+
+### Changed
+- **Outbox atomicity now goes through the framework seam.** `transition_to`,
+  the soft-delete `delete`, the publish service and the GDPR provider use
+  `stapel_core.comm.mutate_and_emit()` (stapel-core >= 0.3.3) instead of raw
+  `transaction.atomic()` around mutation+emit — same transaction semantics
+  plus core's swallow-proofing (a failed emit marks the transaction
+  rollback-only). Core pin bumped to `>=0.3.3,<0.4`.
+- **GDPR `delete` erasure is now atomic with its events.** It previously ran
+  per-listing `listing.removed` emits and hard-deletes without any shared
+  transaction (the L2 bug shape — found by the new `emit-check` gate); a
+  crash mid-erasure could leave rows deleted with no event, or events for
+  rows that never went away. The whole erasure is now one transaction.
+- CI and the git hooks run the `emit-check` static gate
+  (`python -m stapel_core.lint.emit_check .`) next to ruff.
+
 ## [0.1.0] — unreleased
 
 Initial port of legacy-catalog's `ads` app into a Stapel L2 module — the

@@ -27,6 +27,8 @@ from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
 
+from stapel_core.comm import mutate_and_emit
+
 from .conf import listings_settings
 
 logger = logging.getLogger(__name__)
@@ -282,11 +284,12 @@ class Listing(models.Model):
         ``listing.removed`` when leaving one, so a future stapel-search
         indexer stays in sync without this module knowing it exists.
 
-        The status write and the outbox emit share one ``transaction.atomic()``
-        block: they commit together or roll back together. Without it a crash
-        (or emit failure) between the save and the emit would leave a
-        published-but-unindexed listing forever — the whole point of the
-        transactional outbox is that the row and its event never disagree.
+        The status write and the outbox emit share one
+        ``stapel_core.comm.mutate_and_emit()`` block: they commit together or
+        roll back together. Without it a crash (or emit failure) between the
+        save and the emit would leave a published-but-unindexed listing
+        forever — the whole point of the transactional outbox is that the row
+        and its event never disagree.
         """
         if new_status == self.status:
             return
@@ -300,7 +303,7 @@ class Listing(models.Model):
         was_indexed = old_status in INDEXED_STATUSES
         now_indexed = new_status in INDEXED_STATUSES
 
-        with transaction.atomic():
+        with mutate_and_emit():
             self.status = new_status
             if new_status == ListingStatus.PUBLISHED and self.published_at is None:
                 self.published_at = timezone.now()
@@ -359,13 +362,14 @@ class Listing(models.Model):
     def delete(self, using=None, keep_parents=False):
         """Soft delete; emits ``listing.removed`` if it was indexed.
 
-        Soft-delete write and the removal emit share one transaction (see
-        ``transition_to``) so a deleted listing is never left in a search index.
+        Soft-delete write and the removal emit share one
+        ``mutate_and_emit()`` transaction (see ``transition_to``) so a deleted
+        listing is never left in a search index.
         """
         from . import events
 
         was_indexed = self.status in INDEXED_STATUSES
-        with transaction.atomic():
+        with mutate_and_emit():
             self.deleted_at = timezone.now()
             self.save(update_fields=["deleted_at", "updated_at"])
             if was_indexed:

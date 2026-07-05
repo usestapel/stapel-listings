@@ -113,6 +113,11 @@ listings + favorites; `delete`/`anonymize` erase them (emitting
   `moderation.completed`.
 - **Don't bypass the settings namespace** with import-time `os.getenv`, and
   don't skip `transition_to` (it emits the index events).
+- **Don't emit outside the mutation's transaction, and never swallow an emit
+  failure** — every `listing.*` event must commit atomically with the row it
+  describes. Wrap mutation+emit in `stapel_core.comm.mutate_and_emit()` (used
+  by `transition_to`, `delete`, the publish service and the GDPR provider);
+  CI gates this with `python -m stapel_core.lint.emit_check .`.
 
 ## App-layer override vs upstream contribution — rule of thumb
 

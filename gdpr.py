@@ -36,17 +36,24 @@ class ListingsGDPRProvider(GDPRProvider):
         return {"listings": listings, "favorites": favorites}
 
     def delete(self, user_id: int) -> None:
+        from stapel_core.comm import mutate_and_emit
+
         from . import events
         from .models import INDEXED_STATUSES, Favorite, Listing
 
-        # This user's favorites of any listing, plus others' favorites of the
-        # user's listings, both go away with the rows.
-        Favorite.objects.filter(user_id=user_id).delete()
+        # Erasure and its listing.removed events commit as one unit: a crash
+        # mid-erasure must not leave rows deleted with no event (a search
+        # index would keep serving dead listings) nor events for rows that
+        # rolled back.
+        with mutate_and_emit():
+            # This user's favorites of any listing, plus others' favorites of
+            # the user's listings, both go away with the rows.
+            Favorite.objects.filter(user_id=user_id).delete()
 
-        for listing in Listing.all_objects.filter(owner_id=user_id):
-            if listing.status in INDEXED_STATUSES and not listing.is_deleted:
-                events.emit_listing_removed(listing, reason="user_deleted")
-            listing.hard_delete()
+            for listing in Listing.all_objects.filter(owner_id=user_id):
+                if listing.status in INDEXED_STATUSES and not listing.is_deleted:
+                    events.emit_listing_removed(listing, reason="user_deleted")
+                listing.hard_delete()
 
     def anonymize(self, user_id: int) -> None:
         # Listings are owned content erased wholesale on deletion; there is no

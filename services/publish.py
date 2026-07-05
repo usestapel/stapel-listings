@@ -16,8 +16,9 @@ import logging
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
 from django.utils import timezone
+
+from stapel_core.comm import mutate_and_emit
 
 from stapel_attributes import normalize_to_dao, validate_description, validate_dto
 from stapel_attributes.results import ValidationBatchResult, ValidationStatus
@@ -108,7 +109,7 @@ def publish_listing(listing) -> None:
     # The promotion write and the moderation-request emit commit together: a
     # listing must never reach PENDING without the listing.submitted event a
     # moderation module needs (nor emit for a promotion that rolled back).
-    with transaction.atomic():
+    with mutate_and_emit():
         listing.save()
         events.emit_listing_submitted(listing)
         if listings_settings.AUTO_APPROVE_ON_PUBLISH:
