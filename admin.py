@@ -11,8 +11,11 @@ from .models import Favorite, Listing
 
 @admin.register(Listing)
 class ListingAdmin(admin.ModelAdmin):
-    list_display = ("id", "title", "owner_id", "category_id", "status", "moderation_status", "price", "created_at")
-    list_filter = ("status", "moderation_status", "currency")
+    list_display = (
+        "id", "title", "owner_id", "category_id", "status", "moderation_status",
+        "price", "countable", "stock_quantity", "created_at",
+    )
+    list_filter = ("status", "moderation_status", "currency", "countable")
     search_fields = ("id", "title", "category_id")
     readonly_fields = (
         "features", "features_title", "features_badges", "features_search",

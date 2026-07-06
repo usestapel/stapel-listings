@@ -24,6 +24,7 @@ import logging
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils import timezone
 
@@ -32,6 +33,43 @@ from stapel_core.comm import mutate_and_emit
 from .conf import listings_settings
 
 logger = logging.getLogger(__name__)
+
+
+def validate_countable_stock(countable: bool, stock_quantity: int | None) -> None:
+    """Enforce the ``countable`` / ``stock_quantity`` invariant.
+
+    ``countable=True`` (a physical good — the default, matching every listing
+    that existed before this field pair) requires a non-negative
+    ``stock_quantity``; ``countable=False`` (a service — "how many" doesn't
+    apply) requires it to be ``NULL``. Mirrors the DB
+    ``listing_stock_invariant_chk`` constraint on :class:`Listing.Meta`, which
+    is the storage-level backstop for writes that bypass this function
+    (bulk operations, raw SQL, a future admin bulk-action).
+
+    Deliberately **not** wired into ``Listing.save()`` — the lifecycle methods
+    (``transition_to``, ``apply_moderation``) intentionally save a narrow
+    ``update_fields`` list that never touches these two fields, and forcing a
+    full ``full_clean()`` there would validate unrelated fields these methods
+    have no business checking. Called explicitly from ``Listing.clean()`` (so
+    admin/``full_clean()`` callers get it) and from
+    ``ListingDraftSerializer.validate()`` (so the API does).
+    """
+    if countable:
+        if stock_quantity is None:
+            raise ValidationError(
+                {"stock_quantity": "stock_quantity is required when countable is True."}
+            )
+        if stock_quantity < 0:
+            raise ValidationError({"stock_quantity": "stock_quantity must be >= 0."})
+    elif stock_quantity is not None:
+        raise ValidationError(
+            {
+                "stock_quantity": (
+                    "stock_quantity must be empty when countable is False "
+                    "(the listing is a service — a quantity doesn't apply)."
+                )
+            }
+        )
 
 
 class ListingStatus(models.TextChoices):
@@ -176,6 +214,16 @@ class Listing(models.Model):
         max_digits=12, decimal_places=2, null=True, blank=True
     )
 
+    # Inventory: whether "how many" applies at all — False for services
+    # (a haircut, a rental hour) where a quantity is meaningless — and, when it
+    # does, how many units are in stock. Defaults (True / 0) are chosen so a
+    # bare ``Listing(...)`` — every call site that predates this field pair —
+    # lands in the valid "countable good, zero known stock" state rather than
+    # silently reclassifying as a service or inventing a positive count; see
+    # ``validate_countable_stock`` and the migration for the full rationale.
+    countable = models.BooleanField(default=True)
+    stock_quantity = models.PositiveIntegerField(null=True, blank=True, default=0)
+
     # Opaque list of CDN image references (validated/synced by stapel-cdn).
     images = models.JSONField(blank=True, null=True, default=list)
 
@@ -230,9 +278,29 @@ class Listing(models.Model):
             models.Index(fields=["owner", "status"], name="listing_owner_status_idx"),
             models.Index(fields=["category_id", "status"], name="listing_cat_status_idx"),
         ]
+        constraints = [
+            # Backstop for validate_countable_stock() — catches bulk_create,
+            # bulk_update, raw SQL and any other write that skips clean()/the
+            # serializer.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        countable=True,
+                        stock_quantity__isnull=False,
+                        stock_quantity__gte=0,
+                    )
+                    | models.Q(countable=False, stock_quantity__isnull=True)
+                ),
+                name="listing_stock_invariant_chk",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"Listing #{self.pk} ({self.status})"
+
+    def clean(self):
+        super().clean()
+        validate_countable_stock(self.countable, self.stock_quantity)
 
     # -- price_base ---------------------------------------------------------
 

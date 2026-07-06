@@ -4,6 +4,77 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.3.0] — unreleased
+
+New feature (minor bump): a listing now records whether a quantity applies at
+all, and if so, how many units are in stock.
+
+### Added
+- **`Listing.countable` (`BooleanField`, default `True`) and
+  `Listing.stock_quantity` (`PositiveIntegerField`, nullable, default `0`).**
+  Ported gap vs. legacy's `ads.Ad` (neither has an inventory count) and vs. the
+  marketplace domain generally: a listing may be a physical good (countable,
+  needs a quantity) or a service (a haircut, a rental hour — "how many"
+  doesn't apply).
+- **Invariant enforced at three layers**, not just documented:
+  - `stapel_listings.models.validate_countable_stock()` / `Listing.clean()` —
+    `countable=True` requires a non-negative `stock_quantity`; `countable=False`
+    requires it to be `NULL`.
+  - DB `CheckConstraint` `listing_stock_invariant_chk` — the storage-level
+    backstop for writes that skip `clean()` (bulk operations, raw SQL).
+  - `ListingDraftSerializer.validate()` — the API-facing `400`. Cross-field:
+    on a partial `save-draft` PATCH, whichever side of the pair is omitted
+    falls back to the *current instance's* value, so switching `countable`
+    requires sending `stock_quantity` explicitly (`null` to clear it, or a
+    non-negative int) in the same request — a bare `{"countable": false}`
+    against a listing whose `stock_quantity` is still `0` is rejected, by
+    design (no silent guessing about the caller's intent).
+  - No new `error.<status>.*` key was registered: both the model-level and
+    serializer-level messages are plain strings, matching the existing
+    `validate_price_draft` ("Price must be >= 0.") precedent in this same
+    file rather than introducing a bespoke code for a single cross-field
+    check — `stapel_core`'s exception handler already classifies these under
+    the generic `error.400.field.invalid` / `error.400.validation_error`
+    fallback.
+- `countable` / `stock_quantity` added to `ListingDraftSerializer` (writable —
+  no `_draft` twin: unlike title/price/images, stock is operational and
+  adjustable any time without a republish/re-moderation cycle, the same
+  treatment `auto_republish` already gets), `ListingCardSerializer` and
+  `ListingDetailSerializer` (read), and `ListingAdmin.list_display` /
+  `list_filter`.
+
+### Migration notes
+- **Backfill: existing rows become `countable=True`, `stock_quantity=0`.**
+  Neither can be inferred from a category's schema without a live
+  `categories.features` call per row (out of scope for a schema migration,
+  and category-level "is this a service category" isn't a concept this
+  module owns anyway — see MODULE.md). `countable=True` matches every
+  listing's implicit prior semantics (a quantity was simply never asked);
+  `stock_quantity=0` — rather than inventing a positive count or leaving it
+  `NULL` (which would violate the invariant for a `countable=True` row) — is
+  the conservative choice: a pre-existing listing looks "out of stock" until
+  its owner explicitly sets a count, instead of silently claiming unlimited
+  or unknown-but-available stock. Hosts that know some of their existing
+  categories are service-only can follow up with an app-layer data migration
+  flipping those rows to `countable=False, stock_quantity=NULL`.
+- No `AddConstraint` failure risk: the field-add operations (with their
+  defaults) run before the `CheckConstraint` is added in the same migration,
+  so every pre-existing row already satisfies the invariant by the time the
+  constraint is created. Verified against a simulated pre-0.3.0 table with a
+  hand-inserted row (no `countable`/`stock_quantity` columns yet).
+- **Not part of the `listing.submitted` / `listing.published` / `listing.updated`
+  / `listing.removed` event payloads.** Those already omit price/title/images —
+  they carry identity + status + the `features_search` projection only,
+  intentionally minimal for the future stapel-search indexer. Adding the two
+  new fields there would be a scope creep beyond "add the field"; a consumer
+  that needs stock can call `listings.status` (once extended) or a future
+  dedicated Function.
+- **No new filter/search endpoint.** `ListingViewSet` has no query-param
+  filtering surface today (not even by price or category) — search/filter is
+  explicitly stapel-search's job per MODULE.md. An `in_stock` filter would be
+  the first filter added to this module and isn't "consistent with existing
+  filters" because there are none; skipped.
+
 ## [0.2.1] — unreleased
 
 ### Changed

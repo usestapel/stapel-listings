@@ -11,7 +11,22 @@
   **opaque `currency`** code, title/description, price + `price_base`, four
   typed-attribute JSON projections (`features` / `features_title` /
   `features_badges` / `features_search`), soft-delete, generic optional geo
-  fields, and draft twins promoted on publish.
+  fields, an inventory pair (`countable` / `stock_quantity`, below), and draft
+  twins promoted on publish.
+- **Inventory (`countable` / `stock_quantity`)**: a listing may be a physical
+  good (`countable=True`, the default — needs a non-negative
+  `stock_quantity`) or a service (`countable=False` — a haircut, a rental
+  hour; a quantity doesn't apply, so `stock_quantity` must be `NULL`). The
+  invariant is enforced three times — `Listing.clean()` /
+  `validate_countable_stock()` (the source of truth), the DB
+  `listing_stock_invariant_chk` `CheckConstraint` (backstop for writes that
+  skip `clean()`), and `ListingDraftSerializer.validate()` (the API's `400`) —
+  and is unit-editable directly (no `_draft` twin, same treatment as
+  `auto_republish`): stock changes don't need a republish/re-moderation cycle.
+  Existing rows from before this field pair backfill as `countable=True,
+  stock_quantity=0` (see CHANGELOG `[0.3.0]` migration notes for the
+  rationale). **Not** part of the `listing.*` event payloads or any filter —
+  see the boundaries below.
 - **Two state machines**: the listing lifecycle
   (draft→pending→published→{paused,expired,sold,archived,rejected}) with
   guarded transitions, and an independent moderation status

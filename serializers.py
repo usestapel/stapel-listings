@@ -6,6 +6,7 @@ come from stapel-attributes (``get_feature_dto_serializer_class`` /
 types. The draft-write serializer replaces legacy's ~150-line hand-rolled
 per-field validation in the ``save-draft`` view with declarative DRF fields.
 """
+from django.core.exceptions import ValidationError as DjangoValidationError
 from drf_spectacular.extensions import OpenApiSerializerFieldExtension
 from rest_framework import serializers
 
@@ -23,7 +24,7 @@ from .dto import (
     MyCountersResponse,
     PublishResponse,
 )
-from .models import Favorite, Listing, ListingStatus
+from .models import Favorite, Listing, ListingStatus, validate_countable_stock
 
 
 # --- Polymorphic feature fields ------------------------------------------
@@ -93,6 +94,8 @@ class ListingDraftSerializer(serializers.ModelSerializer):
             "geohash_draft",
             "features_draft",
             "auto_republish",
+            "countable",
+            "stock_quantity",
             "status",
             "moderation_status",
             "created_at",
@@ -121,6 +124,35 @@ class ListingDraftSerializer(serializers.ModelSerializer):
                 unique.append(item)
         return unique
 
+    def validate(self, attrs):
+        # Cross-field: countable/stock_quantity may arrive independently (or
+        # not at all, e.g. on a partial save-draft PATCH), so fall back to the
+        # current instance's value for whichever side of the pair is absent
+        # from this request. DRF's ModelSerializer does *not* auto-populate a
+        # missing field with the Django model field's ``default`` on create
+        # (that only happens later, inside ``Model.__init__``) — so on create
+        # the fallback must be the model field default explicitly, not
+        # ``None``, or a bare ``{"category_id": "7"}`` POST would be rejected.
+        if self.instance is not None:
+            countable_default = self.instance.countable
+            stock_quantity_default = self.instance.stock_quantity
+        else:
+            countable_default = Listing._meta.get_field("countable").get_default()
+            stock_quantity_default = Listing._meta.get_field(
+                "stock_quantity"
+            ).get_default()
+
+        countable = attrs.get("countable", countable_default)
+        stock_quantity = attrs.get("stock_quantity", stock_quantity_default)
+        try:
+            validate_countable_stock(countable, stock_quantity)
+        except DjangoValidationError as exc:
+            detail = exc.message_dict if hasattr(exc, "message_dict") else {
+                "stock_quantity": exc.messages
+            }
+            raise serializers.ValidationError(detail) from exc
+        return attrs
+
 
 # --- Read -----------------------------------------------------------------
 
@@ -145,6 +177,8 @@ class ListingCardSerializer(serializers.ModelSerializer):
             "features_badges",
             "location_label",
             "geohash",
+            "countable",
+            "stock_quantity",
             "status",
             "is_favorited",
         ]
@@ -182,6 +216,8 @@ class ListingDetailSerializer(serializers.ModelSerializer):
             "status",
             "moderation_status",
             "auto_republish",
+            "countable",
+            "stock_quantity",
             "published_at",
             "expires_at",
             "created_at",
