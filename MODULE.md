@@ -122,6 +122,33 @@ also driven by the `user.deleted` subscription. `export` returns the user's
 listings + favorites; `delete`/`anonymize` erase them (emitting
 `listing.removed` for indexed rows so a search backend drops them too).
 
+### Admin categories — `@access` declarations (admin-suite AS-5)
+
+Every model in `models.py` carries (or implicitly defaults to) a
+`stapel_core.access.access` category — one declaration, consumed by admin
+visibility, default staff rights, and the audit report (admin-suite §0).
+Undecorated = `business` (visible, staff-manageable) and is the correct,
+zero-effort default for domain tables.
+
+Both models here are `business` and stay undecorated — neither fits `ops`
+(outbox/dedup/audit-log/TTL-junk machinery) or `secret` (token/key/credential
+carriers):
+
+- `Listing` — the module's core domain table; the admin-suite doc's own
+  verbatim `business` example. It holds no secrets (`category_id`, `currency`,
+  `images`, geo fields are opaque references, not credentials) and no
+  service-machinery fields (the state machines are first-class business
+  state staff moderate through, not an internal delivery/audit log).
+- `Favorite` — a first-class user engagement record (the module's own docs
+  frame it as replacing the old `UserAdLike`/`UserAdView` stats caches), not a
+  dedup/idempotency record or TTL-expiring junk: it is durable, user-visible
+  state ("my favorites") staff may need to inspect for abuse/dispute
+  handling, unbounded by any TTL/expiry field.
+
+No decorator changes were made and `admin.py` (`ListingAdmin`,
+`FavoriteAdmin`) is untouched — there is no ops/secret model here to route
+through `StapelModelAdmin`.
+
 ## Anti-patterns
 
 - **Don't fork to change behavior** — every knob above is a seam; a change
