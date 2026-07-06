@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
     "stapel-core>=0.8,<0.9",
-    "stapel-attributes>=0.1,<0.2",
+    "stapel-attributes>=0.3,<0.4",
     "djangorestframework>=3.14",
     "djangorestframework-dataclasses>=1.2",
     "drf-spectacular>=0.27",
