@@ -24,7 +24,7 @@ listings_settings = AppSettings(
         "FEATURE_CONFIG_CACHE_TIMEOUT": 300,
         # --- Pricing (currency is an opaque code; conversion is a seam) ---
         # Base currency code price_base is expressed in.
-        "BASE_CURRENCY": "EUR",
+        "BASE_CURRENCY": "USD",
         # Dotted path to a callable ``(amount: Decimal, currency: str,
         # base: str) -> Decimal`` computing price_base (single strategy,
         # REPLACE). Default is identity (price_base == price); a host with

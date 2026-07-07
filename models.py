@@ -1,6 +1,6 @@
 """Models for stapel-listings.
 
-Ported from legacy-catalog's ``ads`` app (the ``Ad`` model), generalized to a
+Ported from the legacy catalog's ``ads`` app (the ``Ad`` model), generalized to a
 framework-neutral ``Listing`` and decoupled from its sibling services:
 
 - **category is opaque**: ``category_id`` is a plain string, never a FK to
@@ -207,8 +207,8 @@ class Listing(models.Model):
     description = models.TextField(blank=True, default="")
     language = models.CharField(max_length=10, blank=True, default="", db_index=True)
 
-    # Opaque currency code (e.g. "EUR"); no FK to stapel-currencies.
-    currency = models.CharField(max_length=8, default="EUR")
+    # Opaque currency code (e.g. "USD"); no FK to stapel-currencies.
+    currency = models.CharField(max_length=8, default="USD")
     price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     price_base = models.DecimalField(
         max_digits=12, decimal_places=2, null=True, blank=True

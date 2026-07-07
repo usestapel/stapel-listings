@@ -6,8 +6,8 @@
 
 ## What this module provides
 
-- **`Listing`** — the marketplace/catalog vertical core (generalizes legacy's
-  `Ad`): an owner (`AUTH_USER_MODEL`), an **opaque `category_id`** (no FK), an
+- **`Listing`** — the marketplace/catalog vertical core (generalizes the legacy
+  catalog's `Ad`): an owner (`AUTH_USER_MODEL`), an **opaque `category_id`** (no FK), an
   **opaque `currency`** code, title/description, price + `price_base`, four
   typed-attribute JSON projections (`features` / `features_title` /
   `features_badges` / `features_search`), soft-delete, generic optional geo
@@ -78,7 +78,7 @@ of the same name -> environment variable -> default. Read lazily at call time.
 |---|---|---|
 | `CATEGORY_FEATURES_FUNCTION` | `"categories.features"` | Name of the comm Function resolving a category's feature schema (REPLACE — single provider). |
 | `FEATURE_CONFIG_CACHE_TIMEOUT` | `300` | Seconds a resolved feature-config list is memoized. |
-| `BASE_CURRENCY` | `"EUR"` | Currency code `price_base` is expressed in. |
+| `BASE_CURRENCY` | `"USD"` | Currency code `price_base` is expressed in. |
 | `PRICE_BASE_CONVERTER` | `stapel_listings.services.pricing.identity_converter` | Dotted path `(amount, currency, base) -> Decimal` (REPLACE — single strategy). Default is identity; wire to a currencies backend. |
 | `AUTO_APPROVE_ON_PUBLISH` | `False` | Approve+publish immediately instead of waiting for `moderation.completed` (deployments with no moderation module). |
 | `REQUIRE_IMAGE_ON_PUBLISH` | `True` | Whether ≥1 image is required to publish. |
