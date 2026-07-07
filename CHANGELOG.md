@@ -4,7 +4,7 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
-## [0.3.0] — unreleased
+## [0.3.0] - 2026-07-08
 
 New feature (minor bump): a listing now records whether a quantity applies at
 all, and if so, how many units are in stock.
@@ -74,6 +74,12 @@ all, and if so, how many units are in stock.
   explicitly stapel-search's job per MODULE.md. An `in_stock` filter would be
   the first filter added to this module and isn't "consistent with existing
   filters" because there are none; skipped.
+
+### Changed
+- **Default currency is now USD, not EUR** — `Listing.currency`'s model
+  default and `STAPEL_LISTINGS["BASE_CURRENCY"]` both default to `"USD"`.
+  Both remain fully overridable via settings or env, as before; only the
+  default value changed. Includes the migration for the field default.
 
 ## [0.2.1] — unreleased
 
