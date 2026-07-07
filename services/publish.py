@@ -1,6 +1,6 @@
 """Publish workflow: promote a draft to a moderated, indexable listing.
 
-Ported from legacy-catalog ``ads/services/publish_ad.py``, decoupled:
+Ported from the legacy catalog's ``ads/services/publish_ad.py``, decoupled:
 
 - feature configs come from the ``categories.features`` comm Function
   (``category_schema.get_feature_configs``), not a local Feature model;

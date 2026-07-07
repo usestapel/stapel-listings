@@ -12,7 +12,7 @@ all, and if so, how many units are in stock.
 ### Added
 - **`Listing.countable` (`BooleanField`, default `True`) and
   `Listing.stock_quantity` (`PositiveIntegerField`, nullable, default `0`).**
-  Ported gap vs. legacy's `ads.Ad` (neither has an inventory count) and vs. the
+  Ported gap vs. the legacy catalog's `ads.Ad` (neither has an inventory count) and vs. the
   marketplace domain generally: a listing may be a physical good (countable,
   needs a quantity) or a service (a haircut, a rental hour — "how many"
   doesn't apply).
@@ -159,11 +159,11 @@ minor bump.
 
 ## [0.1.0] — unreleased
 
-Initial port of legacy-catalog's `ads` app into a Stapel L2 module — the
+Initial port of the legacy catalog's `ads` app into a Stapel L2 module — the
 marketplace/catalog vertical core.
 
 ### Added
-- **`Listing`** model (generalizes legacy's `Ad`): owner (`AUTH_USER_MODEL`),
+- **`Listing`** model (generalizes the legacy catalog's `Ad`): owner (`AUTH_USER_MODEL`),
   opaque `category_id`, opaque `currency` code, title/description, price +
   `price_base`, the four typed-attribute JSON projections (`features`,
   `features_title`, `features_badges`, `features_search`), soft-delete, generic
@@ -184,7 +184,7 @@ marketplace/catalog vertical core.
   Function — all with JSON schemas in `schemas/`.
 - **GDPR** provider (section `listings`) + `user.deleted` consumer.
 
-### Provenance & decoupling (vs legacy-catalog `ads`)
+### Provenance & decoupling (vs. the legacy catalog `ads`)
 - **Category is opaque**: stores `category_id`, never FKs stapel-categories;
   gets feature configs via the `categories.features` comm Function; subscribes
   to `category.changed` for cache invalidation.

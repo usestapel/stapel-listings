@@ -1,10 +1,10 @@
 """Build the four attribute JSON projections stored on a Listing.
 
-Ported from legacy-catalog ``ads/services/features_builder.py``, generalized:
+Ported from the legacy catalog's ``ads/services/features_builder.py``, generalized:
 
 - inputs are the DAO dict produced by ``stapel_attributes.normalize_to_dao``
   and the category's feature configs (fetched over comm), not ORM Feature rows;
-- ``build_features_search`` is type-generic — the legacy-specific ``size_grid``
+- ``build_features_search`` is type-generic — the legacy catalog's ``size_grid``
   table mapping is gone (that type lives in an app-layer vertical, not here);
   unknown types fall back to extracting their scalar/list ``value``.
 

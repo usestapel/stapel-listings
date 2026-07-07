@@ -9,8 +9,8 @@ Registration happens on import from ``apps.py:ready()``; re-imports are no-ops.
     # -> {"listing_id", "owner_id", "status", "moderation_status",
     #     "is_active", "is_deleted"}
 
-``listings.status`` is the inter-service status probe (replacing legacy's
-``AdStatusSerializer`` "inter-service validation" endpoint): moderation,
+``listings.status`` is the inter-service status probe (replacing the legacy
+catalog's ``AdStatusSerializer`` "inter-service validation" endpoint): moderation,
 reviews and search can check a listing's state without an HTTP round-trip or a
 cross-module import. Raises ``LookupError`` for an unknown listing.
 """

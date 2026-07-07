@@ -3,7 +3,7 @@
 Feature values are polymorphic; their DTO/DAO serializers and OpenAPI schemas
 come from stapel-attributes (``get_feature_dto_serializer_class`` /
 ``get_feature_dao_proxy_serializer``) — this module never re-describes attribute
-types. The draft-write serializer replaces legacy's ~150-line hand-rolled
+types. The draft-write serializer replaces the legacy catalog's ~150-line hand-rolled
 per-field validation in the ``save-draft`` view with declarative DRF fields.
 """
 from django.core.exceptions import ValidationError as DjangoValidationError
