@@ -1,5 +1,8 @@
 # stapel-listings
 
+[![CI](https://github.com/usestapel/stapel-listings/actions/workflows/ci.yml/badge.svg)](https://github.com/usestapel/stapel-listings/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/usestapel/stapel-listings/graph/badge.svg)](https://codecov.io/gh/usestapel/stapel-listings)
+
 Listings and catalog vertical for the [Stapel framework](https://github.com/usestapel) —
 composable Django apps that deploy as a monolith or as microservices without
 changing module code.
