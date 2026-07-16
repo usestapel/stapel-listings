@@ -131,6 +131,8 @@ def publish_listing(listing) -> None:
     listing.location_id = listing.location_id_draft
     listing.location_label = listing.location_label_draft
     listing.geohash = listing.geohash_draft
+    listing.lat = listing.lat_draft
+    listing.lon = listing.lon_draft
     if listing.price_draft is not None:
         listing.price = listing.price_draft
 

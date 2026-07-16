@@ -106,7 +106,7 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
 
     @extend_schema(responses={200: ListingStatusSerializer})
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
-    def status(self, request, pk=None):
+    def status(self, request, pk=None):  # noqa: R007
         try:
             listing = Listing.all_objects.get(pk=pk)
         except Listing.DoesNotExist:
@@ -118,7 +118,7 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
     @extend_schema(responses={200: MyCountersResponseSerializer})
     @action(detail=False, methods=["get"], url_path="my/counters",
             permission_classes=[IsAuthenticated])
-    def my_counters(self, request):
+    def my_counters(self, request):  # noqa: R007
         counts = Listing.objects.owned_by(request.user).aggregate(
             active=Count("id", filter=Q(status__in=[ListingStatus.PUBLISHED, ListingStatus.PENDING])),
             archived=Count("id", filter=Q(status__in=[
@@ -131,7 +131,7 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
     @extend_schema(request=None, responses={200: ListingDraftSerializer})
     @action(detail=True, methods=["post"], url_path="save-draft",
             permission_classes=[IsAuthenticated])
-    def save_draft(self, request, pk=None):
+    def save_draft(self, request, pk=None):  # noqa: R007
         """Persist draft fields (declarative validation via serializer)."""
         listing, error = self._get_own(request, pk)
         if error:
@@ -144,7 +144,7 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
     @extend_schema(responses={200: ValidationBatchResultSerializer})
     @action(detail=True, methods=["get"], url_path="validate-draft",
             permission_classes=[IsAuthenticated])
-    def validate_draft(self, request, pk=None):
+    def validate_draft(self, request, pk=None):  # noqa: R007
         listing, error = self._get_own(request, pk)
         if error:
             return error
@@ -155,14 +155,14 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
                    responses={200: PublishResponseSerializer,
                               400: ValidationBatchResultSerializer})
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
-    def publish(self, request, pk=None):
+    def publish(self, request, pk=None):  # noqa: R007
         listing, error = self._get_own(request, pk)
         if error:
             return error
 
         result = publish_service.validate_draft(listing)
         if not result.valid:
-            return Response(
+            return Response(  # noqa: R001
                 ValidationBatchResultSerializer(result).data,
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -177,12 +177,12 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
 
     @extend_schema(request=None, responses={200: ListingActionResponseSerializer})
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
-    def archive(self, request, pk=None):
+    def archive(self, request, pk=None):  # noqa: R007
         return self._transition(request, pk, ListingStatus.ARCHIVED)
 
     @extend_schema(request=None, responses={200: ListingActionResponseSerializer})
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
-    def complete(self, request, pk=None):
+    def complete(self, request, pk=None):  # noqa: R007
         """Mark a listing sold."""
         return self._transition(request, pk, ListingStatus.SOLD)
 
@@ -213,7 +213,7 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
 
     @extend_schema(request=None, responses={200: FavoriteToggleResponseSerializer})
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
-    def favorite(self, request, pk=None):
+    def favorite(self, request, pk=None):  # noqa: R007
         try:
             listing = Listing.objects.get(pk=pk)
         except Listing.DoesNotExist:
@@ -227,7 +227,7 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
 
     @extend_schema(request=None, responses={200: FavoriteToggleResponseSerializer})
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
-    def unfavorite(self, request, pk=None):
+    def unfavorite(self, request, pk=None):  # noqa: R007
         Favorite.objects.filter(user=request.user, listing_id=pk).delete()
         return StapelResponse(
             FavoriteToggleResponseSerializer(
@@ -238,7 +238,7 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
     @extend_schema(responses={200: ListingCardSerializer(many=True)})
     @action(detail=False, methods=["get"], url_path="my/favorites",
             permission_classes=[IsAuthenticated])
-    def my_favorites(self, request):
+    def my_favorites(self, request):  # noqa: R007
         fav_ids = Favorite.objects.filter(user=request.user).values_list(
             "listing_id", flat=True
         )

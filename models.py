@@ -231,6 +231,10 @@ class Listing(models.Model):
     location_id = models.CharField(max_length=64, blank=True, default="")
     location_label = models.CharField(max_length=255, blank=True, default="")
     geohash = models.CharField(max_length=12, blank=True, default="", db_index=True)
+    # Plain coordinates next to the geohash (§63): nullable, promoted from the
+    # draft twins on publish exactly like geohash/geohash_draft.
+    lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    lon = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
     status = models.CharField(
         max_length=20,
@@ -269,6 +273,8 @@ class Listing(models.Model):
     location_id_draft = models.CharField(max_length=64, blank=True, default="")
     location_label_draft = models.CharField(max_length=255, blank=True, default="")
     geohash_draft = models.CharField(max_length=12, blank=True, default="")
+    lat_draft = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    lon_draft = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

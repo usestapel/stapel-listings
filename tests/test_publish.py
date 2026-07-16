@@ -20,6 +20,33 @@ def test_publish_promotes_draft_fields(draft_listing):
     assert draft_listing.expires_at is not None
 
 
+def test_publish_promotes_lat_lon_with_geohash(draft_listing):
+    """§63: nullable lat/lon ride the same draft->publish promotion as geohash."""
+    from decimal import Decimal
+
+    draft_listing.geohash_draft = "u33dc0cp"
+    draft_listing.lat_draft = Decimal("52.520008")
+    draft_listing.lon_draft = Decimal("13.404954")
+    draft_listing.save()
+
+    publish_service.publish_listing(draft_listing)
+    draft_listing.refresh_from_db()
+
+    assert draft_listing.geohash == "u33dc0cp"
+    assert draft_listing.lat == Decimal("52.520008")
+    assert draft_listing.lon == Decimal("13.404954")
+
+
+def test_publish_lat_lon_default_null_stays_null(draft_listing):
+    """No coordinates in the draft -> published lat/lon stay NULL (nullable canon)."""
+    publish_service.publish_listing(draft_listing)
+    draft_listing.refresh_from_db()
+
+    assert draft_listing.lat is None
+    assert draft_listing.lon is None
+    assert draft_listing.geohash == ""
+
+
 def test_publish_builds_four_projections(draft_listing):
     publish_service.publish_listing(draft_listing)
     draft_listing.refresh_from_db()

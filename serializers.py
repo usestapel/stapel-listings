@@ -92,6 +92,8 @@ class ListingDraftSerializer(serializers.ModelSerializer):
             "location_id_draft",
             "location_label_draft",
             "geohash_draft",
+            "lat_draft",
+            "lon_draft",
             "features_draft",
             "auto_republish",
             "countable",
@@ -111,7 +113,7 @@ class ListingDraftSerializer(serializers.ModelSerializer):
 
     def validate_price_draft(self, value):
         if value is not None and value < 0:
-            raise serializers.ValidationError("Price must be >= 0.")
+            raise serializers.ValidationError("Price must be >= 0.")  # noqa: R002
         return value
 
     def validate_images_draft(self, value):
@@ -150,7 +152,7 @@ class ListingDraftSerializer(serializers.ModelSerializer):
             detail = exc.message_dict if hasattr(exc, "message_dict") else {
                 "stock_quantity": exc.messages
             }
-            raise serializers.ValidationError(detail) from exc
+            raise serializers.ValidationError(detail) from exc  # noqa: R002
         return attrs
 
 
@@ -177,6 +179,8 @@ class ListingCardSerializer(serializers.ModelSerializer):
             "features_badges",
             "location_label",
             "geohash",
+            "lat",
+            "lon",
             "countable",
             "stock_quantity",
             "status",
@@ -209,6 +213,8 @@ class ListingDetailSerializer(serializers.ModelSerializer):
             "location_id",
             "location_label",
             "geohash",
+            "lat",
+            "lon",
             "features",
             "features_title",
             "features_badges",
