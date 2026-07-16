@@ -4,6 +4,13 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.3.3] - 2026-07-17
+
+### Changed
+- `stapel-core` ceiling raised `>=0.10,<0.11` → `>=0.10,<0.12` (core 0.11
+  fleet re-pin: default bus, nav, config-checks, error params/language —
+  additive for modules). Suite green as-is.
+
 ## [0.3.0] - 2026-07-08
 
 New feature (minor bump): a listing now records whether a quantity applies at

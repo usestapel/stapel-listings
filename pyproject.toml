@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-listings"
-version = "0.3.2"
+version = "0.3.3"
 description = "Listings and catalog for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -23,7 +23,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "stapel-core>=0.10,<0.11",
+    "stapel-core>=0.10,<0.12",
     "stapel-attributes>=0.3,<0.4",
     "djangorestframework>=3.14",
     "djangorestframework-dataclasses>=1.2",
