@@ -1,0 +1,77 @@
+{
+  "module": "stapel-listings",
+  "version": "0.3.4",
+  "provides": "Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle, an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, and first-class favorites.",
+  "axes": [
+    {
+      "key": "AUTO_APPROVE_ON_PUBLISH",
+      "kind": "bool",
+      "default": false,
+      "group": "listings.publish",
+      "gates": {
+        "operations": [],
+        "co_gates": [],
+        "behavior": "When on, publish approves and activates a listing immediately instead of waiting for a moderation.completed event (conf.py; MODULE.md 'What this module deliberately does NOT do')."
+      },
+      "curated": {
+        "summary": "Escape hatch for deployments with no stapel-moderation module installed: publish skips the moderation wait and goes live immediately.",
+        "business_label": "Auto-approve listings on publish (no moderation module)"
+      }
+    },
+    {
+      "key": "REQUIRE_IMAGE_ON_PUBLISH",
+      "kind": "bool",
+      "default": true,
+      "group": "listings.publish",
+      "gates": {
+        "operations": [],
+        "co_gates": [],
+        "behavior": "Publish/validate-draft reject a listing with zero image references when on (conf.py)."
+      },
+      "curated": {
+        "summary": "Require at least one image reference before a listing can be published.",
+        "business_label": "Require a photo to publish a listing"
+      }
+    }
+  ],
+  "extension_points": [
+    {
+      "name": "PRICE_BASE_CONVERTER",
+      "kind": "dotted_path",
+      "summary": "Single-strategy REPLACE seam: callable (amount, currency, base) -> Decimal computing price_base. Default is identity; a host with stapel-currencies wires it to a real conversion backend (conf.py, MODULE.md Extension points)."
+    },
+    {
+      "name": "CATEGORY_FEATURES_FUNCTION",
+      "kind": "comm_function_name",
+      "summary": "Name of the comm Function resolving a category's feature schema (default 'categories.features', provided by stapel-categories) — REPLACE, single provider (conf.py, MODULE.md)."
+    },
+    {
+      "name": "AUTH_USER_MODEL",
+      "kind": "swappable_model",
+      "summary": "Standard Django user swap — Listing.owner and Favorite bind to settings.AUTH_USER_MODEL (models.py:197, models.py:480)."
+    },
+    {
+      "name": "serializer_seams",
+      "kind": "class_override",
+      "summary": "ListingViewSet resolves detail_serializer_class / card_serializer_class / draft_serializer_class per action from overridable class attributes; subclass and remount the router to swap any of them (views.py:63-82, MODULE.md Serializer seams)."
+    }
+  ],
+  "operations_total": 16,
+  "requires": [
+    {
+      "module": "stapel-core",
+      "optional": false,
+      "reason": "comm bus (mutate_and_emit/emit/function/call), GDPR provider registry, AUTH_USER_MODEL base (pyproject.toml dependency; apps.py:18, models.py:31, functions.py:20, events.py)"
+    },
+    {
+      "module": "stapel-attributes",
+      "optional": false,
+      "reason": "delegates every attribute value check and DTO->DAO conversion to stapel-attributes' engine (pyproject.toml dependency; serializers.py:13, views.py:18)"
+    },
+    {
+      "module": "stapel-categories",
+      "optional": true,
+      "reason": "comm-only dependency: the categories.features Function provides the category feature schema for value validation; no direct Python import (MODULE.md boundaries: 'this module never imports it')"
+    }
+  ]
+}
