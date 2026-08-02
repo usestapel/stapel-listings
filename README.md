@@ -1,8 +1,11 @@
 # stapel-listings
 
-[![CI](https://github.com/usestapel/stapel-listings/actions/workflows/ci.yml/badge.svg)](https://github.com/usestapel/stapel-listings/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/usestapel/stapel-listings/graph/badge.svg)](https://codecov.io/gh/usestapel/stapel-listings)
-[![PyPI](https://img.shields.io/pypi/v/stapel-listings.svg)](https://pypi.org/project/stapel-listings/)
+[![CI](https://img.shields.io/github/actions/workflow/status/usestapel/stapel-listings/ci.yml?branch=main&logo=github&label=CI)](https://github.com/usestapel/stapel-listings/actions/workflows/ci.yml?query=branch%3Amain)
+[![coverage](https://img.shields.io/codecov/c/github/usestapel/stapel-listings?branch=main&logo=codecov&label=coverage)](https://app.codecov.io/gh/usestapel/stapel-listings)
+[![pypi](https://img.shields.io/pypi/v/stapel-listings?logo=pypi&logoColor=white&label=pypi)](https://pypi.org/project/stapel-listings/)
+[![downloads](https://static.pepy.tech/badge/stapel-listings/month)](https://pepy.tech/project/stapel-listings)
+[![python](https://img.shields.io/pypi/pyversions/stapel-listings?logo=python&logoColor=white)](https://pypi.org/project/stapel-listings/)
+[![license](https://img.shields.io/github/license/usestapel/stapel-listings)](https://github.com/usestapel/stapel-listings/blob/main/LICENSE)
 
 Listings and catalog vertical for the [Stapel framework](https://github.com/usestapel) —
 composable Django apps that deploy as a monolith or as microservices without
