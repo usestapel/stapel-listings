@@ -6,6 +6,7 @@
 [![downloads](https://static.pepy.tech/badge/stapel-listings/month)](https://pepy.tech/project/stapel-listings)
 [![python](https://img.shields.io/pypi/pyversions/stapel-listings?logo=python&logoColor=white)](https://pypi.org/project/stapel-listings/)
 [![license](https://img.shields.io/github/license/usestapel/stapel-listings)](https://github.com/usestapel/stapel-listings/blob/main/LICENSE)
+[![llms.txt](https://img.shields.io/badge/llms.txt-blue)](https://github.com/usestapel/stapel-listings/blob/main/docs/llms.txt)
 
 Listings and catalog vertical for the [Stapel framework](https://github.com/usestapel) —
 composable Django apps that deploy as a monolith or as microservices without
