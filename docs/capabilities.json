@@ -56,6 +56,53 @@
       "summary": "ListingViewSet resolves detail_serializer_class / card_serializer_class / draft_serializer_class per action from overridable class attributes; subclass and remount the router to swap any of them (views.py:63-82, MODULE.md Serializer seams)."
     }
   ],
+  "surface": [
+    {
+      "name": "validate_countable_stock",
+      "kind": "gate_function",
+      "path": "stapel_listings.models.validate_countable_stock",
+      "intent": "Enforce the countable/stock_quantity invariant (a physical good needs a non-negative quantity, a service must carry none) on any write path that bypasses ListingDraftSerializer and Listing.clean() — a bulk operation, a custom admin action, a data migration. Call it first for a clean ValidationError instead of letting the DB's listing_stock_invariant_chk constraint reject the write as an opaque IntegrityError; it is deliberately NOT wired into Listing.save() itself (see the docstring), so nothing enforces it there for you."
+    },
+    {
+      "name": "get_feature_configs",
+      "kind": "gate_function",
+      "path": "stapel_listings.services.category_schema.get_feature_configs",
+      "intent": "Cached, revision-consistent fetch of a category's feature schema via the categories.features comm Function. Call this instead of calling `call(\"categories.features\", ...)` directly and rolling a bespoke cache — the revision-pointer design (M-6) is specifically what stops a concurrent category.changed from re-caching a stale schema under the live key, a race a hand-rolled get/call/set cache would reintroduce.",
+      "instead_of": [
+        "stapel_core.comm.call(\"categories.features\", ...)"
+      ]
+    },
+    {
+      "name": "invalidate",
+      "kind": "gate_function",
+      "path": "stapel_listings.services.category_schema.invalidate",
+      "intent": "Hard reset of the feature-config cache for one category — drops the revision pointer so the next read refetches from categories.features. The tool to reach for from a management shell or an ops runbook when a category.changed event was lost or delayed and validate/publish are visibly serving a stale schema, instead of waiting out FEATURE_CONFIG_CACHE_TIMEOUT."
+    },
+    {
+      "name": "note_changed",
+      "kind": "gate_function",
+      "path": "stapel_listings.services.category_schema.note_changed",
+      "intent": "Advance the feature-config cache's revision pointer for one category. The built-in category.changed subscription (actions.py) already calls this on every event; reach for it directly only when replaying/reconciling category revisions outside that subscription (a backfill job, a custom event pipeline)."
+    },
+    {
+      "name": "is_valid",
+      "kind": "predicate",
+      "path": "stapel_listings.services.publish.is_valid",
+      "intent": "Strict all-clear over a ValidationBatchResult: requires .valid AND every individual result at OK status. Use this rather than reading .valid alone before an automated action (e.g. an auto-approve or bulk-publish pipeline) — a batch can carry .valid=True with a non-OK entry that a human-facing form tolerates but an unattended pipeline should not wave through."
+    },
+    {
+      "name": "publish_listing",
+      "kind": "gate_function",
+      "path": "stapel_listings.services.publish.publish_listing",
+      "intent": "The one function that promotes a validated draft to PENDING, atomically writing every promoted field and emitting listing.submitted (or auto-approving under AUTO_APPROVE_ON_PUBLISH) in one mutate_and_emit() block. Reach for this instead of hand-rolling the draft-to-published field promotion when building a bulk-publish tool, an import job or any second entry point — a promotion that skips this can leave a listing PENDING with no moderation request ever sent."
+    },
+    {
+      "name": "validate_draft",
+      "kind": "gate_function",
+      "path": "stapel_listings.services.publish.validate_draft",
+      "intent": "Structured, machine-readable validation of a listing's draft (category-schema feature values + description length), including the M-7 unknown-slug check that keeps validate-draft and publish agreeing. Call this from any alternate publish UI or workflow that needs a preview validation state instead of re-assembling stapel-attributes' validators and the description-bounds check by hand — it is exactly what the validate-draft and publish views delegate to."
+    }
+  ],
   "operations_total": 16,
   "requires": [
     {
