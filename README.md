@@ -24,7 +24,7 @@ pip install stapel-listings
 
 | Fact | Value |
 |---|---|
-| Version | `0.3.7` |
+| Version | `0.3.8` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | Django | `djangorestframework>=3.14` |
 | HTTP operations | 16 |

@@ -4,6 +4,23 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.3.8] - 2026-08-15
+
+### Fixed
+
+- `stapel-attributes` floor raised from `>=0.3,<0.4` to `>=0.4,<0.5`. The old
+  attributes line caps `stapel-core<0.12`, so stapel-listings could not be
+  installed next to any modern core — `ResolutionImpossible` against every
+  sibling app that requires `core>=0.16`. stapel-categories 0.5.4 fixed the
+  same defect; listings was left behind.
+
+### Changed
+
+- `stapel-core` floor raised from `>=0.10` to `>=0.26.0`, naming the core this
+  app is actually developed and tested against — 0.26.0 is the core whose
+  error registry runs the registry-catalog pairing gate that the deterministic
+  `stapel_attributes` registration in this release exists for.
+
 ## [0.3.7] - 2026-08-02
 
 ### Fixed - `tests/test_contract.py` (added in 0.3.6) needs `stapel-tools` on the release track too
