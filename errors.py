@@ -8,6 +8,13 @@ listing-level keys.
 """
 from stapel_core.django.api.errors import register_service_errors
 
+# stapel-attributes is an embedded (non-app) library: autodiscovery never
+# reaches its errors module, so without this import its 12 feature-validation
+# keys enter the registry only as a side effect of serializer imports —
+# errors.json emission then depends on whether the schema was built first.
+# The embedding app forces the registration deterministically.
+import stapel_attributes.errors  # noqa: F401
+
 ERR_404_LISTING_NOT_FOUND = "error.404.listing_not_found"
 ERR_403_LISTING_NOT_OWNER = "error.403.listing_not_owner"
 ERR_409_LISTING_CANNOT_DELETE_ACTIVE = "error.409.listing_cannot_delete_active"
