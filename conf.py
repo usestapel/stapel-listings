@@ -37,6 +37,12 @@ listings_settings = AppSettings(
         "AUTO_APPROVE_ON_PUBLISH": False,
         # Require at least one image reference to publish.
         "REQUIRE_IMAGE_ON_PUBLISH": True,
+        # The moderation queue is target-generic: its verdicts carry
+        # ``{target_type, target_key}``. This is the target_type a composite
+        # registered listings under — a moderation.completed for any other
+        # target type is not ours and is ignored. Must match the key in the
+        # host's ``STAPEL_MODERATION["TARGET_TYPES"]``.
+        "MODERATION_TARGET_TYPE": "listing",
         # Free-text description length bounds enforced on publish/validate.
         "DESCRIPTION_MIN_LENGTH": 4,
         "DESCRIPTION_MAX_LENGTH": 500,

@@ -82,6 +82,7 @@ class ListingStatus(models.TextChoices):
     EXPIRED = "expired", "Expired"
     SOLD = "sold", "Sold"
     REJECTED = "rejected", "Rejected"
+    BLOCKED = "blocked", "Blocked (moderation takedown)"
     ARCHIVED = "archived", "Archived"
 
 
@@ -108,6 +109,21 @@ LISTING_TRANSITIONS: dict[str, set[str]] = {
         ListingStatus.PAUSED,
         ListingStatus.EXPIRED,
         ListingStatus.SOLD,
+        ListingStatus.BLOCKED,
+        ListingStatus.ARCHIVED,
+    },
+    # Takedown of a live listing. Reachable only from PUBLISHED and only
+    # through ``apply_moderation("rejected")`` — the owner API has no route
+    # here. PUBLISHED is the sole indexed status, so entering BLOCKED emits
+    # ``listing.removed`` and the listing leaves every public read by the one
+    # field that already decides visibility (no second predicate, no
+    # visibility-reads-moderation_status coupling).
+    ListingStatus.BLOCKED: {
+        # Reinstatement after a successful appeal (moderation re-emits
+        # ``moderation.completed`` with decision "approved").
+        ListingStatus.PUBLISHED,
+        # The owner may rework it into a draft or file it away.
+        ListingStatus.DRAFT,
         ListingStatus.ARCHIVED,
     },
     ListingStatus.PAUSED: {
@@ -521,14 +537,23 @@ class Listing(models.Model):
     def apply_moderation(
         self, decision: str, *, note: str = "", auto_publish: bool = True
     ) -> None:
-        """Apply a moderation *decision* to a PENDING listing.
+        """Apply a moderation *decision* to this listing.
 
         ``approved`` -> moderation APPROVED and (if ``auto_publish``) the
-        lifecycle moves PENDING->PUBLISHED; ``rejected`` -> both statuses
-        REJECTED; ``needs_review`` -> moderation NEEDS_REVIEW, lifecycle
-        unchanged.
+        lifecycle moves PENDING->PUBLISHED, or BLOCKED->PUBLISHED when a
+        takedown is reversed on appeal; ``rejected`` -> moderation REJECTED
+        plus the lifecycle move that expresses the verdict — PENDING->REJECTED
+        before publication, PUBLISHED->BLOCKED for a takedown of a live
+        listing; ``needs_review`` -> moderation NEEDS_REVIEW, lifecycle
+        unchanged; ``dismissed`` -> nothing changes (the verdict is about a
+        report, not about this content).
+
+        Every lifecycle move goes through :meth:`transition_to`, so the index
+        events are emitted by the one place that owns them. A takedown that
+        assigned ``status`` directly (as this method used to) left a listing
+        out of the public reads with the search index still serving it.
         """
-        if decision not in ("approved", "rejected", "needs_review"):
+        if decision not in ("approved", "rejected", "needs_review", "dismissed"):
             raise ValueError(f"unknown moderation decision: {decision!r}")
 
         # The moderation write and any resulting lifecycle transition (which
@@ -536,24 +561,31 @@ class Listing(models.Model):
         # moderation_status APPROVED without the listing.published event that a
         # search indexer needs, nor vice versa.
         with transaction.atomic():
+            if decision == "dismissed":
+                return
             if decision == "approved":
                 self.moderation_status = ModerationStatus.APPROVED
                 self.moderation_note = note or ""
                 self.save(
                     update_fields=["moderation_status", "moderation_note", "updated_at"]
                 )
-                if auto_publish and self.status == ListingStatus.PENDING:
+                if auto_publish and self.status in (
+                    ListingStatus.PENDING,
+                    ListingStatus.BLOCKED,
+                ):
                     self.transition_to(ListingStatus.PUBLISHED)
             elif decision == "rejected":
                 self.moderation_status = ModerationStatus.REJECTED
                 self.moderation_note = note or "Content policy violation"
-                if self.status == ListingStatus.PENDING:
-                    self.status = ListingStatus.REJECTED
                 self.save(
-                    update_fields=[
-                        "moderation_status", "moderation_note", "status", "updated_at"
-                    ]
+                    update_fields=["moderation_status", "moderation_note", "updated_at"]
                 )
+                if self.status == ListingStatus.PENDING:
+                    self.transition_to(ListingStatus.REJECTED)
+                elif self.status in INDEXED_STATUSES:
+                    # Takedown of a live listing: leaves the indexed set, so
+                    # transition_to emits listing.removed.
+                    self.transition_to(ListingStatus.BLOCKED)
             else:  # needs_review
                 self.moderation_status = ModerationStatus.NEEDS_REVIEW
                 self.moderation_note = note or "Flagged for manual review"

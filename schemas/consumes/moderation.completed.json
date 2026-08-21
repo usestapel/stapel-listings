@@ -1,16 +1,39 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "moderation.completed",
-  "description": "Consumed from a future stapel-moderation module. Carries the verdict for a submitted listing; listings flips moderation_status and (on approval) publishes. Contract owned by the emitter — the shape below is what listings relies on.",
+  "description": "Consumed from stapel-moderation. Carries the verdict for one moderation target; listings applies it when the target is a listing (flips moderation_status and moves the lifecycle: publish on approval, REJECTED before publication, BLOCKED for a takedown of a live listing). Contract owned by the emitter — the shape below is what listings relies on. TARGET-GENERIC: the emitter is a queue over listings, reviews, profiles and chat messages, so it addresses its targets as {target_type, target_key}; `listing_id` is the pre-0.4 form, still accepted (the emitter may send either) and resolved as target_type=\"listing\". Additional emitter-owned fields (case_id, source, decided_at, evidence bookkeeping) are accepted and ignored — this consumer must not reject a payload because the producer's contract grew.",
   "type": "object",
-  "required": ["listing_id", "decision"],
+  "required": ["decision"],
   "properties": {
-    "listing_id": { "type": "integer" },
+    "case_id": {
+      "type": ["string", "integer"],
+      "description": "Moderation case the verdict closes (emitter's id; not stored here)."
+    },
+    "target_type": {
+      "type": "string",
+      "description": "Kind of moderated target, e.g. \"listing\". Verdicts for other target types are ignored by this module. Matched against STAPEL_LISTINGS['MODERATION_TARGET_TYPE']."
+    },
+    "target_key": {
+      "type": ["string", "integer"],
+      "description": "Opaque key of the target within target_type — the listing's primary key when target_type is \"listing\"."
+    },
+    "listing_id": {
+      "type": ["string", "integer"],
+      "description": "Pre-0.4 alias for target_key with an implied target_type of \"listing\". Accepted for backward compatibility; new emitters send target_type/target_key."
+    },
     "decision": {
       "type": "string",
-      "enum": ["approved", "rejected", "needs_review"]
+      "enum": ["approved", "rejected", "needs_review", "dismissed"],
+      "description": "approved — no violation (publishes a PENDING listing, reinstates a BLOCKED one); rejected — violation (REJECTED before publication, BLOCKED takedown when live); needs_review — the automation abstained; dismissed — the report needed no action, the target is untouched."
     },
-    "note": { "type": "string" }
+    "reason_code": {
+      "type": "string",
+      "description": "Key from the emitter's open reason registry. Recorded in moderation_note when no note is given."
+    },
+    "note": {
+      "type": "string",
+      "description": "Short statement of reasons, stored in moderation_note."
+    }
   },
-  "additionalProperties": false
+  "additionalProperties": true
 }
