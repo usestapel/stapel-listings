@@ -28,9 +28,18 @@
   rationale). **Not** part of the `listing.*` event payloads or any filter —
   see the boundaries below.
 - **Two state machines**: the listing lifecycle
-  (draft→pending→published→{paused,expired,sold,archived,rejected}) with
-  guarded transitions, and an independent moderation status
-  (pending/approved/rejected/needs_review).
+  (draft→pending→published→{paused,expired,sold,blocked,archived,rejected})
+  with guarded transitions, and an independent moderation status
+  (pending/approved/rejected/needs_review). `blocked` is the moderation
+  **takedown** of a live listing: reachable only from `published`, only
+  through `apply_moderation("rejected")`, and — because `published` is the one
+  indexed status — entering it emits `listing.removed` and drops the listing
+  out of every public read through the single field that already decides
+  visibility. A successful appeal moves `blocked → published` again.
+- **`features_search` is derived, never stored by hand**: it is re-derived from
+  `features` on every write that touches the source and on every entry into an
+  indexed status, so a republish from `paused` announces the current
+  projection rather than the one built at the last publish.
 - **A value-validation pipeline** that fetches the category's feature schema
   over comm (`categories.features`) and delegates every check / DTO→DAO
   conversion to **stapel-attributes** — no attribute engine is re-implemented
@@ -44,15 +53,23 @@
 
 ## What this module deliberately does NOT do (boundaries)
 
-- **Search / filtering** is a separate module (**stapel-search**, not built).
-  This module BUILDS the `features_search` projection and emits
-  `listing.published` / `listing.updated` / `listing.removed` for a future
-  indexer, but exposes **no** search or filter endpoints.
+- **Search / filtering** is a separate module (**stapel-search**). This module
+  BUILDS the `features_search` projection, emits `listing.published` /
+  `listing.updated` / `listing.removed` and answers
+  `listings.search_documents` / `listings.search_export` for the indexer, but
+  exposes **no** search or filter endpoints. The events are the *signal*, the
+  Functions are the *document*: event payloads carry identity only, so no
+  listing text, price or PII rides the durable bus to every subscriber, and an
+  indexer never reads this module's database.
 - **Moderation** (LLM pipeline, notice-and-action, auto-approve policy) is a
-  separate module (**stapel-moderation**, not built). This module emits
-  `listing.submitted` and consumes `moderation.completed`; it only applies a
-  verdict, it does not decide one. (`AUTO_APPROVE_ON_PUBLISH` is a
-  minimal-deployment escape hatch, not a moderation policy.)
+  separate module (**stapel-moderation**). This module emits
+  `listing.submitted`, answers `listings.moderation_content` and consumes
+  `moderation.completed`; it only applies a verdict, it does not decide one.
+  (`AUTO_APPROVE_ON_PUBLISH` is a minimal-deployment escape hatch, not a
+  moderation policy.) The verdict topic is **target-generic** — one queue
+  moderates listings, reviews, profiles and chat messages — so a verdict
+  addresses its target as `{target_type, target_key}` and this module applies
+  only the ones whose `target_type` is its `MODERATION_TARGET_TYPE`.
 - **Category schema** lives in **stapel-categories**; this module never imports
   it — it calls the `categories.features` comm Function and caches by revision.
   The cache uses a revision-versioned data key plus a pointer key advanced from
@@ -82,6 +99,8 @@ of the same name -> environment variable -> default. Read lazily at call time.
 | `PRICE_BASE_CONVERTER` | `stapel_listings.services.pricing.identity_converter` | Dotted path `(amount, currency, base) -> Decimal` (REPLACE — single strategy). Default is identity; wire to a currencies backend. |
 | `AUTO_APPROVE_ON_PUBLISH` | `False` | Approve+publish immediately instead of waiting for `moderation.completed` (deployments with no moderation module). |
 | `REQUIRE_IMAGE_ON_PUBLISH` | `True` | Whether ≥1 image is required to publish. |
+| `MODERATION_TARGET_TYPE` | `"listing"` | The `target_type` this module answers to in target-generic `moderation.completed` verdicts (match the host's `STAPEL_MODERATION["TARGET_TYPES"]` key). |
+| `LISTING_URL_TEMPLATE` | `""` | Public URL template formatted with `listing_id`, returned by `listings.moderation_content`. Empty = unknown; this module serves no site of its own and will not guess one. |
 | `DESCRIPTION_MIN_LENGTH` / `DESCRIPTION_MAX_LENGTH` | `4` / `500` | Description length bounds enforced on validate/publish. |
 | `DEFAULT_LISTING_TTL_DAYS` | `30` | Days until a freshly published listing expires (`None` disables). |
 
@@ -106,12 +125,15 @@ attributes; subclass and remount the router to swap any of them.
 | Kind | Name | Payload | Schema |
 |---|---|---|---|
 | Function (provides) | `listings.status` | `{listing_id}` -> `{listing_id, owner_id, status, moderation_status, is_active, is_deleted}` | `schemas/functions/listings.status.json` |
+| Function (provides) | `listings.search_documents` | `{keys:[…]}` -> `{key: {title, description, language, category_id, owner_id, price, currency, price_base, lat, lon, geohash, location_id, location_label, status, moderation_status, features_search, features_title, images, published_at, updated_at}}` — absent key = no document | `schemas/functions/listings.search_documents.json` — **search boundary** |
+| Function (provides) | `listings.search_export` | `{cursor?, limit?}` -> `{rows:[{key, seq, …document}], cursor, total}` — snapshot contract verbatim from `stapel_core.comm.projections._iter_snapshot` | `schemas/functions/listings.search_export.json` — **search boundary** |
+| Function (provides) | `listings.moderation_content` | `{listing_id}` -> `{listing_id, text, title, language, media, author_id, url, status, moderation_status}` | `schemas/functions/listings.moderation_content.json` — **moderation boundary** |
 | Emit (Action) | `listing.submitted` | `{listing_id, owner_id, category_id, title, description, language}` | `schemas/emits/listing.submitted.json` — **moderation boundary** |
 | Emit (Action) | `listing.published` | `{listing_id, owner_id, category_id, status, features_search}` | `schemas/emits/listing.published.json` — **search boundary** |
-| Emit (Action) | `listing.updated` | same as published | `schemas/emits/listing.updated.json` — **search boundary** |
+| Emit (Action) | `listing.updated` | same as published | `schemas/emits/listing.updated.json` — **search boundary**; fires when the content of a listing that IS indexed changes (re-publish of a live listing, or any write of an indexed field on it) |
 | Emit (Action) | `listing.removed` | `{listing_id, owner_id, category_id, status, reason}` | `schemas/emits/listing.removed.json` — **search boundary** |
 | Consume (Action) | `category.changed` | `{category_id, revision}` | `schemas/consumes/category.changed.json` (owned by stapel-categories) |
-| Consume (Action) | `moderation.completed` | `{listing_id, decision, note?}` | `schemas/consumes/moderation.completed.json` (owned by stapel-moderation) |
+| Consume (Action) | `moderation.completed` | `{target_type?, target_key, decision, reason_code?, note?, …}`; `{listing_id}` accepted as the pre-0.4 alias | `schemas/consumes/moderation.completed.json` (owned by stapel-moderation) |
 | Consume (Action) | `user.deleted` | `{user_id, …}` | `schemas/consumes/user.deleted.json` (owned by stapel-auth/gdpr) |
 | Call (depends on) | `categories.features` | `{category_id}` | provided by stapel-categories |
 
@@ -163,7 +185,11 @@ through `StapelModelAdmin`.
 - **Don't run moderation logic here** — emit `listing.submitted`, consume
   `moderation.completed`.
 - **Don't bypass the settings namespace** with import-time `os.getenv`, and
-  don't skip `transition_to` (it emits the index events).
+  don't skip `transition_to` (it emits the index events). Assigning `status`
+  directly is how a takedown used to happen silently.
+- **Don't write `features_search` by hand** — it is derived from `features`
+  (`Listing.rebuild_features_search`). Write the source; the projection
+  follows on save.
 - **Don't emit outside the mutation's transaction, and never swallow an emit
   failure** — every `listing.*` event must commit atomically with the row it
   describes. Wrap mutation+emit in `stapel_core.comm.mutate_and_emit()` (used

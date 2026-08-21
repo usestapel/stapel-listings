@@ -4,6 +4,101 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.4.0] - 2026-08-21
+
+The upstream release that unblocks **stapel-search** and **stapel-moderation**
+(`tasks/stapel-search-design.md` §16.1/§18, `tasks/stapel-moderation-design.md`
+§16.1/§20). Both specs named the same four defects in this module; none of them
+was reachable from a host project without a fork, so all four are fixed here.
+
+### Added
+
+- **`listings.search_documents`** `{keys:[…]}` → `{key: document}` — the keyed
+  batch read of the search seam. The `listing.*` events carry identity only
+  (their payloads are `additionalProperties: false` and deliberately minimal),
+  so an indexer uses the event as a signal and pulls the document over comm
+  rather than reading this module's database — the same shape in a monolith
+  (in-process `call()`) and in a split (over the bus). Decimals travel as
+  strings, datetimes as ISO 8601. A key with no listing — unknown or
+  soft-deleted — is simply absent from the answer, which is how an indexer
+  learns to drop it.
+- **`listings.search_export`** `{cursor, limit}` → `{rows, cursor, total}` —
+  the snapshot read for backfill, rebuild and drift-check, contract verbatim
+  from `stapel_core.comm.projections._iter_snapshot`. Rows carry their source
+  `key`, a `seq` in unix milliseconds (the same unit as
+  `stapel_core.bus.Event.timestamp`, so a snapshot row and a live event for
+  one listing are directly comparable) and the same document body
+  `search_documents` returns. Keyset paging on the primary key.
+- **`listings.moderation_content`** `{listing_id}` → `{listing_id, text,
+  title, language, media, author_id, url, status, moderation_status}` — the
+  moderation seam. The verdict bus carries identifiers only, so a screener
+  reads content through this authorized call at the moment it screens instead
+  of from an event payload that went stale hours ago. Published fields first,
+  draft twins as the fallback.
+- **`blocked` lifecycle state** and the **`published → blocked`** edge —
+  moderation takedown of a live listing. Reachable only from `published` and
+  only through `apply_moderation("rejected")`; the owner API has no route to
+  it. Since `published` is the single indexed status, entering `blocked`
+  removes the listing from every public read through the one field that
+  already decides visibility (no second predicate, no
+  visibility-reads-`moderation_status` coupling) and emits `listing.removed`.
+  `blocked → published` reinstates on a successful appeal;
+  `blocked → {draft, archived}` lets the owner rework or file it away.
+- Settings `MODERATION_TARGET_TYPE` (default `"listing"`) and
+  `LISTING_URL_TEMPLATE` (default `""`).
+
+### Fixed
+
+- **`listing.updated` had zero call sites** — the event was declared, schema'd,
+  documented and emitted by nothing, so every edit of a live listing reached no
+  index at all. It now fires from two places: re-publishing a listing that is
+  currently indexed (the owner-edits-a-live-listing path through
+  `publish_listing`), and any save that actually moves an indexed field on a
+  listing in an indexed status (admin, a script, a data migration). The
+  detection compares against the stored row rather than trusting
+  `update_fields`, because a save-draft on a live listing is a full save that
+  changes no published content — announcing that would be a lie the indexer
+  pays for. Emitted inside `mutate_and_emit()` like every other `listing.*`
+  event: the edit and its announcement commit together or not at all.
+- **`features_search` was rebuilt at exactly one call site** (`publish_listing`),
+  so a `paused → published` republish re-announced the projection built at the
+  last publish, and any other write of `features` left the two disagreeing
+  forever. It is now a *derived* value with one derivation
+  (`build_features_search_from_list`, keyed off the stored `features` DAO
+  list): re-derived on every save that writes `features`, and again on entry
+  into an indexed status, before `listing.published` is emitted.
+- **`apply_moderation("rejected")` bypassed `transition_to`** — it assigned
+  `status` directly, so a rejection emitted no lifecycle event, and a verdict
+  against an already-published listing changed nothing at all: the listing
+  stayed live and indexed with `moderation_status=rejected`. Every lifecycle
+  move now goes through `transition_to`, which owns the index events.
+
+### Changed
+
+- **`schemas/consumes/moderation.completed.json` widened to the target-generic
+  shape.** The moderation queue is one queue over listings, reviews, profiles
+  and chat messages, so a verdict addresses its target as
+  `{target_type, target_key}`; the old schema was `required: ["listing_id"]`
+  with `additionalProperties: false`, which made the integration physically
+  impossible without this release. Now: `required: ["decision"]`,
+  `target_type`/`target_key` understood, **`listing_id` still accepted** as the
+  pre-0.4 alias (a payload with no `target_type` is a listing verdict by
+  construction), emitter-owned extras (`case_id`, `source`, `decided_at`, …)
+  accepted and ignored — a consumer must not reject a payload because the
+  producer's contract grew. `decision` gains `dismissed` (the report needed no
+  action; the target is untouched). Verdicts whose `target_type` is not this
+  module's `MODERATION_TARGET_TYPE` are ignored. `reason_code` is recorded in
+  `moderation_note` when no `note` is sent.
+- `features_search` is no longer writable by hand in any meaningful sense: a
+  save re-derives it from `features`. A row that carried a `features_search`
+  with no corresponding `features` (an impossible state the projection
+  contract never allowed) now normalises to `{}` on its next write.
+
+### Migration
+
+`0005_alter_listing_status` — choices-only `AlterField` adding `blocked`. No
+column change, no data rewrite, no existing row affected.
+
 ## [0.3.8] - 2026-08-15
 
 ### Fixed

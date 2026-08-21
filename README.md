@@ -10,7 +10,7 @@
 [![license](https://img.shields.io/github/license/usestapel/stapel-listings)](https://github.com/usestapel/stapel-listings/blob/main/LICENSE)
 [![llms.txt](https://img.shields.io/badge/llms.txt-blue)](https://github.com/usestapel/stapel-listings/blob/main/docs/llms.txt)
 
-> Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle, an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, and first-class favorites.
+> Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle including the moderation takedown state 'blocked', an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, first-class favorites, and the two pull seams its consumers read it through — listings.search_documents / listings.search_export for an indexer and listings.moderation_content for a moderation queue.
 
 Part of the [Stapel framework](https://github.com/usestapel) — composable Django apps that deploy as a monolith or as microservices without changing module code.
 
@@ -24,13 +24,13 @@ pip install stapel-listings
 
 | Fact | Value |
 |---|---|
-| Version | `0.3.8` |
+| Version | `0.4.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | Django | `djangorestframework>=3.14` |
 | HTTP operations | 16 |
 | Config axes | 2 |
 | Usage surface | 7 |
-| Extension points | 4 |
+| Extension points | 6 |
 | Fleet dependencies | [`stapel-attributes`](https://github.com/usestapel/stapel-attributes) · [`stapel-categories`](https://github.com/usestapel/stapel-categories) (optional) · [`stapel-core`](https://github.com/usestapel/stapel-core) |
 
 ## Documentation
@@ -72,6 +72,8 @@ setting, or env var — resolved lazily). Full table with seam semantics in
 | `PRICE_BASE_CONVERTER` | identity | Dotted-path `(amount, currency, base) -> Decimal`. |
 | `AUTO_APPROVE_ON_PUBLISH` | `False` | Publish immediately when no moderation module is installed. |
 | `REQUIRE_IMAGE_ON_PUBLISH` | `True` | Require ≥1 image to publish. |
+| `MODERATION_TARGET_TYPE` | `"listing"` | `target_type` this module answers to in `moderation.completed`. |
+| `LISTING_URL_TEMPLATE` | `""` | Public URL template (`{listing_id}`) for the moderator's card. |
 | `DEFAULT_LISTING_TTL_DAYS` | `30` | Days until a published listing expires. |
 
 ## comm surface
@@ -79,13 +81,20 @@ setting, or env var — resolved lazily). Full table with seam semantics in
 Emits (Actions): `listing.submitted` (moderation boundary),
 `listing.published` / `listing.updated` / `listing.removed` (search boundary).
 Consumes: `category.changed`, `moderation.completed`, `user.deleted`.
-Provides Function: `listings.status`. Calls: `categories.features`.
+Provides Functions: `listings.status`, `listings.search_documents`,
+`listings.search_export`, `listings.moderation_content`.
+Calls: `categories.features`.
 
-**Boundaries:** search/filtering is a separate **stapel-search** module fed by
-the `listing.*` events (this module builds `features_search` but exposes no
-search endpoints); moderation is a separate **stapel-moderation** module
-(this module emits `listing.submitted` and applies `moderation.completed`, it
-runs no moderation pipeline).
+**Boundaries:** search/filtering is a separate **stapel-search** module; this
+module builds `features_search`, signals with the `listing.*` events and hands
+over the document through `listings.search_documents` (keyed batch) and
+`listings.search_export` (cursor snapshot), but exposes no search endpoints —
+the events carry identity, so no listing content rides the durable bus and no
+indexer reads this database. Moderation is a separate **stapel-moderation**
+module: this module emits `listing.submitted`, serves the content over
+`listings.moderation_content` and applies the target-generic
+`moderation.completed` verdict (including the `published → blocked` takedown),
+but runs no moderation pipeline.
 
 ## Extension points
 

@@ -33,6 +33,8 @@ setting, or env var — resolved lazily). Full table with seam semantics in
 | `PRICE_BASE_CONVERTER` | identity | Dotted-path `(amount, currency, base) -> Decimal`. |
 | `AUTO_APPROVE_ON_PUBLISH` | `False` | Publish immediately when no moderation module is installed. |
 | `REQUIRE_IMAGE_ON_PUBLISH` | `True` | Require ≥1 image to publish. |
+| `MODERATION_TARGET_TYPE` | `"listing"` | `target_type` this module answers to in `moderation.completed`. |
+| `LISTING_URL_TEMPLATE` | `""` | Public URL template (`{listing_id}`) for the moderator's card. |
 | `DEFAULT_LISTING_TTL_DAYS` | `30` | Days until a published listing expires. |
 
 ## comm surface
@@ -40,13 +42,20 @@ setting, or env var — resolved lazily). Full table with seam semantics in
 Emits (Actions): `listing.submitted` (moderation boundary),
 `listing.published` / `listing.updated` / `listing.removed` (search boundary).
 Consumes: `category.changed`, `moderation.completed`, `user.deleted`.
-Provides Function: `listings.status`. Calls: `categories.features`.
+Provides Functions: `listings.status`, `listings.search_documents`,
+`listings.search_export`, `listings.moderation_content`.
+Calls: `categories.features`.
 
-**Boundaries:** search/filtering is a separate **stapel-search** module fed by
-the `listing.*` events (this module builds `features_search` but exposes no
-search endpoints); moderation is a separate **stapel-moderation** module
-(this module emits `listing.submitted` and applies `moderation.completed`, it
-runs no moderation pipeline).
+**Boundaries:** search/filtering is a separate **stapel-search** module; this
+module builds `features_search`, signals with the `listing.*` events and hands
+over the document through `listings.search_documents` (keyed batch) and
+`listings.search_export` (cursor snapshot), but exposes no search endpoints —
+the events carry identity, so no listing content rides the durable bus and no
+indexer reads this database. Moderation is a separate **stapel-moderation**
+module: this module emits `listing.submitted`, serves the content over
+`listings.moderation_content` and applies the target-generic
+`moderation.completed` verdict (including the `published → blocked` takedown),
+but runs no moderation pipeline.
 
 ## Extension points
 

@@ -1,7 +1,7 @@
 {
   "module": "stapel-listings",
-  "version": "0.3.8",
-  "provides": "Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle, an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, and first-class favorites.",
+  "version": "0.4.0",
+  "provides": "Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle including the moderation takedown state 'blocked', an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, first-class favorites, and the two pull seams its consumers read it through — listings.search_documents / listings.search_export for an indexer and listings.moderation_content for a moderation queue.",
   "axes": [
     {
       "key": "AUTO_APPROVE_ON_PUBLISH",
@@ -35,6 +35,16 @@
     }
   ],
   "extension_points": [
+    {
+      "name": "MODERATION_TARGET_TYPE",
+      "kind": "string",
+      "summary": "The target_type this module answers to in target-generic moderation.completed verdicts (default \"listing\"); verdicts for any other target type are ignored. Must match the key a composite registers listings under in STAPEL_MODERATION['TARGET_TYPES'] (conf.py, actions.py)."
+    },
+    {
+      "name": "LISTING_URL_TEMPLATE",
+      "kind": "string",
+      "summary": "Template of a listing's public URL formatted with listing_id, returned by listings.moderation_content so a moderator's card can link to the real page. Empty by default — this module serves no site of its own and returns \"\" rather than guessing one (conf.py, functions.py)."
+    },
     {
       "name": "PRICE_BASE_CONVERTER",
       "kind": "dotted_path",
