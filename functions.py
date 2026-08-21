@@ -13,6 +13,18 @@ Registration happens on import from ``apps.py:ready()``; re-imports are no-ops.
 catalog's ``AdStatusSerializer`` "inter-service validation" endpoint): moderation,
 reviews and search can check a listing's state without an HTTP round-trip or a
 cross-module import. Raises ``LookupError`` for an unknown listing.
+
+The other three answer the two modules that consume listings but must not read
+its database (MODULE.md: "talk over comm by string name"):
+
+- ``listings.search_documents`` / ``listings.search_export`` — the search seam.
+  Events are the signal, these are the document: a keyed batch for live
+  re-indexing and a cursor snapshot for backfill/rebuild/drift-check. Nothing
+  about a search engine leaks in here — this module only says what a listing
+  IS.
+- ``listings.moderation_content`` — the moderation seam. The verdict bus
+  carries identifiers only, so the screener reads content through this call at
+  the moment it screens, not from a six-hour-old event payload.
 """
 import json
 from pathlib import Path
@@ -45,3 +57,19 @@ def status_function(payload: dict) -> dict:
         "is_active": listing.is_active,
         "is_deleted": listing.is_deleted,
     }
+
+
+@function("listings.search_documents", schema=_schema("listings.search_documents"))
+def search_documents_function(payload: dict) -> dict:
+    """Keyed batch of indexable documents: ``{key: {...}}``, absent = no row."""
+    from .services.search_feed import documents_by_keys
+
+    return documents_by_keys(payload.get("keys") or [])
+
+
+@function("listings.search_export", schema=_schema("listings.search_export"))
+def search_export_function(payload: dict) -> dict:
+    """One snapshot page: ``{rows, cursor, total}`` (rebuild/backfill read)."""
+    from .services.search_feed import export_page
+
+    return export_page(payload.get("cursor"), payload.get("limit") or 500)

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "listings.search_documents",
+  "description": "Keyed batch read of indexable listing documents — the pull half of the search seam (the listing.* events carry identity, the document is fetched here). Answers {key: {title, description, language, category_id, owner_id, price, currency, price_base, lat, lon, geohash, location_id, location_label, status, moderation_status, features_search, features_title, images, published_at, updated_at}}; Decimals are strings and datetimes ISO 8601. A key with no listing (unknown or soft-deleted) is absent from the answer.",
+  "type": "object",
+  "required": ["keys"],
+  "properties": {
+    "keys": {
+      "type": "array",
+      "description": "Listing primary keys, as strings or integers.",
+      "items": { "type": ["string", "integer"] }
+    }
+  },
+  "additionalProperties": false
+}

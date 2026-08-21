@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "listings.search_export",
+  "description": "Cursor snapshot of every listing document — the backfill/rebuild read of the search seam. Snapshot contract verbatim from stapel_core.comm.projections._iter_snapshot: {cursor, limit} -> {rows, cursor, total}, each row being {key, seq, ...document} with the same document shape listings.search_documents returns and seq in unix milliseconds (comparable with a bus Event.timestamp). The cursor is opaque to the caller (keyset paging on the primary key); a null cursor in the answer means the snapshot is exhausted.",
+  "type": "object",
+  "properties": {
+    "cursor": {
+      "type": ["string", "integer", "null"],
+      "description": "Opaque page cursor from the previous answer; null/absent starts the snapshot."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Rows per page (default 500, capped at 1000).",
+      "minimum": 1
+    }
+  },
+  "additionalProperties": false
+}
