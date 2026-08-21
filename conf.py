@@ -43,6 +43,12 @@ listings_settings = AppSettings(
         # target type is not ours and is ignored. Must match the key in the
         # host's ``STAPEL_MODERATION["TARGET_TYPES"]``.
         "MODERATION_TARGET_TYPE": "listing",
+        # Template of a listing's public URL, formatted with ``listing_id``
+        # (e.g. "https://example.com/listings/{listing_id}"). Empty = unknown,
+        # and ``listings.moderation_content`` returns "" rather than a guess:
+        # a moderator's card links to the real listing only where the host
+        # said what "real" is. This module serves no public site of its own.
+        "LISTING_URL_TEMPLATE": "",
         # Free-text description length bounds enforced on publish/validate.
         "DESCRIPTION_MIN_LENGTH": 4,
         "DESCRIPTION_MAX_LENGTH": 500,

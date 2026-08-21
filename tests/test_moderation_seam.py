@@ -14,6 +14,7 @@ import pytest
 
 import stapel_listings
 from stapel_listings.models import Listing, ListingStatus, ModerationStatus
+from stapel_listings.services import publish as publish_service
 
 pytestmark = pytest.mark.django_db
 
@@ -262,3 +263,56 @@ def test_failing_removed_emit_rolls_back_the_takedown(live_listing, monkeypatch)
     live_listing.refresh_from_db()
     assert live_listing.status == ListingStatus.PUBLISHED
     assert live_listing.moderation_status == ModerationStatus.APPROVED
+
+
+# --- listings.moderation_content -----------------------------------------
+
+
+def test_moderation_content_of_a_published_listing(draft_listing):
+    from stapel_core.comm import call
+
+    publish_service.publish_listing(draft_listing)
+    draft_listing.apply_moderation("approved")
+
+    content = call("listings.moderation_content", {"listing_id": draft_listing.pk})
+    assert content["title"] == "Toyota Camry"
+    assert content["text"] == "A well kept car in great condition."
+    assert content["media"] == ["product/abc123"]
+    assert content["author_id"] == str(draft_listing.owner_id)
+    assert content["status"] == ListingStatus.PUBLISHED
+    assert content["url"] == ""  # no LISTING_URL_TEMPLATE configured
+
+
+def test_moderation_content_falls_back_to_the_draft(draft_listing):
+    """Pre-publication screening reads the draft that is about to go live."""
+    from stapel_core.comm import call
+
+    content = call("listings.moderation_content", {"listing_id": draft_listing.pk})
+    assert content["title"] == "Toyota Camry"
+    assert content["text"] == "A well kept car in great condition."
+    assert content["media"] == ["product/abc123"]
+
+
+def test_moderation_content_url_from_the_template(draft_listing, settings):
+    from stapel_core.comm import call
+
+    settings.STAPEL_LISTINGS = {
+        "LISTING_URL_TEMPLATE": "https://example.com/l/{listing_id}"
+    }
+    content = call("listings.moderation_content", {"listing_id": draft_listing.pk})
+    assert content["url"] == f"https://example.com/l/{draft_listing.pk}"
+
+
+def test_moderation_content_unknown_listing_raises():
+    from stapel_core.comm import FunctionCallError, call
+
+    with pytest.raises(FunctionCallError):
+        call("listings.moderation_content", {"listing_id": 999999})
+
+
+def test_moderation_content_request_schema_enforced():
+    from stapel_core.comm import call
+    from stapel_core.comm.exceptions import SchemaValidationError
+
+    with pytest.raises(SchemaValidationError):
+        call("listings.moderation_content", {"listing": 1})

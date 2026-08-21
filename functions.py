@@ -73,3 +73,34 @@ def search_export_function(payload: dict) -> dict:
     from .services.search_feed import export_page
 
     return export_page(payload.get("cursor"), payload.get("limit") or 500)
+
+
+@function("listings.moderation_content", schema=_schema("listings.moderation_content"))
+def moderation_content_function(payload: dict) -> dict:
+    """Content of one listing for a screener or a moderator's card.
+
+    Published fields first, draft twins as the fallback: what is live is what
+    is moderated, and a listing still on its way to publication is moderated on
+    the draft that is about to become live.
+    """
+    from .conf import listings_settings
+    from .models import Listing
+
+    listing_id = payload["listing_id"]
+    try:
+        listing = Listing.all_objects.get(pk=listing_id)
+    except (Listing.DoesNotExist, ValueError, TypeError):
+        raise LookupError(f"listing {listing_id} not found") from None
+
+    url_template = listings_settings.LISTING_URL_TEMPLATE or ""
+    return {
+        "listing_id": listing.pk,
+        "title": listing.title or listing.title_draft or "",
+        "text": listing.description or listing.description_draft or "",
+        "language": listing.language or "",
+        "media": list(listing.images or listing.images_draft or []),
+        "author_id": str(listing.owner_id),
+        "url": url_template.format(listing_id=listing.pk) if url_template else "",
+        "status": listing.status,
+        "moderation_status": listing.moderation_status,
+    }

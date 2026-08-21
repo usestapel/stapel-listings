@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "listings.moderation_content",
+  "description": "Content of one listing for moderation screening and the moderator's card. The moderation bus carries identifiers only; the content travels over this authorized call, so it is read fresh at screening time instead of decaying in an event payload. Answers {listing_id, text, title, language, media, author_id, url, status, moderation_status}. Raises LookupError for an unknown listing.",
+  "type": "object",
+  "required": ["listing_id"],
+  "properties": {
+    "listing_id": {
+      "type": ["string", "integer"],
+      "description": "Primary key of the listing whose content is being moderated."
+    }
+  },
+  "additionalProperties": false
+}
