@@ -107,3 +107,192 @@ def test_auto_approve_on_publish_publishes_immediately(draft_listing, settings):
     draft_listing.refresh_from_db()
     assert draft_listing.status == ListingStatus.PUBLISHED
     assert draft_listing.moderation_status == ModerationStatus.APPROVED
+
+
+# --- re-moderation of a LIVE listing rides the moderation axis -----------
+#
+# Before 0.5 a re-publish assigned ``status = pending`` past the FSM: no
+# event, and the listing dropped out of every public read for the duration of
+# re-moderation. The model now: content goes live immediately, only
+# ``moderation_status`` moves, and a rejecting verdict takes it down through
+# the published -> blocked edge that already exists.
+
+
+@pytest.fixture
+def live_listing(draft_listing):
+    """``draft_listing`` published and approved — a listing the public sees."""
+    publish_service.publish_listing(draft_listing)
+    draft_listing.apply_moderation("approved")
+    assert draft_listing.status == ListingStatus.PUBLISHED
+    return draft_listing
+
+
+def _edit(listing, title="Toyota Camry 2019"):
+    listing.title_draft = title
+    listing.save()
+
+
+def test_republish_of_a_live_listing_keeps_it_published(live_listing):
+    from stapel_listings.models import Listing
+
+    _edit(live_listing)
+    publish_service.publish_listing(live_listing)
+    live_listing.refresh_from_db()
+
+    assert live_listing.status == ListingStatus.PUBLISHED
+    assert live_listing.moderation_status == ModerationStatus.PENDING
+    # Visibility is the business status and nothing else: the edit stays in
+    # every public read while re-moderation runs.
+    assert Listing.objects.published().filter(pk=live_listing.pk).exists()
+    assert live_listing.is_active is True
+    assert live_listing.title == "Toyota Camry 2019"
+
+
+def test_republish_of_a_live_listing_emits_updated_and_submitted(
+    live_listing, capture_events
+):
+    """Both facts, once each: the index re-pulls, moderation re-screens."""
+    updated = capture_events("listing.updated")
+    submitted = capture_events("listing.submitted")
+    removed = capture_events("listing.removed")
+    published = capture_events("listing.published")
+
+    _edit(live_listing)
+    publish_service.publish_listing(live_listing)
+
+    assert len(updated) == 1
+    assert len(submitted) == 1
+    # It never left the indexed set, so neither boundary event fires.
+    assert removed == [] and published == []
+    assert updated[0].payload["status"] == ListingStatus.PUBLISHED
+    assert submitted[0].payload["listing_id"] == live_listing.pk
+    assert submitted[0].payload["title"] == "Toyota Camry 2019"
+
+
+def test_republish_intake_carries_the_edited_content(live_listing):
+    """What a screener pulls after the re-publish is the NEW content.
+
+    The intake event carries identity (stapel-moderation ignores its content
+    fields and reads through ``listings.moderation_content`` at screening
+    time), so the guarantee that matters is that the promotion is committed
+    before the moderation request goes out.
+    """
+    from stapel_core.comm import call
+
+    live_listing.title_draft = "Toyota Camry 2019"
+    live_listing.description_draft = "Now with a new description entirely."
+    live_listing.save()
+    publish_service.publish_listing(live_listing)
+
+    content = call("listings.moderation_content", {"listing_id": live_listing.pk})
+    assert content["title"] == "Toyota Camry 2019"
+    assert content["text"] == "Now with a new description entirely."
+    assert content["status"] == ListingStatus.PUBLISHED
+    assert content["moderation_status"] == ModerationStatus.PENDING
+
+
+def test_approving_a_re_moderated_edit_touches_only_the_moderation_axis(
+    live_listing, capture_events
+):
+    published = capture_events("listing.published")
+    removed = capture_events("listing.removed")
+
+    _edit(live_listing)
+    publish_service.publish_listing(live_listing)
+    live_listing.apply_moderation("approved", note="looks fine")
+
+    live_listing.refresh_from_db()
+    assert live_listing.status == ListingStatus.PUBLISHED
+    assert live_listing.moderation_status == ModerationStatus.APPROVED
+    # It was published the whole time — no lifecycle move, no index churn.
+    assert published == [] and removed == []
+
+
+def test_rejecting_a_re_moderated_edit_takes_the_listing_down(
+    live_listing, capture_events
+):
+    from stapel_listings.models import Listing
+
+    removed = capture_events("listing.removed")
+
+    _edit(live_listing, title="Counterfeit Camry")
+    publish_service.publish_listing(live_listing)
+    live_listing.apply_moderation("rejected", note="Counterfeit goods")
+
+    live_listing.refresh_from_db()
+    assert live_listing.status == ListingStatus.BLOCKED
+    assert live_listing.moderation_status == ModerationStatus.REJECTED
+    assert len(removed) == 1
+    assert removed[0].payload["reason"] == ListingStatus.BLOCKED
+    assert not Listing.objects.published().filter(pk=live_listing.pk).exists()
+
+
+def test_rejection_over_the_bus_takes_a_re_moderated_edit_down(
+    live_listing, capture_events
+):
+    """The verdict as stapel-moderation actually delivers it."""
+    from stapel_core.comm import emit
+
+    removed = capture_events("listing.removed")
+    _edit(live_listing)
+    publish_service.publish_listing(live_listing)
+
+    emit(
+        "moderation.completed",
+        {
+            "case_id": "c-9",
+            "target_type": "listing",
+            "target_key": str(live_listing.pk),
+            "decision": "rejected",
+            "reason_code": "illegal_content",
+        },
+    )
+
+    live_listing.refresh_from_db()
+    assert live_listing.status == ListingStatus.BLOCKED
+    assert len(removed) == 1
+
+
+def test_republish_with_auto_approve_stays_published(live_listing, settings):
+    """No moderation module deployed: the edit is live and approved at once."""
+    settings.STAPEL_LISTINGS = {"AUTO_APPROVE_ON_PUBLISH": True}
+    _edit(live_listing)
+    publish_service.publish_listing(live_listing)
+    live_listing.refresh_from_db()
+
+    assert live_listing.status == ListingStatus.PUBLISHED
+    assert live_listing.moderation_status == ModerationStatus.APPROVED
+
+
+def test_first_publish_still_waits_for_the_verdict(draft_listing, capture_events):
+    """Pre-moderation for a listing the public has never seen — unchanged."""
+    from stapel_listings.models import Listing
+
+    updated = capture_events("listing.updated")
+    submitted = capture_events("listing.submitted")
+
+    publish_service.publish_listing(draft_listing)
+    draft_listing.refresh_from_db()
+
+    assert draft_listing.status == ListingStatus.PENDING
+    assert draft_listing.moderation_status == ModerationStatus.PENDING
+    assert not Listing.objects.published().filter(pk=draft_listing.pk).exists()
+    assert updated == []  # nothing was indexed, nothing to update
+    assert len(submitted) == 1
+
+
+def test_republish_of_a_paused_listing_still_goes_to_pending(draft_listing):
+    """Only a listing in an INDEXED status takes the live path.
+
+    A paused listing is invisible either way, so re-publishing it is a first
+    publication again — the pre-0.5 flow, unchanged.
+    """
+    publish_service.publish_listing(draft_listing)
+    draft_listing.apply_moderation("approved")
+    draft_listing.transition_to(ListingStatus.PAUSED)
+
+    _edit(draft_listing)
+    publish_service.publish_listing(draft_listing)
+    draft_listing.refresh_from_db()
+
+    assert draft_listing.status == ListingStatus.PENDING

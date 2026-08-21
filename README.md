@@ -24,7 +24,7 @@ pip install stapel-listings
 
 | Fact | Value |
 |---|---|
-| Version | `0.4.0` |
+| Version | `0.5.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | Django | `djangorestframework>=3.14` |
 | HTTP operations | 16 |
@@ -94,7 +94,10 @@ indexer reads this database. Moderation is a separate **stapel-moderation**
 module: this module emits `listing.submitted`, serves the content over
 `listings.moderation_content` and applies the target-generic
 `moderation.completed` verdict (including the `published → blocked` takedown),
-but runs no moderation pipeline.
+but runs no moderation pipeline. Re-moderating an edit of a **live** listing is
+post-moderation: the lifecycle stays `published`, `moderation_status` goes to
+`pending`, the edit is visible immediately, and a rejecting verdict removes it
+through the takedown edge.
 
 ## Extension points
 

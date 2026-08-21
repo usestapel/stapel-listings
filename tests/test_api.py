@@ -49,6 +49,24 @@ def test_publish_flow(auth_client, draft_listing):
     assert resp.data["status"] == ListingStatus.PENDING
 
 
+def test_republish_of_a_live_listing_answers_published(auth_client, draft_listing):
+    """0.5: the endpoint reports the listing is still live under re-moderation."""
+    from stapel_listings.models import ModerationStatus
+
+    auth_client.post(f"/listings/listings/{draft_listing.pk}/publish/")
+    draft_listing.refresh_from_db()
+    draft_listing.apply_moderation("approved")
+
+    draft_listing.title_draft = "Toyota Camry 2019"
+    draft_listing.save()
+    resp = auth_client.post(f"/listings/listings/{draft_listing.pk}/publish/")
+
+    assert resp.status_code == 200, resp.content
+    assert resp.data["status"] == ListingStatus.PUBLISHED
+    draft_listing.refresh_from_db()
+    assert draft_listing.moderation_status == ModerationStatus.PENDING
+
+
 def test_publish_invalid_returns_validation(auth_client, user, stub_categories):
     listing = Listing.objects.create(
         owner=user, category_id="7", description_draft="ok enough",

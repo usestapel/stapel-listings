@@ -18,7 +18,7 @@
     },
     "publish_listing": {
       "kind": "gate_function",
-      "intent": "The one function that promotes a validated draft to PENDING, atomically writing every promoted field and emitting listing.submitted (or auto-approving under AUTO_APPROVE_ON_PUBLISH) in one mutate_and_emit() block. Reach for this instead of hand-rolling the draft-to-published field promotion when building a bulk-publish tool, an import job or any second entry point — a promotion that skips this can leave a listing PENDING with no moderation request ever sent."
+      "intent": "The one function that promotes a validated draft, atomically writing every promoted field and emitting listing.submitted (or auto-approving under AUTO_APPROVE_ON_PUBLISH) in one mutate_and_emit() block. A first publication goes to PENDING; re-publishing a listing that is already PUBLISHED keeps it published and moves only moderation_status to PENDING (post-moderation — the edit is live at once, a rejecting verdict takes it down through the published→blocked edge). Reach for this instead of hand-rolling the draft-to-published field promotion when building a bulk-publish tool, an import job or any second entry point — a promotion that skips this can leave a listing PENDING with no moderation request ever sent."
     },
     "is_valid": {
       "kind": "predicate",

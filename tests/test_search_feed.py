@@ -256,3 +256,75 @@ def test_features_search_matches_the_publish_time_build(draft_listing):
     assert build_features_search_from_list(draft_listing.features) == (
         draft_listing.features_search
     )
+
+
+# --- re-moderation of a live edit is visible to the index at once --------
+
+
+def test_republished_document_carries_the_edit_and_stays_visible(draft_listing):
+    """0.5: an edit under re-moderation stays IN the index, with new content.
+
+    Before 0.5 the re-publish dropped the listing to ``pending``, so the very
+    document the indexer pulled on the ``listing.updated`` signal said "not
+    indexable" — the listing disappeared from search for the length of the
+    re-moderation. Visibility is read from the document's ``status`` (spec
+    §6/§19.7), and that status is now ``published``.
+    """
+    from stapel_core.comm import call
+
+    publish_service.publish_listing(draft_listing)
+    draft_listing.apply_moderation("approved")
+
+    draft_listing.title_draft = "Toyota Camry 2019"
+    draft_listing.price_draft = "13500.00"
+    draft_listing.features_draft = {
+        "mileage": {"type": "int", "value": 51000},
+        "condition": {"type": "select", "value": ["new"]},
+    }
+    draft_listing.save()
+    publish_service.publish_listing(draft_listing)
+
+    doc = call("listings.search_documents", {"keys": [draft_listing.pk]})[
+        str(draft_listing.pk)
+    ]
+    assert doc["status"] == ListingStatus.PUBLISHED
+    assert doc["moderation_status"] == "pending"
+    assert doc["title"] == "Toyota Camry 2019"
+    assert doc["price"] == "13500.00"
+    # features_search is re-derived on the same write (0.4 freshness rule).
+    assert doc["features_search"] == {"mileage": [51000], "condition": ["new"]}
+
+
+def test_republished_export_row_agrees_with_the_keyed_document(draft_listing):
+    """Rebuild and live pull cannot disagree about a listing under review."""
+    from stapel_core.comm import call
+
+    publish_service.publish_listing(draft_listing)
+    draft_listing.apply_moderation("approved")
+    draft_listing.title_draft = "Toyota Camry 2019"
+    draft_listing.save()
+    publish_service.publish_listing(draft_listing)
+
+    exported = call("listings.search_export", {})["rows"][0]
+    pulled = call("listings.search_documents", {"keys": [draft_listing.pk]})[
+        str(draft_listing.pk)
+    ]
+    assert {k: v for k, v in exported.items() if k not in ("key", "seq")} == pulled
+    assert exported["status"] == ListingStatus.PUBLISHED
+
+
+def test_takedown_after_a_re_moderated_edit_removes_the_document(draft_listing):
+    """The rejecting verdict is what pulls it out — and it says so."""
+    from stapel_core.comm import call
+
+    publish_service.publish_listing(draft_listing)
+    draft_listing.apply_moderation("approved")
+    draft_listing.title_draft = "Counterfeit Camry"
+    draft_listing.save()
+    publish_service.publish_listing(draft_listing)
+    draft_listing.apply_moderation("rejected")
+
+    doc = call("listings.search_documents", {"keys": [draft_listing.pk]})[
+        str(draft_listing.pk)
+    ]
+    assert doc["status"] == ListingStatus.BLOCKED

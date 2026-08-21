@@ -4,6 +4,63 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.5.0] - 2026-08-21
+
+**Behaviour change — editing a published listing no longer hides it.**
+Re-moderation of a live listing rides the moderation axis alone
+(`tasks/classified-v2-architecture.md`, addendum of 2026-08-21). Hosts that
+relied on a re-publish yanking the listing out of the public reads must read
+`moderation_status`, not `status`, for "an edit is under review".
+
+### Changed
+
+- **Re-publishing a `published` listing keeps it `published`.** The owner's
+  edit is promoted and live immediately; only `moderation_status` moves back to
+  `pending`. Previously `publish_listing()` assigned `status = pending` **by
+  direct assignment, past the FSM** — no transition, no event, and the listing
+  silently vanished from `Listing.objects.published()`, from `is_active`, and
+  from every search index for as long as re-moderation took. That was a
+  takedown in all but name, applied *before* anyone had looked at the content,
+  and it was unreachable from a host without a fork. The model is now
+  post-moderation, consistent with `listing.updated` already firing on live
+  edits: content goes live, a verdict can remove it.
+- **A rejecting verdict on a re-moderated edit takes the listing down through
+  the existing `published → blocked` edge** (`apply_moderation("rejected")`,
+  0.4.0), so the removal is expressed by the one field that decides visibility
+  and announces itself with `listing.removed`. An approving verdict returns
+  `moderation_status` to `approved` and touches the lifecycle not at all — no
+  transition, no index churn, no re-emitted `listing.published`.
+- **A re-publish still requests moderation**: `listing.submitted` is emitted
+  after the new content is committed, in the same `mutate_and_emit()` block, so
+  the screener that pulls `listings.moderation_content` reads the *edited*
+  content. stapel-moderation dedupes intake by case state (one open case per
+  target): the event opens a fresh case when the previous one is resolved, or
+  lands as an audited resubmission on a case already open. No intake topic in
+  the fleet carries a content-revision token, so a bus redelivery and a genuine
+  edit stay indistinguishable on the wire by design — the explicit "look again"
+  paths are moderation's `rescan` endpoint and `moderation.submit`.
+- **`listing.updated` for a live re-publish now comes from `Listing.save()`'s
+  own detector** instead of a second, unconditional emit inside
+  `publish_listing()`. One detector owns the fact, it compares the promoted
+  fields against the stored row, and its payload carries `status: "published"`
+  — where the pre-0.5 emit announced `status: "pending"` for a listing the
+  indexer was supposed to keep. A re-publish that moves no indexed field now
+  correctly announces nothing.
+- **`POST /listings/{id}/publish/`** answers `status: "published"` for a live
+  re-publish (it answered `"pending"` before). First publication still answers
+  `"pending"`.
+
+### Unchanged
+
+- **First publication** is still pre-moderation: `draft → pending`, nothing
+  public until the verdict. So is a re-publish from any non-indexed status
+  (`paused`, `expired`, `rejected`, …) — that listing is invisible either way,
+  so it is a first publication again.
+- The 0.4.0 `features_search` freshness rules: the projection is re-derived on
+  the same write that promotes `features`, so the document an indexer pulls
+  right after a re-publish carries the new attribute projection (pinned by
+  tests on both the keyed batch and the export row).
+
 ## [0.4.0] - 2026-08-21
 
 The upstream release that unblocks **stapel-search** and **stapel-moderation**

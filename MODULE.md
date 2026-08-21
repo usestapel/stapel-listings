@@ -36,6 +36,13 @@
   indexed status — entering it emits `listing.removed` and drops the listing
   out of every public read through the single field that already decides
   visibility. A successful appeal moves `blocked → published` again.
+- **Re-moderation of a live listing rides the moderation axis alone**
+  (post-moderation, 0.5.0): re-publishing something already `published` keeps
+  the lifecycle at `published` and moves only `moderation_status → pending`,
+  so the owner's edit is live at once and a rejecting verdict removes it
+  through the `published → blocked` takedown above. First publication is
+  unchanged and stays pre-moderation (`draft → pending`, nothing public until
+  the verdict).
 - **`features_search` is derived, never stored by hand**: it is re-derived from
   `features` on every write that touches the source and on every entry into an
   indexed status, so a republish from `paused` announces the current
@@ -44,7 +51,8 @@
   over comm (`categories.features`) and delegates every check / DTO→DAO
   conversion to **stapel-attributes** — no attribute engine is re-implemented
   here.
-- **Publish service** (draft→pending, projections built, moderation requested)
+- **Publish service** (draft→pending on a first publication, moderation-axis
+  only on a live re-publish; projections built, moderation requested)
   and **favorites** as first-class engagement (the `UserAdLike`/`UserAdView`
   external-stats read-caches are dropped).
 - A comm surface (below) that emits index/moderation events and consumes
@@ -70,6 +78,17 @@
   moderates listings, reviews, profiles and chat messages — so a verdict
   addresses its target as `{target_type, target_key}` and this module applies
   only the ones whose `target_type` is its `MODERATION_TARGET_TYPE`.
+  A **re-publish emits `listing.submitted` again**, after the new content is
+  committed — the event carries identity, so the screener reads the *edited*
+  content through `listings.moderation_content`. What happens on the other
+  side is the moderation module's call, not ours: stapel-moderation dedupes
+  by case state (one open case per target), so the intake either opens a fresh
+  case (the previous one is resolved) or lands as an audited resubmission on
+  the case already open, re-screening only one that was never screened. No
+  intake topic in the fleet carries a content-revision token, so a redelivery
+  and a genuine edit are indistinguishable on the wire by design (see
+  stapel-moderation `MODULE.md`); the explicit "look again" paths are its
+  `rescan` endpoint and the `moderation.submit` Function.
 - **Category schema** lives in **stapel-categories**; this module never imports
   it — it calls the `categories.features` comm Function and caches by revision.
   The cache uses a revision-versioned data key plus a pointer key advanced from

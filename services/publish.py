@@ -109,11 +109,25 @@ def publish_listing(listing) -> None:
     Raises ``django.core.exceptions.ValidationError`` when the draft is invalid
     or (per policy) an image is missing.
 
-    Re-publishing a listing that is currently indexed (an owner editing a live
-    listing) additionally emits ``listing.updated``: the published title,
-    description, price, images, geo and every attribute projection are
-    overwritten right here, so a search index that only ever hears
-    ``listing.published`` would keep serving the previous content.
+    **First publication** (any non-indexed status) is the pre-moderation path
+    it has always been: lifecycle -> PENDING, moderation -> PENDING, nothing
+    public until a verdict arrives.
+
+    **Re-publishing a LIVE listing** — an owner editing something already
+    published — is post-moderation and rides the moderation axis alone: the
+    lifecycle stays PUBLISHED, ``moderation_status`` goes back to PENDING, and
+    the edit is visible immediately. Before this, ``publish_listing`` assigned
+    ``status = PENDING`` directly (past the FSM, so no event at all), and the
+    listing silently vanished from ``Listing.objects.published()`` and from
+    every search index for as long as re-moderation took — a takedown in all
+    but name, applied before anyone had looked at the content. A rejecting
+    verdict now lands where takedowns already land: ``apply_moderation
+    ("rejected")`` -> PUBLISHED -> BLOCKED, which emits ``listing.removed``.
+
+    The ``listing.updated`` an index needs for the new content is emitted by
+    ``Listing.save()`` itself (it compares the promoted fields against the
+    stored row), so a re-publish that moves no indexed field announces
+    nothing — one detector, no second call site that could disagree with it.
     """
     was_indexed = listing.status in INDEXED_STATUSES
     configs = category_schema.get_feature_configs(listing.category_id)
@@ -153,24 +167,30 @@ def publish_listing(listing) -> None:
         listing.expires_at = timezone.now() + timedelta(days=int(ttl_days))
     listing.expiry_notification_sent = False
 
-    listing.status = ListingStatus.PENDING
+    if not was_indexed:
+        # First publication: nothing is public yet, so the lifecycle waits for
+        # the verdict. A live listing keeps its status — see the docstring.
+        listing.status = ListingStatus.PENDING
     listing.moderation_status = ModerationStatus.PENDING
     listing.moderation_note = ""
 
     from .. import events
 
     # The promotion write and the moderation-request emit commit together: a
-    # listing must never reach PENDING without the listing.submitted event a
-    # moderation module needs (nor emit for a promotion that rolled back).
+    # listing must never reach moderation PENDING without the
+    # listing.submitted event a moderation module needs (nor emit for a
+    # promotion that rolled back). ``save()`` raises its own listing.updated
+    # inside this block when the promoted content actually moved on a live
+    # listing; it joins the same transaction.
     with mutate_and_emit():
         listing.save()
-        if was_indexed:
-            events.emit_listing_updated(listing)
         events.emit_listing_submitted(listing)
         if listings_settings.AUTO_APPROVE_ON_PUBLISH:
             listing.apply_moderation("approved", note="auto-approved (no moderation module)")
 
-    logger.info("listing %s submitted for moderation", listing.pk)
+    logger.info(
+        "listing %s submitted for moderation (status %s)", listing.pk, listing.status
+    )
 
 
 def is_valid(result: ValidationBatchResult) -> bool:
