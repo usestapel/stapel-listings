@@ -30,9 +30,11 @@ def test_publish_emits_submitted_matching_schema(draft_listing, capture_events):
 
 def test_published_payload_carries_search_projection(user, capture_events):
     published = capture_events("listing.published")
+    # features_search is DERIVED from features — the listing carries the source
+    # projection, and entering the index re-derives the search one from it.
     listing = Listing.objects.create(
         owner=user, category_id="7", status=ListingStatus.PENDING,
-        features_search={"mileage": [42000]},
+        features=[{"slug": "mileage", "type": "int", "value": 42000}],
     )
     listing.transition_to(ListingStatus.PUBLISHED)
     jsonschema.validate(published[0].payload, _schema("emits", "listing.published"))

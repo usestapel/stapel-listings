@@ -129,6 +129,33 @@ LISTING_TRANSITIONS: dict[str, set[str]] = {
 # set emits ``listing.published``; leaving it emits ``listing.removed``.
 INDEXED_STATUSES: frozenset[str] = frozenset({ListingStatus.PUBLISHED})
 
+# Fields that are part of the document an indexer holds. A save that writes any
+# of them on a listing that IS in an indexed status emits ``listing.updated``
+# (``Listing.save``) — the event exists so a search index can re-pull, and it
+# has to fire wherever the content actually moves, not only where someone
+# remembered to call the emitter.
+INDEXED_CONTENT_FIELDS: frozenset[str] = frozenset(
+    {
+        "title",
+        "description",
+        "language",
+        "category_id",
+        "price",
+        "currency",
+        "price_base",
+        "images",
+        "location_id",
+        "location_label",
+        "geohash",
+        "lat",
+        "lon",
+        "features",
+        "features_title",
+        "features_badges",
+        "features_search",
+    }
+)
+
 
 class TransitionError(Exception):
     """Raised when a lifecycle transition is not permitted."""
@@ -332,6 +359,10 @@ class Listing(models.Model):
             )
             return None
 
+    # Set by the paths that own their own index event (``transition_to``
+    # emits published/removed itself) so one write never produces two.
+    _skip_updated_emit = False
+
     def save(self, *args, **kwargs):
         # Keep price_base in sync unless the caller manages update_fields
         # without touching price.
@@ -339,10 +370,94 @@ class Listing(models.Model):
         if update_fields is None or "price" in update_fields or "price_base" in update_fields:
             self.price_base = self.compute_price_base()
             if update_fields is not None and "price_base" not in update_fields:
-                kwargs["update_fields"] = list(update_fields) + ["price_base"]
+                update_fields = list(update_fields) + ["price_base"]
+                kwargs["update_fields"] = update_fields
         if self.status == ListingStatus.PUBLISHED and self.published_at is None:
             self.published_at = timezone.now()
-        super().save(*args, **kwargs)
+
+        # ``features_search`` is DERIVED from ``features`` — re-derive it on
+        # every write that touches the source, not only in publish_listing()
+        # (a projection rebuilt at exactly one call site is a projection that
+        # goes stale everywhere else).
+        if not self._skip_updated_emit and self._touches(update_fields, {"features"}):
+            if self.rebuild_features_search() and update_fields is not None:
+                update_fields = list(update_fields) + ["features_search"]
+                kwargs["update_fields"] = update_fields
+
+        emit_updated = (
+            not self._skip_updated_emit
+            and not self._state.adding
+            and self.status in INDEXED_STATUSES
+            and self._indexed_content_changed(update_fields)
+        )
+        if not emit_updated:
+            super().save(*args, **kwargs)
+            return
+
+        from . import events
+
+        # Same rule as transition_to/delete: the row and the event a search
+        # index reacts to commit together or not at all.
+        with mutate_and_emit():
+            super().save(*args, **kwargs)
+            events.emit_listing_updated(self)
+
+    @staticmethod
+    def _touches(update_fields, names: set[str] | frozenset[str]) -> bool:
+        """Whether a save with *update_fields* may write any of *names*.
+
+        ``update_fields=None`` is a full-row write — it may write anything.
+        """
+        return update_fields is None or bool(names & set(update_fields))
+
+    def _indexed_content_changed(self, update_fields) -> bool:
+        """Whether this save actually moves a field an index holds.
+
+        Compares against the stored row rather than trusting ``update_fields``:
+        a full save (``update_fields=None``) is the normal shape of a
+        *draft* write — the API's save-draft on a live listing goes through it
+        — and announcing a content change for a draft keystroke would be a
+        lie the indexer pays for. Costs one extra SELECT, and only on a save
+        that could plausibly change the document: an indexed listing whose
+        write reaches at least one indexed field.
+
+        Values are normalised through each field's ``to_python`` before the
+        comparison so a ``Decimal`` from the database and the equivalent
+        string an API write leaves on the instance are not read as a change.
+        """
+        candidates = INDEXED_CONTENT_FIELDS
+        if update_fields is not None:
+            candidates = INDEXED_CONTENT_FIELDS & set(update_fields)
+        if not candidates:
+            return False
+
+        stored = (
+            type(self)
+            .all_objects.filter(pk=self.pk)
+            .values(*sorted(candidates))
+            .first()
+        )
+        if stored is None:  # first write of this row — nothing to diverge from
+            return False
+
+        for name in candidates:
+            field = self._meta.get_field(name)
+            if field.to_python(stored[name]) != field.to_python(getattr(self, name)):
+                return True
+        return False
+
+    def rebuild_features_search(self) -> bool:
+        """Re-derive ``features_search`` from ``features``; True if it moved.
+
+        Does not save — callers fold the field into their own write.
+        """
+        from .services.features import build_features_search_from_list
+
+        rebuilt = build_features_search_from_list(self.features)
+        if rebuilt == (self.features_search or {}):
+            return False
+        self.features_search = rebuilt
+        return True
 
     # -- lifecycle state machine -------------------------------------------
 
@@ -357,6 +472,11 @@ class Listing(models.Model):
         Emits ``listing.published`` when entering an indexed status and
         ``listing.removed`` when leaving one, so a future stapel-search
         indexer stays in sync without this module knowing it exists.
+
+        Entering an indexed status re-derives ``features_search`` first: a
+        PAUSED -> PUBLISHED republish used to re-announce the projection built
+        at the last publish, so an index fed by that event was stale by
+        construction.
 
         The status write and the outbox emit share one
         ``stapel_core.comm.mutate_and_emit()`` block: they commit together or
@@ -381,8 +501,18 @@ class Listing(models.Model):
             self.status = new_status
             if new_status == ListingStatus.PUBLISHED and self.published_at is None:
                 self.published_at = timezone.now()
+            fields = ["status", "published_at", "updated_at"]
+            if now_indexed:
+                self.rebuild_features_search()
+                fields.append("features_search")
             if save:
-                self.save(update_fields=["status", "published_at", "updated_at"])
+                # This method owns the index event for this write; suppress
+                # save()'s own listing.updated so one transition is one event.
+                self._skip_updated_emit = True
+                try:
+                    self.save(update_fields=fields)
+                finally:
+                    self._skip_updated_emit = False
             if now_indexed and not was_indexed:
                 events.emit_listing_published(self)
             elif was_indexed and not now_indexed:

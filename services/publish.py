@@ -30,7 +30,7 @@ from stapel_attributes import validate_dto_structured
 
 from ..conf import listings_settings
 from ..errors import ERR_400_FEATURE_NOT_ALLOWED
-from ..models import ListingStatus, ModerationStatus
+from ..models import INDEXED_STATUSES, ListingStatus, ModerationStatus
 from . import category_schema
 from .features import (
     build_features_badges,
@@ -108,7 +108,14 @@ def publish_listing(listing) -> None:
 
     Raises ``django.core.exceptions.ValidationError`` when the draft is invalid
     or (per policy) an image is missing.
+
+    Re-publishing a listing that is currently indexed (an owner editing a live
+    listing) additionally emits ``listing.updated``: the published title,
+    description, price, images, geo and every attribute projection are
+    overwritten right here, so a search index that only ever hears
+    ``listing.published`` would keep serving the previous content.
     """
+    was_indexed = listing.status in INDEXED_STATUSES
     configs = category_schema.get_feature_configs(listing.category_id)
     features_draft = listing.features_draft or {}
 
@@ -157,6 +164,8 @@ def publish_listing(listing) -> None:
     # moderation module needs (nor emit for a promotion that rolled back).
     with mutate_and_emit():
         listing.save()
+        if was_indexed:
+            events.emit_listing_updated(listing)
         events.emit_listing_submitted(listing)
         if listings_settings.AUTO_APPROVE_ON_PUBLISH:
             listing.apply_moderation("approved", note="auto-approved (no moderation module)")

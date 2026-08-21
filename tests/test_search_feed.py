@@ -13,6 +13,7 @@ construction before 0.4:
 import json
 from pathlib import Path
 
+import jsonschema
 import pytest
 
 import stapel_listings
@@ -133,3 +134,125 @@ def test_search_export_defaults_to_the_first_page(user):
     Listing.objects.create(owner=user, category_id="7")
     page = call("listings.search_export", {})
     assert page["cursor"] is None and page["total"] == 1
+
+
+# --- listing.updated now has a live call site ----------------------------
+
+
+def test_editing_a_published_listing_emits_updated(draft_listing, capture_events):
+    """The defect: re-publishing a LIVE listing reached no index at all."""
+    updated = capture_events("listing.updated")
+
+    publish_service.publish_listing(draft_listing)
+    draft_listing.apply_moderation("approved")
+    assert draft_listing.status == ListingStatus.PUBLISHED
+    assert updated == []
+
+    draft_listing.title_draft = "Toyota Camry 2019"
+    draft_listing.description_draft = "Now with a new description entirely."
+    draft_listing.save()
+    publish_service.publish_listing(draft_listing)
+
+    assert len(updated) == 1
+    jsonschema.validate(updated[0].payload, _schema("emits", "listing.updated"))
+    assert updated[0].payload["listing_id"] == draft_listing.pk
+    draft_listing.refresh_from_db()
+    assert draft_listing.title == "Toyota Camry 2019"
+
+
+def test_first_publish_of_a_draft_emits_no_updated(draft_listing, capture_events):
+    """listing.submitted covers the first publication — nothing was indexed."""
+    updated = capture_events("listing.updated")
+    publish_service.publish_listing(draft_listing)
+    assert updated == []
+
+
+def test_direct_content_write_on_a_live_listing_emits_updated(user, capture_events):
+    """Any write path, not only the publish service: admin, script, migration."""
+    updated = capture_events("listing.updated")
+    listing = Listing.objects.create(
+        owner=user, category_id="7", status=ListingStatus.PENDING, title="Old"
+    )
+    listing.transition_to(ListingStatus.PUBLISHED)
+    assert updated == []
+
+    listing.title = "New"
+    listing.save(update_fields=["title", "updated_at"])
+    assert len(updated) == 1
+
+
+def test_status_only_write_on_a_live_listing_emits_no_updated(user, capture_events):
+    """A transition owns its own event — one write must not raise two."""
+    updated = capture_events("listing.updated")
+    published = capture_events("listing.published")
+    listing = Listing.objects.create(
+        owner=user, category_id="7", status=ListingStatus.PENDING
+    )
+    listing.transition_to(ListingStatus.PUBLISHED)
+    assert len(published) == 1 and updated == []
+
+
+def test_failing_updated_emit_rolls_back_the_edit(user, monkeypatch):
+    """Same atomicity rule as every other listing.* event."""
+    from stapel_listings import events
+
+    listing = Listing.objects.create(
+        owner=user, category_id="7", status=ListingStatus.PENDING, title="Old"
+    )
+    listing.transition_to(ListingStatus.PUBLISHED)
+
+    def boom(_listing):
+        raise RuntimeError("bus down")
+
+    monkeypatch.setattr(events, "emit_listing_updated", boom)
+    listing.title = "New"
+    with pytest.raises(RuntimeError):
+        listing.save(update_fields=["title", "updated_at"])
+
+    listing.refresh_from_db()
+    assert listing.title == "Old"
+
+
+# --- features_search is derived, not built once --------------------------
+
+
+def test_republish_from_paused_carries_a_fresh_projection(draft_listing, capture_events):
+    """paused -> published used to re-announce the projection built at publish."""
+    published = capture_events("listing.published")
+
+    publish_service.publish_listing(draft_listing)
+    draft_listing.apply_moderation("approved")
+    draft_listing.transition_to(ListingStatus.PAUSED)
+
+    # Something changed the attribute projection while the listing was paused.
+    draft_listing.features = [
+        {"slug": "mileage", "type": "int", "value": 51000},
+        {"slug": "condition", "type": "select", "value": ["new"]},
+    ]
+    draft_listing.save(update_fields=["features", "updated_at"])
+
+    draft_listing.transition_to(ListingStatus.PUBLISHED)
+
+    assert published[-1].payload["features_search"] == {
+        "mileage": [51000],
+        "condition": ["new"],
+    }
+
+
+def test_features_search_is_re_derived_on_any_write_of_features(user):
+    listing = Listing.objects.create(owner=user, category_id="7")
+    listing.features = [{"slug": "mileage", "type": "int", "value": 7}]
+    listing.save(update_fields=["features", "updated_at"])
+
+    listing.refresh_from_db()
+    assert listing.features_search == {"mileage": [7]}
+
+
+def test_features_search_matches_the_publish_time_build(draft_listing):
+    """The two derivations — publish-time DAO dict and stored list — agree."""
+    from stapel_listings.services.features import build_features_search_from_list
+
+    publish_service.publish_listing(draft_listing)
+    assert build_features_search_from_list(draft_listing.features) == (
+        draft_listing.features_search
+    )

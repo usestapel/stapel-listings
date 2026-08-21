@@ -90,6 +90,27 @@ def build_features_badges(features_list: List[Dict[str, Any]]) -> List[Dict[str,
     return [dao for dao in features_list if dao.get("badge") is True]
 
 
+def build_features_search_from_list(
+    features_list: List[Dict[str, Any]] | None,
+) -> Dict[str, List[Any]]:
+    """``{slug: [searchable values]}`` from the stored ``features`` DAO list.
+
+    The same projection as :func:`build_features_search`, keyed off the
+    published ``features`` list instead of the transient publish-time DAO
+    dict — so ``features_search`` can be re-derived at any moment (a republish
+    from PAUSED, an edit of a live listing) without re-running validation or
+    re-fetching the category schema. ``features_search`` is a *derived* value;
+    this is the derivation, and it has exactly one definition.
+    """
+    return build_features_search(
+        {
+            str(dao.get("slug")): dao
+            for dao in (features_list or [])
+            if isinstance(dao, dict) and dao.get("slug")
+        }
+    )
+
+
 def build_features_search(
     features_dao_dict: Dict[str, Dict[str, Any]],
 ) -> Dict[str, List[Any]]:
