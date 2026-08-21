@@ -4,6 +4,48 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.6.0] - 2026-08-22
+
+**This module now emits its own contract triad.** `docs/schema.json`,
+`docs/flows.json` and `docs/errors.json` did not exist before this release —
+the Makefile said so out loud (`Makefile:12`, superseded below) — which
+blocked the react codegen pipeline (`gen:api`/`gen:errors`/`gen:manifest`)
+for any `-react` pair generated against this module
+(darom-storefront-design.md §1.8, §3.10, A1).
+
+### Added
+
+- `_codegen.py` + `_codegen_settings.py` + `codegen_urls.py`: a
+  single-module `{listings + core}` Django harness that emits
+  `docs/{schema,flows,errors}.json` at the canonical `/listings/api/v1`
+  prefix, the same mechanism stapel-search/-chat/-forms already use.
+  `make contract` / `make contract-check` now cover the triad, not just
+  `docs/llms.txt` + README.md.
+- `docs/schema.json` (12 paths), `docs/flows.json` (`[]` — no `@flow` is
+  declared yet, same state as every other contract-complete module today),
+  `docs/errors.json` (63 keys: 9 owned by this module, the rest inherited
+  from stapel-core/stapel-attributes).
+- `tests/test_contract.py`: every mounted route is described in
+  `docs/schema.json`; every `STAPEL_LISTINGS_ERRORS` code and every
+  stapel-attributes validation code the publish path can raise is declared
+  with the correct `owner`.
+
+### Changed
+
+- `ListingCardSerializer.images` / `ListingDetailSerializer.images` are now
+  declared as `serializers.ListField(child=CharField())` instead of falling
+  back to `ModelSerializer`'s untyped JSONField mapping — the schema now
+  says `array[string]` (opaque `<type>/<hash>` CDN refs, same shape as the
+  already-typed `images_draft`) instead of an unstructured blob. Response
+  bytes are unchanged; only the declared OpenAPI type is.
+- `docs/readme.md`: the quick-start mount snippet corrected to
+  `path("listings/api/", include("stapel_listings.urls"))` — this module's
+  own `urls.py` bakes in only `v1/`, the host contributes `api/`, exactly
+  the recipe stapel-example-monolith already uses for its siblings. Plus a
+  documented, deliberate gap: `features_search` stays a bare `object` in the
+  schema (a per-category flattened index with no fixed key set — see the
+  README "Contract" section).
+
 ## [0.5.0] - 2026-08-21
 
 **Behaviour change — editing a published listing no longer hides it.**

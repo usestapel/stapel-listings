@@ -162,6 +162,15 @@ class ListingDraftSerializer(serializers.ModelSerializer):
 class ListingCardSerializer(serializers.ModelSerializer):
     """Compact card projection for lists."""
 
+    # Published twin of `images_draft` — same shape (opaque CDN refs,
+    # `<type>/<hash>`, models.py "Opaque list of CDN image references"), but
+    # ModelSerializer has no source override for it, so without this explicit
+    # declaration it falls back to a bare untyped JSONField in the OpenAPI
+    # schema (contract-pipeline.md A1 — typed where typeable, no free-form
+    # blob for something that is, in fact, `list[str]`).
+    images = serializers.ListField(
+        child=serializers.CharField(), read_only=True, allow_null=True
+    )
     features_title = ListingFeaturesOutputField(read_only=True)
     features_badges = ListingFeaturesOutputField(read_only=True)
     is_favorited = serializers.BooleanField(read_only=True, allow_null=True)
@@ -191,9 +200,20 @@ class ListingCardSerializer(serializers.ModelSerializer):
 class ListingDetailSerializer(serializers.ModelSerializer):
     """Full listing detail."""
 
+    # See ListingCardSerializer.images — same fix, same reason.
+    images = serializers.ListField(
+        child=serializers.CharField(), read_only=True, allow_null=True
+    )
     features = ListingFeaturesOutputField(read_only=True)
     features_title = ListingFeaturesOutputField(read_only=True)
     features_badges = ListingFeaturesOutputField(read_only=True)
+    # NOT typed further on purpose (A1 delta note, docs/readme.md): this is a
+    # flattened per-category search index (mileage_int, condition_select,
+    # ... — one dynamic key per feature slug, keyed and shaped by whatever
+    # category schema this listing happens to carry). There is no fixed
+    # property set to declare, so `object` is the honest schema, not a gap to
+    # "fix" — a oneOf over every live category's feature set would go stale
+    # the moment a category adds a feature.
     features_search = serializers.JSONField(read_only=True)
     is_favorited = serializers.BooleanField(read_only=True, allow_null=True)
 

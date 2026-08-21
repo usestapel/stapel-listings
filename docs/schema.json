@@ -1,0 +1,2223 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "",
+    "version": "0.0.0"
+  },
+  "paths": {
+    "/listings/api/v1/listings/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_list",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "parameters": [
+          {
+            "name": "anchor",
+            "required": false,
+            "in": "query",
+            "description": "Anchor value to paginate from (exclusive)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direction",
+            "required": false,
+            "in": "query",
+            "description": "Pagination direction",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "next",
+                "prev",
+                "center"
+              ],
+              "default": "next"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items (default 100, max 1000)",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedListingCardList"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "post": {
+        "operationId": "listings_api_v1_listings_create",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "tags": [
+          "Listings"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingDraft"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingDraft"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingDraft"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_retrieve",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingDetail"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "put": {
+        "operationId": "listings_api_v1_listings_update",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingDraft"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingDraft"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingDraft"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "patch": {
+        "operationId": "listings_api_v1_listings_partial_update",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedListingDraft"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedListingDraft"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedListingDraft"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingDraft"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "delete": {
+        "operationId": "listings_api_v1_listings_destroy",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/archive/": {
+      "post": {
+        "operationId": "listings_api_v1_listings_archive_create",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingActionResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/complete/": {
+      "post": {
+        "operationId": "listings_api_v1_listings_complete_create",
+        "description": "Mark a listing sold.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingActionResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/favorite/": {
+      "post": {
+        "operationId": "listings_api_v1_listings_favorite_create",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FavoriteToggleResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/publish/": {
+      "post": {
+        "operationId": "listings_api_v1_listings_publish_create",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationBatchResult"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/save-draft/": {
+      "post": {
+        "operationId": "listings_api_v1_listings_save_draft_create",
+        "description": "Persist draft fields (declarative validation via serializer).\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingDraft"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/status/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_status_retrieve",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `AllowAny`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingStatus"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/unfavorite/": {
+      "post": {
+        "operationId": "listings_api_v1_listings_unfavorite_create",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FavoriteToggleResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/validate-draft/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_validate_draft_retrieve",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationBatchResult"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/my/counters/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_my_counters_retrieve",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
+        "tags": [
+          "Listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCountersResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/my/favorites/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_my_favorites_list",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "name": "anchor",
+            "required": false,
+            "in": "query",
+            "description": "Anchor value to paginate from (exclusive)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direction",
+            "required": false,
+            "in": "query",
+            "description": "Pagination direction",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "next",
+                "prev",
+                "center"
+              ],
+              "default": "next"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items (default 100, max 1000)",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedListingCardList"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BoolDao": {
+        "type": "object",
+        "description": "Serializer for boolean feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/TypeE3eEnum"
+          },
+          "value": {
+            "type": "boolean"
+          },
+          "trueLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "falseLabel": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "BoolDto": {
+        "type": "object",
+        "description": "Serializer for boolean feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/TypeE3eEnum"
+          },
+          "value": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ConvertibleUnitDao": {
+        "type": "object",
+        "description": "Serializer for convertible-unit feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/Type104Enum"
+          },
+          "value": {
+            "type": "number",
+            "format": "double"
+          },
+          "unitType": {
+            "type": "string",
+            "nullable": true
+          },
+          "unit_m": {
+            "type": "string",
+            "nullable": true
+          },
+          "unit_i": {
+            "type": "string",
+            "nullable": true
+          },
+          "precision": {
+            "type": "integer",
+            "nullable": true
+          },
+          "prefix": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ConvertibleUnitDto": {
+        "type": "object",
+        "description": "Serializer for convertible-unit feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/Type104Enum"
+          },
+          "value": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "unit": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "DateDao": {
+        "type": "object",
+        "description": "Serializer for date feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/Type37eEnum"
+          },
+          "value": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "DateDto": {
+        "type": "object",
+        "description": "Serializer for date feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/Type37eEnum"
+          },
+          "value": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "DeleteResponse": {
+        "type": "object",
+        "description": "Result of a (soft) delete.",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "deleted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deleted",
+          "success"
+        ]
+      },
+      "ErrorEnum": {
+        "enum": [
+          "below_minimum",
+          "above_maximum",
+          "not_in_options",
+          "invalid_type",
+          "invalid_format",
+          "mandatory_missing",
+          "duplicate_slug",
+          "unknown_feature_type",
+          "not_allowed",
+          "unknown_feature",
+          "description_too_short",
+          "description_too_long",
+          "invalid_config",
+          "min_greater_than_max",
+          "empty_options"
+        ],
+        "type": "string",
+        "description": "* `below_minimum` - below_minimum\n* `above_maximum` - above_maximum\n* `not_in_options` - not_in_options\n* `invalid_type` - invalid_type\n* `invalid_format` - invalid_format\n* `mandatory_missing` - mandatory_missing\n* `duplicate_slug` - duplicate_slug\n* `unknown_feature_type` - unknown_feature_type\n* `not_allowed` - not_allowed\n* `unknown_feature` - unknown_feature\n* `description_too_short` - description_too_short\n* `description_too_long` - description_too_long\n* `invalid_config` - invalid_config\n* `min_greater_than_max` - min_greater_than_max\n* `empty_options` - empty_options"
+      },
+      "FavoriteToggleResponse": {
+        "type": "object",
+        "description": "Result of favoriting / unfavoriting a listing.",
+        "properties": {
+          "favorited": {
+            "type": "boolean"
+          },
+          "listing_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "favorited",
+          "listing_id"
+        ]
+      },
+      "FeatureDao": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/IntDao"
+          },
+          {
+            "$ref": "#/components/schemas/FloatDao"
+          },
+          {
+            "$ref": "#/components/schemas/StringDao"
+          },
+          {
+            "$ref": "#/components/schemas/BoolDao"
+          },
+          {
+            "$ref": "#/components/schemas/HexColorDao"
+          },
+          {
+            "$ref": "#/components/schemas/SelectDao"
+          },
+          {
+            "$ref": "#/components/schemas/DateDao"
+          },
+          {
+            "$ref": "#/components/schemas/HeaderDao"
+          },
+          {
+            "$ref": "#/components/schemas/HierarchicalSelectDao"
+          },
+          {
+            "$ref": "#/components/schemas/ConvertibleUnitDao"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "null": "#/components/schemas/ConvertibleUnitDao"
+          }
+        }
+      },
+      "FeatureDto": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/IntDto"
+          },
+          {
+            "$ref": "#/components/schemas/FloatDto"
+          },
+          {
+            "$ref": "#/components/schemas/StringDto"
+          },
+          {
+            "$ref": "#/components/schemas/BoolDto"
+          },
+          {
+            "$ref": "#/components/schemas/HexColorDto"
+          },
+          {
+            "$ref": "#/components/schemas/SelectDto"
+          },
+          {
+            "$ref": "#/components/schemas/DateDto"
+          },
+          {
+            "$ref": "#/components/schemas/HeaderDto"
+          },
+          {
+            "$ref": "#/components/schemas/HierarchicalSelectDto"
+          },
+          {
+            "$ref": "#/components/schemas/ConvertibleUnitDto"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "null": "#/components/schemas/ConvertibleUnitDto"
+          }
+        }
+      },
+      "FeatureValidationResult": {
+        "type": "object",
+        "description": "Serializer for FeatureValidationResult.",
+        "properties": {
+          "id": {
+            "nullable": true
+          },
+          "slug": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FeatureValidationResultStatusEnum"
+          },
+          "error": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ErrorEnum"
+              },
+              {
+                "$ref": "#/components/schemas/NullEnum"
+              }
+            ]
+          },
+          "ref_value": {
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "localizable_error": {
+            "type": "string",
+            "nullable": true
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "required": [
+          "slug",
+          "status"
+        ]
+      },
+      "FeatureValidationResultStatusEnum": {
+        "enum": [
+          "ok",
+          "validation_failed"
+        ],
+        "type": "string",
+        "description": "* `ok` - ok\n* `validation_failed` - validation_failed"
+      },
+      "FloatDao": {
+        "type": "object",
+        "description": "Serializer for float feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/TypeD7cEnum"
+          },
+          "value": {
+            "type": "number",
+            "format": "double"
+          },
+          "prefix": {
+            "type": "string",
+            "nullable": true
+          },
+          "postfix": {
+            "type": "string",
+            "nullable": true
+          },
+          "postfix1000": {
+            "type": "string",
+            "nullable": true
+          },
+          "precision": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "FloatDto": {
+        "type": "object",
+        "description": "Serializer for float feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/TypeD7cEnum"
+          },
+          "value": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "HeaderDao": {
+        "type": "object",
+        "description": "Serializer for header feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/Type3feEnum"
+          },
+          "style": {
+            "$ref": "#/components/schemas/StyleEnum"
+          }
+        }
+      },
+      "HeaderDto": {
+        "type": "object",
+        "description": "Serializer for header feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/Type3feEnum"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "HexColorDao": {
+        "type": "object",
+        "description": "Serializer for hex color feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/Type515Enum"
+          },
+          "simple": {
+            "type": "string"
+          },
+          "hex": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "HexColorDto": {
+        "type": "object",
+        "description": "Serializer for hex color feature DTO.",
+        "properties": {
+          "value": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HexColorValue"
+              }
+            ],
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/Type515Enum"
+          }
+        }
+      },
+      "HexColorValue": {
+        "type": "object",
+        "description": "Serializer for hex color value.",
+        "properties": {
+          "simple": {
+            "type": "string"
+          },
+          "hex": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "simple"
+        ]
+      },
+      "HierarchicalSelectDao": {
+        "type": "object",
+        "description": "Serializer for hierarchical select feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/Type5beEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "HierarchicalSelectDto": {
+        "type": "object",
+        "description": "Serializer for hierarchical select feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/Type5beEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "IntDao": {
+        "type": "object",
+        "description": "Serializer for integer feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/TypeC1bEnum"
+          },
+          "value": {
+            "type": "integer"
+          },
+          "prefix": {
+            "type": "string",
+            "nullable": true
+          },
+          "postfix": {
+            "type": "string",
+            "nullable": true
+          },
+          "postfix1000": {
+            "type": "string",
+            "nullable": true
+          },
+          "precision": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "IntDto": {
+        "type": "object",
+        "description": "Serializer for integer feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/TypeC1bEnum"
+          },
+          "value": {
+            "type": "integer"
+          }
+        }
+      },
+      "ListingActionResponse": {
+        "type": "object",
+        "description": "Result of a lifecycle action (archive, complete/sold).",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "success"
+        ]
+      },
+      "ListingCard": {
+        "type": "object",
+        "description": "Compact card projection for lists.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "price": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$"
+          },
+          "price_base": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 8
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "readOnly": true,
+            "nullable": true
+          },
+          "features_title": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureDao"
+            },
+            "readOnly": true
+          },
+          "features_badges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureDao"
+            },
+            "readOnly": true
+          },
+          "location_label": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "geohash": {
+            "type": "string",
+            "maxLength": 12
+          },
+          "lat": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "lon": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "countable": {
+            "type": "boolean"
+          },
+          "stock_quantity": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "format": "int64",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusD41Enum"
+          },
+          "is_favorited": {
+            "type": "boolean",
+            "readOnly": true,
+            "nullable": true
+          }
+        },
+        "required": [
+          "features_badges",
+          "features_title",
+          "id",
+          "images",
+          "is_favorited"
+        ]
+      },
+      "ListingDetail": {
+        "type": "object",
+        "description": "Full listing detail.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "owner": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "category_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "maxLength": 10
+          },
+          "price": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$"
+          },
+          "price_base": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 8
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "readOnly": true,
+            "nullable": true
+          },
+          "location_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "location_label": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "geohash": {
+            "type": "string",
+            "maxLength": 12
+          },
+          "lat": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "lon": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureDao"
+            },
+            "readOnly": true
+          },
+          "features_title": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureDao"
+            },
+            "readOnly": true
+          },
+          "features_badges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureDao"
+            },
+            "readOnly": true
+          },
+          "features_search": {
+            "readOnly": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusD41Enum"
+          },
+          "moderation_status": {
+            "$ref": "#/components/schemas/ModerationStatusEnum"
+          },
+          "auto_republish": {
+            "type": "boolean"
+          },
+          "countable": {
+            "type": "boolean"
+          },
+          "stock_quantity": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "format": "int64",
+            "nullable": true
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "is_favorited": {
+            "type": "boolean",
+            "readOnly": true,
+            "nullable": true
+          }
+        },
+        "required": [
+          "category_id",
+          "created_at",
+          "features",
+          "features_badges",
+          "features_search",
+          "features_title",
+          "id",
+          "images",
+          "is_favorited",
+          "owner",
+          "updated_at"
+        ]
+      },
+      "ListingDraft": {
+        "type": "object",
+        "description": "Create/update the draft twin fields.\n\nAll user-editable content is a ``*_draft`` field promoted on publish.\nDRF's declarative field validation (max_length, decimal bounds, types)\nreplaces the source view's hand-rolled per-field checks.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "category_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 8
+          },
+          "language": {
+            "type": "string",
+            "maxLength": 10
+          },
+          "title_draft": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "description_draft": {
+            "type": "string"
+          },
+          "price_draft": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "images_draft": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "location_id_draft": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "location_label_draft": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "geohash_draft": {
+            "type": "string",
+            "maxLength": 12
+          },
+          "lat_draft": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "lon_draft": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "features_draft": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FeatureDto"
+            },
+            "nullable": true
+          },
+          "auto_republish": {
+            "type": "boolean"
+          },
+          "countable": {
+            "type": "boolean"
+          },
+          "stock_quantity": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "format": "int64",
+            "nullable": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StatusD41Enum"
+              }
+            ],
+            "readOnly": true
+          },
+          "moderation_status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModerationStatusEnum"
+              }
+            ],
+            "readOnly": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          }
+        },
+        "required": [
+          "category_id",
+          "created_at",
+          "id",
+          "moderation_status",
+          "status",
+          "updated_at"
+        ]
+      },
+      "ListingStatus": {
+        "type": "object",
+        "description": "Lightweight status view (mirrors the listings.status comm Function).",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/StatusD41Enum"
+          },
+          "moderation_status": {
+            "type": "string"
+          },
+          "is_deleted": {
+            "type": "boolean"
+          },
+          "is_expired": {
+            "type": "boolean"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "owner_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "is_active",
+          "is_deleted",
+          "is_expired",
+          "moderation_status",
+          "owner_id",
+          "status"
+        ]
+      },
+      "ModerationStatusEnum": {
+        "enum": [
+          "pending",
+          "approved",
+          "rejected",
+          "needs_review"
+        ],
+        "type": "string",
+        "description": "* `pending` - Pending Review\n* `approved` - Approved\n* `rejected` - Rejected\n* `needs_review` - Needs Manual Review"
+      },
+      "MyCountersResponse": {
+        "type": "object",
+        "description": "Listing counts by tab for the current user.",
+        "properties": {
+          "active": {
+            "type": "integer"
+          },
+          "archived": {
+            "type": "integer"
+          },
+          "drafts": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "active",
+          "archived",
+          "drafts"
+        ]
+      },
+      "NullEnum": {
+        "enum": [
+          null
+        ]
+      },
+      "PaginatedListingCardList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ListingCard"
+            }
+          },
+          "next_anchor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Anchor value for next page"
+          },
+          "prev_anchor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Anchor value for previous page"
+          },
+          "has_next": {
+            "type": "boolean",
+            "description": "Whether there are more items after this page"
+          },
+          "has_prev": {
+            "type": "boolean",
+            "description": "Whether there are items before this page"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of items in current page"
+          }
+        },
+        "required": [
+          "items",
+          "has_next",
+          "has_prev",
+          "count"
+        ]
+      },
+      "PatchedListingDraft": {
+        "type": "object",
+        "description": "Create/update the draft twin fields.\n\nAll user-editable content is a ``*_draft`` field promoted on publish.\nDRF's declarative field validation (max_length, decimal bounds, types)\nreplaces the source view's hand-rolled per-field checks.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "category_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 8
+          },
+          "language": {
+            "type": "string",
+            "maxLength": 10
+          },
+          "title_draft": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "description_draft": {
+            "type": "string"
+          },
+          "price_draft": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "images_draft": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "location_id_draft": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "location_label_draft": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "geohash_draft": {
+            "type": "string",
+            "maxLength": 12
+          },
+          "lat_draft": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "lon_draft": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "features_draft": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FeatureDto"
+            },
+            "nullable": true
+          },
+          "auto_republish": {
+            "type": "boolean"
+          },
+          "countable": {
+            "type": "boolean"
+          },
+          "stock_quantity": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "format": "int64",
+            "nullable": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StatusD41Enum"
+              }
+            ],
+            "readOnly": true
+          },
+          "moderation_status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModerationStatusEnum"
+              }
+            ],
+            "readOnly": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          }
+        }
+      },
+      "PublishResponse": {
+        "type": "object",
+        "description": "Result of publishing a listing.",
+        "properties": {
+          "published": {
+            "type": "boolean"
+          },
+          "listing_id": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "listing_id",
+          "published",
+          "status"
+        ]
+      },
+      "SelectDao": {
+        "type": "object",
+        "description": "Serializer for select feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/Type63eEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "uiStyle": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UiStyleEnum"
+              },
+              {
+                "$ref": "#/components/schemas/NullEnum"
+              }
+            ]
+          },
+          "maxSelected": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "SelectDto": {
+        "type": "object",
+        "description": "Serializer for select feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/Type63eEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "StatusD41Enum": {
+        "enum": [
+          "draft",
+          "pending",
+          "published",
+          "paused",
+          "expired",
+          "sold",
+          "rejected",
+          "blocked",
+          "archived"
+        ],
+        "type": "string",
+        "description": "* `draft` - Draft\n* `pending` - Pending Moderation\n* `published` - Published\n* `paused` - Paused\n* `expired` - Expired\n* `sold` - Sold\n* `rejected` - Rejected\n* `blocked` - Blocked (moderation takedown)\n* `archived` - Archived"
+      },
+      "StringDao": {
+        "type": "object",
+        "description": "Serializer for string feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/Type839Enum"
+          },
+          "value": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string",
+            "nullable": true
+          },
+          "postfix": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "StringDto": {
+        "type": "object",
+        "description": "Serializer for string feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/Type839Enum"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "StyleEnum": {
+        "enum": [
+          "l",
+          "m"
+        ],
+        "type": "string",
+        "description": "* `l` - l\n* `m` - m"
+      },
+      "Type104Enum": {
+        "enum": [
+          "convertible_unit"
+        ],
+        "type": "string",
+        "description": "* `convertible_unit` - convertible_unit"
+      },
+      "Type37eEnum": {
+        "enum": [
+          "date"
+        ],
+        "type": "string",
+        "description": "* `date` - date"
+      },
+      "Type3feEnum": {
+        "enum": [
+          "header"
+        ],
+        "type": "string",
+        "description": "* `header` - header"
+      },
+      "Type515Enum": {
+        "enum": [
+          "hex_color"
+        ],
+        "type": "string",
+        "description": "* `hex_color` - hex_color"
+      },
+      "Type5beEnum": {
+        "enum": [
+          "hierarchical_select"
+        ],
+        "type": "string",
+        "description": "* `hierarchical_select` - hierarchical_select"
+      },
+      "Type63eEnum": {
+        "enum": [
+          "select"
+        ],
+        "type": "string",
+        "description": "* `select` - select"
+      },
+      "Type839Enum": {
+        "enum": [
+          "string"
+        ],
+        "type": "string",
+        "description": "* `string` - string"
+      },
+      "TypeC1bEnum": {
+        "enum": [
+          "int"
+        ],
+        "type": "string",
+        "description": "* `int` - int"
+      },
+      "TypeD7cEnum": {
+        "enum": [
+          "float"
+        ],
+        "type": "string",
+        "description": "* `float` - float"
+      },
+      "TypeE3eEnum": {
+        "enum": [
+          "bool"
+        ],
+        "type": "string",
+        "description": "* `bool` - bool"
+      },
+      "UiStyleEnum": {
+        "enum": [
+          "dropdown",
+          "checkboxes",
+          "chips"
+        ],
+        "type": "string",
+        "description": "* `dropdown` - dropdown\n* `checkboxes` - checkboxes\n* `chips` - chips"
+      },
+      "ValidationBatchResult": {
+        "type": "object",
+        "description": "Serializer for ValidationBatchResult.",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureValidationResult"
+            }
+          }
+        },
+        "required": [
+          "results",
+          "valid"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "JWTCookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "stapel_jwt",
+        "description": "JWT token stored in cookie. Login via /auth/admin/ to get the cookie."
+      }
+    }
+  }
+}

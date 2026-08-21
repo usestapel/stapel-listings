@@ -24,18 +24,19 @@ pip install stapel-listings
 
 | Fact | Value |
 |---|---|
-| Version | `0.5.0` |
+| Version | `0.6.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | Django | `djangorestframework>=3.14` |
 | HTTP operations | 16 |
 | Config axes | 2 |
 | Usage surface | 7 |
 | Extension points | 6 |
+| Error codes | 63 |
 | Fleet dependencies | [`stapel-attributes`](https://github.com/usestapel/stapel-attributes) · [`stapel-categories`](https://github.com/usestapel/stapel-categories) (optional) · [`stapel-core`](https://github.com/usestapel/stapel-core) |
 
 ## Documentation
 
-[capabilities.json](https://github.com/usestapel/stapel-listings/blob/main/docs/capabilities.json) · [llms.txt (for agents)](https://github.com/usestapel/stapel-listings/blob/main/docs/llms.txt)
+[OpenAPI](https://github.com/usestapel/stapel-listings/blob/main/docs/schema.json) · [capabilities.json](https://github.com/usestapel/stapel-listings/blob/main/docs/capabilities.json) · [llms.txt (for agents)](https://github.com/usestapel/stapel-listings/blob/main/docs/llms.txt)
 
 ## What this is
 
@@ -53,8 +54,9 @@ INSTALLED_APPS = [
     "stapel_listings",
 ]
 
-# urls.py
-path("listings/", include("stapel_listings.urls"))
+# urls.py — this module's own urls.py bakes in only `v1/`; the host
+# contributes `api/`, giving the canonical `/listings/api/v1/...` prefix.
+path("listings/api/", include("stapel_listings.urls"))
 ```
 
 Requires a `categories.features` comm Function provider (stapel-categories) for
@@ -98,6 +100,27 @@ but runs no moderation pipeline. Re-moderating an edit of a **live** listing is
 post-moderation: the lifecycle stays `published`, `moderation_status` goes to
 `pending`, the edit is visible immediately, and a rejecting verdict removes it
 through the takedown edge.
+
+## Contract
+
+`docs/{schema,flows,errors}.json` are emitted from a single-module
+`{listings + core}` Django instance mounted at the canonical
+`/listings/api/v1` prefix (`make contract` / `make contract-check`; see
+`_codegen.py`) — the same mechanism stapel-search, stapel-chat and
+stapel-forms already use. `docs/flows.json` is `[]`: no flow is declared via
+`@flow` yet, same state as every other contract-complete module today.
+
+**Delta note — one field stays untyped on purpose.** `features_search`
+(`ListingDetailSerializer`) is a flattened per-category search index: one
+dynamic key per feature slug, shaped by whatever category schema a given
+listing happens to carry. There is no fixed property set to declare, so the
+schema types it as a bare `object` rather than fake a closed shape that would
+go stale the moment any category adds a feature. Every other field that used
+to fall back to an untyped blob this way — `images` / `images_draft`, both
+lists of opaque `<type>/<hash>` CDN refs (models.py "Opaque list of CDN image
+references") — is now typed as `array[string]`, and the ten polymorphic
+attribute-value shapes (`FeatureDto`/`FeatureDao`) are a proper
+discriminated `oneOf` keyed by `type`, contributed by stapel-attributes.
 
 ## Extension points
 

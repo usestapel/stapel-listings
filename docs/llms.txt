@@ -1,8 +1,8 @@
-# stapel-listings 0.5.0
+# stapel-listings 0.6.0
 
 Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle including the moderation takedown state 'blocked', an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, first-class favorites, and the two pull seams its consumers read it through — listings.search_documents / listings.search_export for an indexer and listings.moderation_content for a moderation queue.
 
-Contract: axes 2 · surface 7 · extension points 6.
+Contract: axes 2 · surface 7 · extension points 6 · operations 16 · error codes 63.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -50,3 +50,89 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - stapel-attributes (required) — delegates every attribute value check and DTO->DAO conversion to stapel-attributes' engine (pyproject.toml dependency; serializers.py:13, views.py:18)
 - stapel-categories (optional) — comm-only dependency: the categories.features Function provides the category feature schema for value validation; no direct Python import (MODULE.md boundaries: 'this module never imports it')
 - stapel-core (required) — comm bus (mutate_and_emit/emit/function/call), GDPR provider registry, AUTH_USER_MODEL base (pyproject.toml dependency; apps.py:18, models.py:31, functions.py:20, events.py)
+
+## HTTP operations (16) — call by operationId, never by a typed path
+Paths are relative to `/listings/api/v1/listings/`.
+### Listings
+- POST /{id}/archive/ — listings_api_v1_listings_archive_create
+- POST /{id}/complete/ — listings_api_v1_listings_complete_create
+- POST / — listings_api_v1_listings_create
+- DELETE /{id}/ — listings_api_v1_listings_destroy
+- POST /{id}/favorite/ — listings_api_v1_listings_favorite_create
+- GET / — listings_api_v1_listings_list
+- GET /my/counters/ — listings_api_v1_listings_my_counters_retrieve
+- GET /my/favorites/ — listings_api_v1_listings_my_favorites_list
+- PATCH /{id}/ — listings_api_v1_listings_partial_update
+- POST /{id}/publish/ — listings_api_v1_listings_publish_create
+- GET /{id}/ — listings_api_v1_listings_retrieve
+- POST /{id}/save-draft/ — listings_api_v1_listings_save_draft_create
+- GET /{id}/status/ — listings_api_v1_listings_status_retrieve
+- POST /{id}/unfavorite/ — listings_api_v1_listings_unfavorite_create
+- PUT /{id}/ — listings_api_v1_listings_update
+- GET /{id}/validate-draft/ — listings_api_v1_listings_validate_draft_retrieve
+
+## Error codes (63) — the StapelError envelope
+Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
+- error.400.bad_request [400] fix_input
+- error.400.captcha_invalid [400] retry
+- error.400.captcha_required [400] retry
+- error.400.category_required [400] fix_input
+- error.400.description_too_long [400] fix_input {max_length}
+- error.400.description_too_short [400] fix_input {min_length}
+- error.400.expected_list [400] fix_input
+- error.400.feature_above_maximum [400] fix_input {feature}
+- error.400.feature_below_minimum [400] fix_input {feature}
+- error.400.feature_invalid_config [400] fix_input {feature}
+- error.400.feature_invalid_format [400] fix_input {feature}
+- error.400.feature_invalid_type [400] fix_input {feature}
+- error.400.feature_mandatory_missing [400] fix_input {feature}
+- error.400.feature_not_allowed [400] fix_input {feature}
+- error.400.feature_not_in_options [400] fix_input {feature}
+- error.400.feature_unknown [400] fix_input {feature}
+- error.400.feature_unknown_type [400] fix_input {feature}
+- error.400.field.blank [400] fix_input {field}
+- error.400.field.does_not_exist [400] fix_input {field}
+- error.400.field.invalid [400] fix_input {field}
+- error.400.field.invalid_choice [400] fix_input {field}
+- error.400.field.max_length [400] fix_input {field,max_length}
+- error.400.field.max_value [400] fix_input {field,max_value}
+- error.400.field.min_length [400] fix_input {field,min_length}
+- error.400.field.min_value [400] fix_input {field,min_value}
+- error.400.field.null [400] fix_input {field}
+- error.400.field.required [400] fix_input {field}
+- error.400.field.unique [400] fix_input {field}
+- error.400.image_required [400] fix_input
+- error.400.invalid_ad_id [400] fix_input
+- error.400.listing_feature_not_allowed [400] fix_input {feature}
+- error.400.publish_validation_failed [400] fix_input
+- error.400.validation_error [400] fix_input
+- error.400.verification_failed [400] verify
+- error.400.verification_invalid_factor [400] verify
+- error.401.unauthorized [401] reauthenticate
+- error.402.payment_required [402] retry
+- error.403.forbidden [403] retry
+- error.403.listing_not_owner [403] retry
+- error.403.network_blocked [403] contact_support
+- error.403.verification_enrollment_required [403] verify
+- error.403.verification_required [403] verify
+- error.404.ad_not_found [404] retry
+- error.404.listing_not_found [404] retry
+- error.404.not_found [404] retry
+- error.404.verification_challenge_not_found [404] verify
+- error.405.method_not_allowed [405] retry
+- error.406.not_acceptable [406] retry
+- error.408.request_timeout [408] retry
+- error.409.already_favorited [409] fix_input
+- error.409.conflict [409] fix_input
+- error.409.invalid_listing_transition [409] fix_input {from_status}
+- error.409.listing_cannot_delete_active [409] fix_input
+- error.410.gone [410] retry
+- error.413.payload_too_large [413] retry
+- error.415.unsupported_media_type [415] retry
+- error.422.unprocessable_entity [422] wait_and_retry
+- error.423.locked [423] wait_and_retry
+- error.423.verification_locked [423] wait_and_retry
+- error.429.rate_limit [429] wait_and_retry {retry_after_minutes}
+- error.429.too_many_requests [429] wait_and_retry
+- error.500.internal [500] contact_support
+- error.503.mandate_unavailable [503] retry
