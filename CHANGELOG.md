@@ -11,7 +11,7 @@ No route, component or error-key change — two authorization holes closed on
 routes that already existed.
 
 Filed by @stapel/listings-react (`packages/listings-react/MODULE.md` §3
-asks 3 and 4; tasks/darom-storefront-design.md §13.9 notes 4 and 5). The
+asks 3 and 4; the storefront spec §13.9 notes 4 and 5). The
 pair had already declined to call `PUT`/`PATCH` for this reason, but the
 endpoints were reachable by anything else that speaks the contract.
 
@@ -71,7 +71,7 @@ endpoints were reachable by anything else that speaks the contract.
 Patch (pre-1.0 semver: minor = breaking, patch = compatible). Bug fix
 inherited from upstream — no route/component/error-key change of its own.
 
-Filed by @stapel/categories-react (tasks/darom-storefront-design.md §13.7
+Filed by @stapel/categories-react (the storefront spec §13.7
 note 5): `docs/schema.json`'s `FeatureDto`/`FeatureDao` discriminator
 mapping had a single bogus `"null"` entry instead of the ten feature-type
 slug entries, because stapel-attributes' `PolymorphicProxySerializer` was
@@ -99,7 +99,7 @@ root-cause writeup).
 the Makefile said so out loud (`Makefile:12`, superseded below) — which
 blocked the react codegen pipeline (`gen:api`/`gen:errors`/`gen:manifest`)
 for any `-react` pair generated against this module
-(darom-storefront-design.md §1.8, §3.10, A1).
+(the storefront spec §1.8, §3.10, A1).
 
 ### Added
 
