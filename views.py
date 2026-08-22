@@ -85,7 +85,7 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         if self.action == "list":
             return qs.published().with_favorited(user)
         if self.action == "retrieve":
-            return qs.with_favorited(user)
+            return qs.visible_to(user).with_favorited(user)
         return qs
 
     def perform_create(self, serializer):
@@ -94,6 +94,12 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
     # -- helpers -----------------------------------------------------------
 
     def _get_own(self, request, pk):
+        """The module's one ownership gate: every write goes through it.
+
+        Returns ``(listing, None)`` for the owner, ``(None, response)``
+        otherwise — 404 for an absent (or soft-deleted) listing, 403 for
+        someone else's.
+        """
         try:
             listing = Listing.objects.get(pk=pk)
         except Listing.DoesNotExist:
@@ -101,6 +107,22 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         if listing.owner_id != request.user.id:
             return None, StapelErrorResponse(403, ERR_403_LISTING_NOT_OWNER)
         return listing, None
+
+    # -- CRUD writes -------------------------------------------------------
+
+    def update(self, request, *args, **kwargs):
+        """Write the draft fields — the write ``save-draft`` also performs.
+
+        Owner only: 404 for an absent listing, 403 for someone else's.
+        """
+        # DRF's generated update resolves its object off Listing.objects.all()
+        # under IsAuthenticatedOrReadOnly, which is no ownership check at all.
+        # partial_update routes through here, so PUT and PATCH pass the
+        # module's one gate rather than two copies of it.
+        _, error = self._get_own(request, kwargs.get("pk"))
+        if error:
+            return error
+        return super().update(request, *args, **kwargs)
 
     # -- inter-service status ---------------------------------------------
 
@@ -214,8 +236,10 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
     @extend_schema(request=None, responses={200: FavoriteToggleResponseSerializer})
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def favorite(self, request, pk=None):  # noqa: R007
+        # Same visibility as the detail read: favoriting is not a side door
+        # that confirms a stranger's draft exists.
         try:
-            listing = Listing.objects.get(pk=pk)
+            listing = Listing.objects.visible_to(request.user).get(pk=pk)
         except Listing.DoesNotExist:
             return StapelErrorResponse(404, ERR_404_LISTING_NOT_FOUND)
         Favorite.objects.get_or_create(user=request.user, listing=listing)
@@ -242,7 +266,13 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         fav_ids = Favorite.objects.filter(user=request.user).values_list(
             "listing_id", flat=True
         )
-        qs = Listing.objects.filter(id__in=list(fav_ids)).with_favorited(request.user)
+        # A favorite outlives the listing's visibility: one blocked or
+        # unpublished after the fact must not keep serving its card.
+        qs = (
+            Listing.objects.filter(id__in=list(fav_ids))
+            .visible_to(request.user)
+            .with_favorited(request.user)
+        )
         page = self.paginate_queryset(qs)
         serializer = self.card_serializer_class(page, many=True)
         return self.get_paginated_response(serializer.data)

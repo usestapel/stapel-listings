@@ -58,6 +58,20 @@
 - A comm surface (below) that emits index/moderation events and consumes
   category/moderation/GDPR events, plus a `listings.status` Function and a
   GDPR provider.
+- **Two authorization rules over the whole HTTP surface, each with one
+  implementation** (0.6.2): every *write* to an existing listing —
+  `PUT`/`PATCH`, `save-draft`, `publish`, `archive`, `complete`, `DELETE` —
+  passes `views.ListingViewSet._get_own` (404 absent, 403 someone else's);
+  every *read by id* — the detail route, `favorite`, `my/favorites` —
+  resolves through `ListingQuerySet.visible_to(user)`, which is the indexed
+  statuses for everyone plus one's own rows in any status. A row a caller may
+  not read is filtered at the queryset, so it 404s exactly as an absent one
+  does. Staff get no bypass on either rule: moderation acts through the
+  `moderation.completed` contract and the admin, not through these views. The
+  two exceptions are deliberate and named: `GET /{pk}/status/` is the
+  inter-service existence/status read (`AllowAny` over `all_objects`, no
+  content — it answers for a soft-deleted listing on purpose), and
+  `unfavorite` only deletes the caller's own row.
 
 ## What this module deliberately does NOT do (boundaries)
 

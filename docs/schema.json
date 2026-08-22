@@ -150,7 +150,7 @@
       },
       "put": {
         "operationId": "listings_api_v1_listings_update",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "description": "Write the draft fields — the write ``save-draft`` also performs.\n\nOwner only: 404 for an absent listing, 403 for someone else's.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
         "parameters": [
           {
             "in": "path",

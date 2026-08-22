@@ -186,6 +186,20 @@ class ListingQuerySet(models.QuerySet):
     def owned_by(self, user):
         return self.filter(owner=user)
 
+    def visible_to(self, user):
+        """Rows *user* may read by id.
+
+        The public half is exactly ``INDEXED_STATUSES`` — what a search index
+        holds is what a stranger may pull by id. An authenticated caller also
+        sees every listing they own, whatever its status. Everything else is
+        filtered out at the queryset, so a hidden row is indistinguishable
+        from an absent one (the same 404, from the same code path).
+        """
+        visible = models.Q(status__in=INDEXED_STATUSES)
+        if user is not None and getattr(user, "is_authenticated", False):
+            visible |= models.Q(owner_id=user.id)
+        return self.filter(visible)
+
     def with_favorited(self, user):
         """Annotate ``is_favorited`` for *user* (None for anonymous)."""
         from django.db.models import BooleanField, Exists, OuterRef, Value

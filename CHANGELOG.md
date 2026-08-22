@@ -4,6 +4,68 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.6.2] - 2026-08-22
+
+**Security.** Patch (pre-1.0 semver: minor = breaking, patch = compatible).
+No route, component or error-key change — two authorization holes closed on
+routes that already existed.
+
+Filed by @stapel/listings-react (`packages/listings-react/MODULE.md` §3
+asks 3 and 4; tasks/darom-storefront-design.md §13.9 notes 4 and 5). The
+pair had already declined to call `PUT`/`PATCH` for this reason, but the
+endpoints were reachable by anything else that speaks the contract.
+
+### Security
+
+- **`PUT`/`PATCH /listings/{id}/` skipped the ownership check.** Both were
+  the plain `ModelViewSet` writes, resolving their object off
+  `Listing.objects.all()` under `IsAuthenticatedOrReadOnly` — so **any
+  authenticated caller could write any listing's draft fields** (title,
+  description, price, images, features, category, stock). They now pass
+  `views.ListingViewSet._get_own`, the module's one ownership gate, with the
+  shapes every other owner operation returns: `404`
+  (`error.404.listing_not_found`) for an absent or soft-deleted listing,
+  `403` (`error.403.listing_not_owner`) for someone else's.
+  `partial_update` routes through `update`, so one check covers both verbs.
+- **`GET /listings/{id}/` served unpublished listings to anyone holding the
+  id** — a draft, a rejected, a paused and a *blocked* (moderation takedown)
+  listing all answered `200`. The detail read now resolves through the new
+  `ListingQuerySet.visible_to(user)`: the indexed statuses for everyone,
+  plus the caller's own rows in any status. The filter is applied at the
+  queryset, so a listing a caller may not read `404`s from the same code
+  path an absent id does — indistinguishable, per the fleet's uniform-404
+  canon. Staff get no bypass (moderation acts over `moderation.completed`
+  and the admin, not these views).
+- **The same missing filter on the two favorites reads**, found by auditing
+  the rest of the viewset: `POST /{id}/favorite/` resolved over
+  `Listing.objects` and so confirmed a stranger's draft exists (now `404`,
+  while favoriting one's *own* unpublished listing still works), and
+  `GET my/favorites/` kept serving the card of a favorited listing after it
+  left the index (now filtered the same way).
+- Audited and deliberately unchanged: `GET /{id}/status/` stays `AllowAny`
+  over `all_objects` — it is the inter-service existence/status read that
+  carries no content and answers for a soft-deleted listing on purpose
+  (design §13.9 note 6); `unfavorite` only deletes the caller's own row;
+  `list` was already `published()`-only; `destroy`, `save-draft`,
+  `validate-draft`, `publish`, `archive`, `complete` already went through
+  `_get_own`; `my/counters` is owner-scoped.
+
+### Added
+
+- `ListingQuerySet.visible_to(user)` — the read counterpart of `_get_own`,
+  and the one place the read rule lives.
+- `tests/test_authz.py` (42 tests): owner can / non-owner cannot / anonymous
+  cannot for `PUT` and `PATCH`; `draft`, `pending`, `blocked` and the other
+  five unindexed statuses each pinned on the detail read from a stranger's,
+  an anonymous and the owner's viewpoint; staff pinned as non-special on
+  both rules; hidden-vs-absent responses asserted byte-identical; the
+  favorites and list routes pinned too.
+
+### Changed
+
+- `docs/schema.json` regenerated (`make contract`): the `PUT` operation
+  description now states the ownership rule.
+
 ## [0.6.1] - 2026-08-22
 
 Patch (pre-1.0 semver: minor = breaking, patch = compatible). Bug fix

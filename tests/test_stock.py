@@ -14,7 +14,7 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
-from stapel_listings.models import Listing, validate_countable_stock
+from stapel_listings.models import Listing, ListingStatus, validate_countable_stock
 
 pytestmark = pytest.mark.django_db
 
@@ -176,7 +176,12 @@ def test_api_save_draft_switch_to_service_requires_explicit_null(auth_client, us
 
 
 def test_api_listing_detail_exposes_stock_fields(api_client, user):
-    listing = Listing.objects.create(owner=user, category_id="7", stock_quantity=5)
+    listing = Listing.objects.create(
+        owner=user,
+        category_id="7",
+        stock_quantity=5,
+        status=ListingStatus.PUBLISHED,  # the detail read is published-only
+    )
     resp = api_client.get(f"/listings/listings/{listing.pk}/")
     assert resp.status_code == 200
     assert resp.data["countable"] is True

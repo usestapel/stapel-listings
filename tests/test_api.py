@@ -86,7 +86,9 @@ def test_cannot_save_others_draft(auth_client, other_user):
 
 
 def test_favorite_and_unfavorite(auth_client, user, other_user):
-    listing = Listing.objects.create(owner=other_user, category_id="7")
+    listing = Listing.objects.create(
+        owner=other_user, category_id="7", status=ListingStatus.PUBLISHED
+    )
     resp = auth_client.post(f"/listings/listings/{listing.pk}/favorite/")
     assert resp.status_code == 200
     assert Favorite.objects.filter(user=user, listing=listing).exists()
