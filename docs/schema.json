@@ -948,7 +948,16 @@
         "discriminator": {
           "propertyName": "type",
           "mapping": {
-            "null": "#/components/schemas/ConvertibleUnitDao"
+            "int": "#/components/schemas/IntDao",
+            "float": "#/components/schemas/FloatDao",
+            "string": "#/components/schemas/StringDao",
+            "bool": "#/components/schemas/BoolDao",
+            "hex_color": "#/components/schemas/HexColorDao",
+            "select": "#/components/schemas/SelectDao",
+            "date": "#/components/schemas/DateDao",
+            "header": "#/components/schemas/HeaderDao",
+            "hierarchical_select": "#/components/schemas/HierarchicalSelectDao",
+            "convertible_unit": "#/components/schemas/ConvertibleUnitDao"
           }
         }
       },
@@ -988,7 +997,16 @@
         "discriminator": {
           "propertyName": "type",
           "mapping": {
-            "null": "#/components/schemas/ConvertibleUnitDto"
+            "int": "#/components/schemas/IntDto",
+            "float": "#/components/schemas/FloatDto",
+            "string": "#/components/schemas/StringDto",
+            "bool": "#/components/schemas/BoolDto",
+            "hex_color": "#/components/schemas/HexColorDto",
+            "select": "#/components/schemas/SelectDto",
+            "date": "#/components/schemas/DateDto",
+            "header": "#/components/schemas/HeaderDto",
+            "hierarchical_select": "#/components/schemas/HierarchicalSelectDto",
+            "convertible_unit": "#/components/schemas/ConvertibleUnitDto"
           }
         }
       },
