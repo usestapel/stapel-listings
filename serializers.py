@@ -197,6 +197,42 @@ class ListingCardSerializer(serializers.ModelSerializer):
         ]
 
 
+class MyListingCardSerializer(ListingCardSerializer):
+    """The owner's own card — the public card plus what only an owner sees.
+
+    Same family as :class:`ListingCardSerializer` (one shape for every grid a
+    product renders), extended along two axes and no further:
+
+    - **the moderation axis** (``moderation_status``): visibility is decided
+      by ``status`` alone, but since 0.5.0 a *published* listing can be under
+      re-review, and its owner is the one person who has to be told. A
+      dashboard cannot derive that sentence from ``status``.
+    - **the draft twins** (``title_draft`` / ``price_draft`` /
+      ``images_draft``): the published fields are empty on a listing that has
+      never been published, so a drafts tab built on the public card would
+      render a column of blank rows. This is the list half of the pair's
+      upstream ask #2 — the detail read is unchanged and still serializes the
+      published fields only.
+
+    Owner-scoped by construction: this serializer is used by exactly one
+    route, ``my/listings``, whose queryset is ``owned_by(request.user)``.
+    """
+
+    images_draft = serializers.ListField(
+        child=serializers.CharField(), read_only=True, allow_null=True
+    )
+
+    class Meta(ListingCardSerializer.Meta):
+        fields = ListingCardSerializer.Meta.fields + [
+            "moderation_status",
+            "title_draft",
+            "price_draft",
+            "images_draft",
+            "created_at",
+            "updated_at",
+        ]
+
+
 class ListingDetailSerializer(serializers.ModelSerializer):
     """Full listing detail."""
 

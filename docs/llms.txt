@@ -1,8 +1,8 @@
-# stapel-listings 0.6.2
+# stapel-listings 0.7.0
 
 Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle including the moderation takedown state 'blocked', an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, first-class favorites, and the two pull seams its consumers read it through — listings.search_documents / listings.search_export for an indexer and listings.moderation_content for a moderation queue.
 
-Contract: axes 2 · surface 7 · extension points 6 · operations 16 · error codes 63.
+Contract: axes 2 · surface 7 · extension points 6 · operations 17 · error codes 64.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -51,7 +51,7 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - stapel-categories (optional) — comm-only dependency: the categories.features Function provides the category feature schema for value validation; no direct Python import (MODULE.md boundaries: 'this module never imports it')
 - stapel-core (required) — comm bus (mutate_and_emit/emit/function/call), GDPR provider registry, AUTH_USER_MODEL base (pyproject.toml dependency; apps.py:18, models.py:31, functions.py:20, events.py)
 
-## HTTP operations (16) — call by operationId, never by a typed path
+## HTTP operations (17) — call by operationId, never by a typed path
 Paths are relative to `/listings/api/v1/listings/`.
 ### Listings
 - POST /{id}/archive/ — listings_api_v1_listings_archive_create
@@ -62,6 +62,7 @@ Paths are relative to `/listings/api/v1/listings/`.
 - GET / — listings_api_v1_listings_list
 - GET /my/counters/ — listings_api_v1_listings_my_counters_retrieve
 - GET /my/favorites/ — listings_api_v1_listings_my_favorites_list
+- GET /my/listings/ — listings_api_v1_listings_my_listings_list
 - PATCH /{id}/ — listings_api_v1_listings_partial_update
 - POST /{id}/publish/ — listings_api_v1_listings_publish_create
 - GET /{id}/ — listings_api_v1_listings_retrieve
@@ -71,7 +72,7 @@ Paths are relative to `/listings/api/v1/listings/`.
 - PUT /{id}/ — listings_api_v1_listings_update
 - GET /{id}/validate-draft/ — listings_api_v1_listings_validate_draft_retrieve
 
-## Error codes (63) — the StapelError envelope
+## Error codes (64) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
@@ -104,6 +105,7 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.400.image_required [400] fix_input
 - error.400.invalid_ad_id [400] fix_input
 - error.400.listing_feature_not_allowed [400] fix_input {feature}
+- error.400.listing_invalid_status_filter [400] fix_input {status}
 - error.400.publish_validation_failed [400] fix_input
 - error.400.validation_error [400] fix_input
 - error.400.verification_failed [400] verify

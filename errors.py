@@ -29,6 +29,11 @@ ERR_409_ALREADY_FAVORITED = "error.409.already_favorited"
 # the structured validator uses this as the localizable key so validate-draft
 # and publish agree (both reject unknown slugs) instead of diverging.
 ERR_400_FEATURE_NOT_ALLOWED = "error.400.listing_feature_not_allowed"
+# The ?status= filter of my/listings carries an unknown lifecycle value. A
+# 400 rather than a silent empty page: "no listing is in that state" and "that
+# state does not exist" are different answers, and only one of them is a
+# client bug worth surfacing.
+ERR_400_INVALID_STATUS_FILTER = "error.400.listing_invalid_status_filter"
 
 STAPEL_LISTINGS_ERRORS = {
     ERR_404_LISTING_NOT_FOUND: "Listing not found",
@@ -42,6 +47,7 @@ STAPEL_LISTINGS_ERRORS = {
     ERR_409_INVALID_TRANSITION: "Invalid status transition for {from_status}",
     ERR_409_ALREADY_FAVORITED: "Listing already favorited",
     ERR_400_FEATURE_NOT_ALLOWED: "Feature '{feature}' is not allowed for this category",
+    ERR_400_INVALID_STATUS_FILTER: "Unknown listing status '{status}'",
 }
 
 register_service_errors(STAPEL_LISTINGS_ERRORS)
@@ -57,4 +63,5 @@ __all__ = [
     "ERR_409_INVALID_TRANSITION",
     "ERR_409_ALREADY_FAVORITED",
     "ERR_400_FEATURE_NOT_ALLOWED",
+    "ERR_400_INVALID_STATUS_FILTER",
 ]

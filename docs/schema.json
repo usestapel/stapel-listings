@@ -686,6 +686,89 @@
           }
         }
       }
+    },
+    "/listings/api/v1/listings/my/listings/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_my_listings_list",
+        "description": "The caller's OWN listings, in every status.\n\nThe counterpart of ``my/counters``: the same owner scope and the same\nstatus grouping, but the rows behind the three numbers. ``list`` is\nthe shop window (``published()``, narrowable to nobody), so this is\nthe only route by which a person can be shown their own drafts.\n\nOwner-scoped at the queryset via ``owned_by`` — a stranger's listing\ncannot be reached from here at any status, and soft-deleted rows are\nexcluded by the default manager (a deleted listing is gone from the\nowner's dashboard exactly as it is gone from everywhere else).\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "name": "anchor",
+            "required": false,
+            "in": "query",
+            "description": "Anchor value to paginate from (exclusive)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direction",
+            "required": false,
+            "in": "query",
+            "description": "Pagination direction",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "next",
+                "prev",
+                "center"
+              ],
+              "default": "next"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items (default 100, max 1000)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "archived",
+                  "blocked",
+                  "draft",
+                  "expired",
+                  "paused",
+                  "pending",
+                  "published",
+                  "rejected",
+                  "sold"
+                ]
+              }
+            },
+            "description": "Lifecycle status to narrow to. Repeat the parameter or pass one comma-separated value for a set (`?status=draft,rejected`); omit it for every status. An unknown value is a 400, not an empty page."
+          }
+        ],
+        "tags": [
+          "Listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedMyListingCardList"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1815,6 +1898,136 @@
           "drafts"
         ]
       },
+      "MyListingCard": {
+        "type": "object",
+        "description": "The owner's own card — the public card plus what only an owner sees.\n\nSame family as :class:`ListingCardSerializer` (one shape for every grid a\nproduct renders), extended along two axes and no further:\n\n- **the moderation axis** (``moderation_status``): visibility is decided\n  by ``status`` alone, but since 0.5.0 a *published* listing can be under\n  re-review, and its owner is the one person who has to be told. A\n  dashboard cannot derive that sentence from ``status``.\n- **the draft twins** (``title_draft`` / ``price_draft`` /\n  ``images_draft``): the published fields are empty on a listing that has\n  never been published, so a drafts tab built on the public card would\n  render a column of blank rows. This is the list half of the pair's\n  upstream ask #2 — the detail read is unchanged and still serializes the\n  published fields only.\n\nOwner-scoped by construction: this serializer is used by exactly one\nroute, ``my/listings``, whose queryset is ``owned_by(request.user)``.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "price": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$"
+          },
+          "price_base": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 8
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "readOnly": true,
+            "nullable": true
+          },
+          "features_title": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureDao"
+            },
+            "readOnly": true
+          },
+          "features_badges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureDao"
+            },
+            "readOnly": true
+          },
+          "location_label": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "geohash": {
+            "type": "string",
+            "maxLength": 12
+          },
+          "lat": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "lon": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "countable": {
+            "type": "boolean"
+          },
+          "stock_quantity": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "format": "int64",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusD41Enum"
+          },
+          "is_favorited": {
+            "type": "boolean",
+            "readOnly": true,
+            "nullable": true
+          },
+          "moderation_status": {
+            "$ref": "#/components/schemas/ModerationStatusEnum"
+          },
+          "title_draft": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "price_draft": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "images_draft": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "readOnly": true,
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          }
+        },
+        "required": [
+          "created_at",
+          "features_badges",
+          "features_title",
+          "id",
+          "images",
+          "images_draft",
+          "is_favorited",
+          "updated_at"
+        ]
+      },
       "NullEnum": {
         "enum": [
           null
@@ -1827,6 +2040,45 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ListingCard"
+            }
+          },
+          "next_anchor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Anchor value for next page"
+          },
+          "prev_anchor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Anchor value for previous page"
+          },
+          "has_next": {
+            "type": "boolean",
+            "description": "Whether there are more items after this page"
+          },
+          "has_prev": {
+            "type": "boolean",
+            "description": "Whether there are items before this page"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of items in current page"
+          }
+        },
+        "required": [
+          "items",
+          "has_next",
+          "has_prev",
+          "count"
+        ]
+      },
+      "PaginatedMyListingCardList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyListingCard"
             }
           },
           "next_anchor": {

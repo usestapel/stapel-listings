@@ -4,6 +4,74 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.7.0] - 2026-08-24
+
+**Feature.** Minor (pre-1.0 semver: minor = breaking, patch = compatible) —
+nothing existing changed shape, but a new route joins the surface.
+
+The one gap `@stapel/listings-react` recorded rather than papered over
+(`packages/listings-react/MODULE.md` §3 ask 1, `src/model/mineSource.ts`; the
+storefront spec §13.9 note 1): **this module could not list a person their own
+listings.** `GET /listings/` answers `published()` and takes no owner
+parameter, so a seller's own DRAFTS were unreachable by any call the contract
+offered — the pair shipped an injected `MyListingsSource` and a NAMED failure
+when a host had not wired one, because "we cannot ask" and "you have no
+listings" are different sentences.
+
+### Added
+
+- **`GET /listings/api/v1/my/listings/`** — the caller's own listings, in
+  every status. The counterpart of `my/counters`: the same owner scope
+  (`Listing.objects.owned_by(request.user)` under `IsAuthenticated`), the
+  same status grouping, but the rows behind the three numbers. All nine
+  lifecycle statuses are visible to their owner, `blocked` included — the one
+  status `my/counters` counts in no tab at all, and the one whose owner most
+  needs to know. Soft-deleted rows are excluded by the default manager. The
+  envelope is the module's `IDAnchorPagination`, byte-identical to
+  `my/favorites`.
+- **`?status=` on it**, in both spellings a client may reach for: a repeated
+  parameter (`?status=draft&status=rejected`) and one comma-separated value
+  (`?status=draft,rejected`) — a dashboard tab is a *set* of statuses (the
+  groupings are `my/counters`', so a tab's rows and its count cannot describe
+  different sets), and which spelling an HTTP client produces is not the
+  caller's choice to make. Omitted means every status.
+- **`MyListingCardSerializer`** — the public card plus exactly two owner-only
+  additions and no more: `moderation_status`, because since 0.5.0 a
+  *published* listing can be under re-review and its owner is the one person
+  who has to be told (a sentence no client can derive from `status`), and the
+  `title_draft` / `price_draft` / `images_draft` twins, because the published
+  fields are empty on a listing that has never been published and a drafts tab
+  built on the public card would render a column of blank rows. That is the
+  **list half of the pair's ask 2**; the detail read is unchanged and still
+  serializes the published fields only. Plus `created_at` / `updated_at` for
+  the row's "when". Owner-scoped by construction — one route uses it, and
+  that route's queryset is `owned_by`.
+- `views.parse_status_filter` — the one place the two spellings collapse.
+- `my_card_serializer_class` on `ListingViewSet`, joining the per-action
+  serializer seam (MODULE.md, "Serializer seams").
+- `error.400.listing_invalid_status_filter` — an unknown value in `?status=`
+  is a `400` naming it, not a silent empty page: "no listing is in that
+  state" and "that state does not exist" are different answers, and only one
+  of them is a client bug worth surfacing.
+- `tests/test_my_listings.py` (46 tests): every status visible to its owner
+  and no status of a stranger's visible at all (both parametrized over all
+  nine), anonymous refused rather than given an empty page, soft-deleted
+  excluded, both filter spellings, the three counter tabs asserted to agree
+  with `my/counters` row-for-count, the `400`, newest-first ordering, the row
+  shape (both axes, the draft twins, what is deliberately absent), and the
+  anchor walk with the filter surviving a page turn. 239 tests green (193
+  before).
+
+### Unchanged, deliberately
+
+- `GET /listings/` is still the shop window and still takes no owner
+  parameter. An `?owner=` filter on a public list would put the same owner
+  scope behind a predicate a caller supplies; a separate owner route cannot
+  be pointed at anyone else by construction.
+- The detail read, the favorites reads and every write keep the 0.6.2
+  authorization rules — `visible_to` for reads by id, `_get_own` for writes.
+  `my/listings` adds a third owner-scoped *collection* read, not a third rule.
+
 ## [0.6.2] - 2026-08-22
 
 **Security.** Patch (pre-1.0 semver: minor = breaking, patch = compatible).

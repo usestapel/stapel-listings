@@ -9,7 +9,7 @@ stapel-search module fed by the ``listing.*`` events (see MODULE.md).
 """
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count, Q
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
@@ -27,6 +27,7 @@ from .dto import (
     PublishResponse,
 )
 from .errors import (
+    ERR_400_INVALID_STATUS_FILTER,
     ERR_400_PUBLISH_VALIDATION_FAILED,
     ERR_403_LISTING_NOT_OWNER,
     ERR_404_LISTING_NOT_FOUND,
@@ -43,9 +44,37 @@ from .serializers import (
     ListingDraftSerializer,
     ListingStatusSerializer,
     MyCountersResponseSerializer,
+    MyListingCardSerializer,
     PublishResponseSerializer,
 )
 from .services import publish as publish_service
+
+
+def parse_status_filter(raw_values):
+    """``?status=`` → an ordered list of lifecycle statuses.
+
+    Accepts the two spellings a client may reach for interchangeably — a
+    repeated parameter (``?status=draft&status=rejected``) and one
+    comma-separated value (``?status=draft,rejected``) — because a dashboard
+    tab is a SET of statuses (``my/counters`` groups them the same way) and
+    which spelling a given HTTP client produces is not the caller's choice to
+    make. Empty pieces are skipped, duplicates collapse, order is preserved.
+
+    Raises :class:`ValueError` carrying the offending value for an unknown
+    status: an empty page would say "you have none of those", which is a
+    different sentence from "that status does not exist".
+    """
+    wanted = []
+    for raw in raw_values:
+        for piece in raw.split(","):
+            piece = piece.strip()
+            if not piece:
+                continue
+            if piece not in ListingStatus.values:
+                raise ValueError(piece)
+            if piece not in wanted:
+                wanted.append(piece)
+    return wanted
 
 
 class SerializerSeamMixin:
@@ -70,6 +99,7 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
     # Per-action serializer seam (subclass to override any entry).
     detail_serializer_class = ListingDetailSerializer
     card_serializer_class = ListingCardSerializer
+    my_card_serializer_class = MyListingCardSerializer
     draft_serializer_class = ListingDraftSerializer
 
     def get_serializer_class(self):
@@ -149,6 +179,51 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
             drafts=Count("id", filter=Q(status__in=[ListingStatus.DRAFT, ListingStatus.REJECTED])),
         )
         return StapelResponse(MyCountersResponseSerializer(MyCountersResponse(**counts)))
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="status",
+                description=(
+                    "Lifecycle status to narrow to. Repeat the parameter or "
+                    "pass one comma-separated value for a set "
+                    "(`?status=draft,rejected`); omit it for every status. An "
+                    "unknown value is a 400, not an empty page."
+                ),
+                required=False,
+                many=True,
+                enum=ListingStatus.values,
+            )
+        ],
+        responses={200: MyListingCardSerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"], url_path="my/listings",
+            permission_classes=[IsAuthenticated])
+    def my_listings(self, request):  # noqa: R007
+        """The caller's OWN listings, in every status.
+
+        The counterpart of ``my/counters``: the same owner scope and the same
+        status grouping, but the rows behind the three numbers. ``list`` is
+        the shop window (``published()``, narrowable to nobody), so this is
+        the only route by which a person can be shown their own drafts.
+
+        Owner-scoped at the queryset via ``owned_by`` — a stranger's listing
+        cannot be reached from here at any status, and soft-deleted rows are
+        excluded by the default manager (a deleted listing is gone from the
+        owner's dashboard exactly as it is gone from everywhere else).
+        """
+        try:
+            statuses = parse_status_filter(request.query_params.getlist("status"))
+        except ValueError as exc:
+            return StapelErrorResponse(
+                400, ERR_400_INVALID_STATUS_FILTER, {"status": str(exc)}
+            )
+        qs = Listing.objects.owned_by(request.user).with_favorited(request.user)
+        if statuses:
+            qs = qs.filter(status__in=statuses)
+        page = self.paginate_queryset(qs)
+        serializer = self.my_card_serializer_class(page, many=True)
+        return self.get_paginated_response(serializer.data)
 
     @extend_schema(request=None, responses={200: ListingDraftSerializer})
     @action(detail=True, methods=["post"], url_path="save-draft",

@@ -72,6 +72,22 @@
   inter-service existence/status read (`AllowAny` over `all_objects`, no
   content — it answers for a soft-deleted listing on purpose), and
   `unfavorite` only deletes the caller's own row.
+- **Two owner-scoped reads, one scope** (0.7.0): `GET my/counters` (three
+  integers) and `GET my/listings` (the rows behind them) both answer
+  `Listing.objects.owned_by(request.user)` under `IsAuthenticated` — every
+  status the caller owns, soft-deleted excluded by the default manager,
+  narrowable with `?status=` (repeat the parameter or pass one
+  comma-separated value; an unknown value is a `400`
+  `error.400.listing_invalid_status_filter`, not an empty page) and paginated
+  in the module's `IDAnchorPagination` envelope. `list` is the shop window —
+  `published()`, narrowable to nobody — so `my/listings` is the **only** route
+  by which a person can be shown their own drafts. Its rows use
+  `MyListingCardSerializer`: the public card plus `moderation_status` (the
+  second axis, which only an owner is owed) and the `title_draft` /
+  `price_draft` / `images_draft` twins (the published fields are empty on a
+  listing that has never been published, so a drafts tab built on the public
+  card would be a column of blank rows). The detail read is unchanged and
+  still serializes the published fields only.
 
 ## What this module deliberately does NOT do (boundaries)
 
@@ -151,6 +167,7 @@ attributes; subclass and remount the router to swap any of them.
 |---|---|---|
 | `retrieve` / detail | `detail_serializer_class` | `ListingDetailSerializer` |
 | `list` | `card_serializer_class` | `ListingCardSerializer` |
+| `my/listings` | `my_card_serializer_class` | `MyListingCardSerializer` |
 | `create` / `update` / `save-draft` | `draft_serializer_class` | `ListingDraftSerializer` |
 
 ### comm surface

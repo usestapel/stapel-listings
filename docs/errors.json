@@ -300,6 +300,16 @@
     "owner": "stapel_listings"
   },
   {
+    "code": "error.400.listing_invalid_status_filter",
+    "status": 400,
+    "params": [
+      "status"
+    ],
+    "remediation": "fix_input",
+    "en": "Unknown listing status '{status}'",
+    "owner": "stapel_listings"
+  },
+  {
     "code": "error.400.publish_validation_failed",
     "status": 400,
     "params": [],
