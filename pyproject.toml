@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-listings"
-version = "0.7.0"
+version = "0.7.1"
 description = "Listings and catalog for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -50,7 +50,13 @@ all = []
 
 [tool.setuptools]
 package-dir = {"stapel_listings" = "."}
-packages = ["stapel_listings", "stapel_listings.migrations", "stapel_listings.services"]
+packages = [
+    "stapel_listings",
+    "stapel_listings.migrations",
+    "stapel_listings.services",
+    "stapel_listings.management",
+    "stapel_listings.management.commands",
+]
 
 [tool.setuptools.package-data]
 stapel_listings = ["py.typed", "migrations/*.py", "schemas/**/*.json", "docs/capabilities.json", "docs/llms.txt", "docs/schema.json", "docs/flows.json", "docs/errors.json", "CONFIG.MD"]

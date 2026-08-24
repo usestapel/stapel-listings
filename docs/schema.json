@@ -1766,7 +1766,7 @@
           },
           "geohash_draft": {
             "type": "string",
-            "maxLength": 12
+            "readOnly": true
           },
           "lat_draft": {
             "type": "string",
@@ -1830,6 +1830,7 @@
         "required": [
           "category_id",
           "created_at",
+          "geohash_draft",
           "id",
           "moderation_status",
           "status",
@@ -2160,7 +2161,7 @@
           },
           "geohash_draft": {
             "type": "string",
-            "maxLength": 12
+            "readOnly": true
           },
           "lat_draft": {
             "type": "string",

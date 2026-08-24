@@ -109,6 +109,10 @@ class ListingDraftSerializer(serializers.ModelSerializer):
             "moderation_status",
             "created_at",
             "updated_at",
+            # Server-computed from lat_draft/lon_draft (Listing.save() /
+            # compute_geohash_draft) via the geo.geohash_encode comm
+            # Function — a client sends coordinates, not a geohash.
+            "geohash_draft",
         ]
 
     def validate_price_draft(self, value):

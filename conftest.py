@@ -174,6 +174,41 @@ def stub_categories():
     function_registry._schemas.pop("categories.features", None)
 
 
+# --- comm stub: geo.geohash_encode -----------------------------------------
+
+
+@pytest.fixture
+def stub_geo():
+    """Register a stub ``geo.geohash_encode`` comm Function so tests can
+    exercise the "geo answers" path — the same way ``stub_categories``
+    exercises ``categories.features``. Without this fixture the default test
+    settings have no provider registered at all (``stapel_geo`` is not in
+    ``INSTALLED_APPS`` here, and this module never depends on it — comm-by-
+    name only), which is exactly the "geo unanswered" path
+    ``Listing.compute_geohash_draft()`` must degrade through gracefully.
+
+    Deliberately NOT a real geohash algorithm (no pygeohash/stapel-geo
+    dependency, even for tests): a deterministic hash of ``(lat, lon)``,
+    truncated to ``precision`` characters, proves the model stores whatever
+    the provider returns without this library needing to know or replicate
+    the encoding itself.
+    """
+    import hashlib
+
+    from stapel_core.comm import register_function
+    from stapel_core.comm.registry import function_registry
+
+    def provider(payload):
+        precision = payload.get("precision") or 8
+        key = f"{payload['lat']:.6f},{payload['lon']:.6f}".encode()
+        return {"geohash": hashlib.sha1(key).hexdigest()[:precision]}
+
+    register_function("geo.geohash_encode", provider)
+    yield
+    function_registry._providers.pop("geo.geohash_encode", None)
+    function_registry._schemas.pop("geo.geohash_encode", None)
+
+
 @pytest.fixture
 def draft_listing(db, user, stub_categories):
     """A DRAFT listing with a valid draft ready to publish."""

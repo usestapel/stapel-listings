@@ -4,6 +4,66 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.7.1] - 2026-08-24
+
+Patch (pre-1.0 semver: minor = breaking, patch = compatible). Bug fix — a
+live geo defect: stapel-geo's own `MODULE.md` documented listings as the
+consumer of `geo.geohash_encode` ("this is how consumers stamp geohashes
+onto their own rows"), but nothing in this module ever called it. Every
+listing carrying `lat`/`lon` also carried `geohash=""`. stapel-search 0.2.2
+made the lat/lon box authoritative, so results stayed *correct* — but the
+geohash prefilter could never use its index, so every geo-filtered query
+fell back to a full box scan.
+
+### Fixed
+
+- **`Listing.save()` now stamps `geohash_draft`** from `lat_draft`/
+  `lon_draft` via the `geo.geohash_encode` comm Function
+  (`compute_geohash_draft()`), the same shape as `price_base` being kept in
+  sync from `price` — recomputed whenever a save touches `lat_draft`,
+  `lon_draft` or `geohash_draft` (or is a full save), one call site, no
+  second place that could disagree with it. `publish_listing` already
+  promoted `geohash_draft` -> `geohash` on publish, so this one call site
+  fixes both the draft and the published field.
+- **No hard dependency on stapel-geo**: consumed by comm name only (no new
+  `pyproject.toml` dependency, no import). When `geo.geohash_encode` is
+  unreachable — not deployed, no route configured, a bad reply — the
+  geohash is left `""` rather than raising or keeping a stale value tied to
+  the *previous* coordinates; an empty geohash never produces a wrong
+  answer downstream (stapel-search 0.2.2 treats it as "unknown", not
+  "elsewhere", and falls back to the exact box), it only costs the
+  prefilter its index.
+- **`ListingDraftSerializer.geohash_draft` is now read-only.** It was a
+  plain writable `ModelSerializer` field — the module expected a *caller* to
+  compute and send a correct geohash by hand, with no validation that it
+  actually matched the coordinates, which is exactly backwards from
+  stapel-geo's documented contract above. A value sent in the request body
+  is now silently ignored in favor of the server-computed one.
+  `docs/schema.json` regenerated (`make contract`): `geohash_draft` carries
+  `readOnly: true` in both request schemas that include it.
+- **`python manage.py listings_backfill_geohash`** (new management command,
+  `services/geohash_backfill.py`) — stamps `geohash`/`geohash_draft` on
+  listings written before this fix: any row with coordinates and an empty
+  geohash. Idempotent and resumable (only ever touches `geohash* = ''`
+  rows, so a crash mid-run loses no progress and a second full run is a
+  no-op), `--dry-run`/`--batch-size`/`--limit` for staging on a large
+  table, graceful the same way `compute_geohash_draft()` is when geo is
+  unreachable (rows left `unresolved`, reported, not an error).
+- `tests/test_geohash_stamp.py` (12 tests): stamp on create, stamp on a
+  coordinate update (and only on one — an unrelated-field save leaves the
+  existing geohash alone), a changed coordinate recomputes rather than
+  keeping the old geohash, no crash and no stamp when `geo.geohash_encode`
+  has no provider, a stale geohash is cleared (not kept) when geo becomes
+  unreachable after a coordinate change, and a client-supplied
+  `geohash_draft` is ignored end-to-end through the serializer.
+  `tests/test_geohash_backfill.py` (10 tests): both populations
+  (published/draft) stamped independently, idempotent re-run, `--dry-run`
+  writes nothing, geo-unanswered leaves rows `unresolved` without raising,
+  soft-deleted listings included, `--limit` bounds each population
+  independently, and the management command's stdout report / flags.
+  `tests/test_publish.py::test_publish_promotes_lat_lon_with_geohash`
+  updated for the new server-computed value instead of a hand-set one.
+
 ## [0.7.0] - 2026-08-24
 
 **Feature.** Minor (pre-1.0 semver: minor = breaking, patch = compatible) —

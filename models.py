@@ -389,6 +389,49 @@ class Listing(models.Model):
             )
             return None
 
+    # -- geohash_draft --------------------------------------------------------
+
+    def compute_geohash_draft(self) -> str:
+        """Stamp ``geohash_draft`` via the ``geo.geohash_encode`` comm Function.
+
+        Mirrors ``compute_price_base``: a listing carrying ``lat_draft``/
+        ``lon_draft`` gets a geohash computed server-side in ``save()``,
+        rather than relying on a client to compute and send one (the prior
+        state of this module — MODULE.md's own words: "this is how consumers
+        stamp geohashes onto their own rows"; stapel-listings never actually
+        called it). ``publish_listing`` promotes ``geohash_draft`` ->
+        ``geohash`` exactly like ``lat_draft``/``lon_draft`` -> ``lat``/
+        ``lon``, so this single call site is enough to fix both.
+
+        No coordinates -> ``""`` (nothing to encode). stapel-geo is consumed
+        by comm name only (MODULE.md "Do not import stapel_geo" — no hard
+        dependency at import), so any failure to reach it — not deployed, no
+        route configured, a bad reply — degrades to ``""`` rather than
+        raising. stapel-search 0.2.2 made the lat/lon box authoritative for
+        correctness; an empty geohash only costs the prefilter its index (a
+        full box scan), never a wrong answer — so, like ``price_base``, a
+        stale/wrong geohash left over from an earlier coordinate is worse
+        than a blank one and is never kept on failure.
+        """
+        if self.lat_draft is None or self.lon_draft is None:
+            return ""
+        from stapel_core.comm import call
+        from stapel_core.comm.exceptions import CommError
+
+        try:
+            result = call(
+                "geo.geohash_encode",
+                {"lat": float(self.lat_draft), "lon": float(self.lon_draft)},
+            )
+        except (CommError, LookupError, KeyError, TypeError, ValueError) as exc:
+            logger.debug(
+                "geo.geohash_encode unavailable for listing %s (lat=%s, lon=%s): %s",
+                self.pk, self.lat_draft, self.lon_draft, exc.__class__.__name__,
+            )
+            return ""
+        geohash = result.get("geohash") if isinstance(result, dict) else None
+        return geohash or ""
+
     # Set by the paths that own their own index event (``transition_to``
     # emits published/removed itself) so one write never produces two.
     _skip_updated_emit = False
@@ -401,6 +444,14 @@ class Listing(models.Model):
             self.price_base = self.compute_price_base()
             if update_fields is not None and "price_base" not in update_fields:
                 update_fields = list(update_fields) + ["price_base"]
+                kwargs["update_fields"] = update_fields
+        # Keep geohash_draft in sync unless the caller manages update_fields
+        # without touching the draft coordinates (same shape as price_base
+        # above).
+        if self._touches(update_fields, {"lat_draft", "lon_draft", "geohash_draft"}):
+            self.geohash_draft = self.compute_geohash_draft()
+            if update_fields is not None and "geohash_draft" not in update_fields:
+                update_fields = list(update_fields) + ["geohash_draft"]
                 kwargs["update_fields"] = update_fields
         if self.status == ListingStatus.PUBLISHED and self.published_at is None:
             self.published_at = timezone.now()

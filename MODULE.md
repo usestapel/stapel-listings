@@ -132,6 +132,24 @@
   publish `400`.
 - **Currency conversion** lives in a currencies module; `price_base` is
   computed through the `PRICE_BASE_CONVERTER` seam (identity by default).
+- **Geocoding/proximity** live in **stapel-geo**; this module never imports
+  it. `Listing.save()` stamps `geohash_draft` from `lat_draft`/`lon_draft`
+  (`compute_geohash_draft()`) through the `geo.geohash_encode` comm Function
+  the same way `price_base` is kept in sync from `price` — one call site, no
+  second place that could disagree with it. `publish_listing` promotes
+  `geohash_draft` -> `geohash` exactly like the coordinate twins, so this one
+  call site fixes both fields. **No hard dependency at import**: when
+  `geo.geohash_encode` is unreachable (stapel-geo not deployed, no route
+  configured, a bad reply) the geohash is left `""` rather than raising or
+  keeping a stale value describing the wrong coordinates — same "unknown
+  beats wrong" stance as `price_base`'s `NULL`. An empty geohash never
+  produces a wrong answer downstream: stapel-search's postgres backend
+  (0.2.2+) treats `geohash = ''` as *unknown*, not *elsewhere*, and falls
+  back to its exact lat/lon box — it only costs the geohash prefilter its
+  index (a full box scan instead of an indexed prefix lookup). Existing rows
+  written before this release backfill via
+  `python manage.py listings_backfill_geohash` (idempotent, rerunnable,
+  `--dry-run`/`--batch-size`/`--limit`; see `services/geohash_backfill.py`).
 
 ## Extension points (fork-free)
 
@@ -186,6 +204,7 @@ attributes; subclass and remount the router to swap any of them.
 | Consume (Action) | `moderation.completed` | `{target_type?, target_key, decision, reason_code?, note?, …}`; `{listing_id}` accepted as the pre-0.4 alias | `schemas/consumes/moderation.completed.json` (owned by stapel-moderation) |
 | Consume (Action) | `user.deleted` | `{user_id, …}` | `schemas/consumes/user.deleted.json` (owned by stapel-auth/gdpr) |
 | Call (depends on) | `categories.features` | `{category_id}` | provided by stapel-categories |
+| Call (depends on) | `geo.geohash_encode` | `{lat, lon}` -> `{geohash}` | provided by stapel-geo; graceful when unanswered (`compute_geohash_draft()` above) — no `stapel-geo` dependency in `pyproject.toml` |
 
 ### GDPR
 
