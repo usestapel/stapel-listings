@@ -8,7 +8,7 @@
     "/listings/api/v1/listings/": {
       "get": {
         "operationId": "listings_api_v1_listings_list",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
         "parameters": [
           {
             "name": "anchor",
@@ -68,7 +68,7 @@
       },
       "post": {
         "operationId": "listings_api_v1_listings_create",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "description": "Open a draft — the first act of becoming a seller, so the guest\nwall stands here and not only at ``publish``.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
         "tags": [
           "listings"
         ],
@@ -114,7 +114,7 @@
     "/listings/api/v1/listings/{id}/": {
       "get": {
         "operationId": "listings_api_v1_listings_retrieve",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
         "parameters": [
           {
             "in": "path",
@@ -205,7 +205,7 @@
       },
       "patch": {
         "operationId": "listings_api_v1_listings_partial_update",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
         "parameters": [
           {
             "in": "path",
@@ -259,7 +259,7 @@
       },
       "delete": {
         "operationId": "listings_api_v1_listings_destroy",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
         "parameters": [
           {
             "in": "path",
@@ -296,7 +296,7 @@
     "/listings/api/v1/listings/{id}/archive/": {
       "post": {
         "operationId": "listings_api_v1_listings_archive_create",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
             "in": "path",
@@ -370,7 +370,7 @@
     "/listings/api/v1/listings/{id}/favorite/": {
       "post": {
         "operationId": "listings_api_v1_listings_favorite_create",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
             "in": "path",
@@ -407,7 +407,7 @@
     "/listings/api/v1/listings/{id}/publish/": {
       "post": {
         "operationId": "listings_api_v1_listings_publish_create",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Put a listing in front of buyers — the act the wall is named for:\na seller nobody can reach again is not a seller.\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
             "in": "path",
@@ -491,7 +491,7 @@
     "/listings/api/v1/listings/{id}/status/": {
       "get": {
         "operationId": "listings_api_v1_listings_status_retrieve",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `AllowAny`",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `AllowAny`",
         "parameters": [
           {
             "in": "path",
@@ -529,7 +529,7 @@
     "/listings/api/v1/listings/{id}/unfavorite/": {
       "post": {
         "operationId": "listings_api_v1_listings_unfavorite_create",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
             "in": "path",
@@ -566,7 +566,7 @@
     "/listings/api/v1/listings/{id}/validate-draft/": {
       "get": {
         "operationId": "listings_api_v1_listings_validate_draft_retrieve",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
             "in": "path",
@@ -603,7 +603,7 @@
     "/listings/api/v1/listings/my/counters/": {
       "get": {
         "operationId": "listings_api_v1_listings_my_counters_retrieve",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "listings"
         ],
@@ -629,7 +629,7 @@
     "/listings/api/v1/listings/my/favorites/": {
       "get": {
         "operationId": "listings_api_v1_listings_my_favorites_list",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
             "name": "anchor",

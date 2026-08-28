@@ -30,3 +30,25 @@ headless pip dependency. The category schema is resolved by *comm-by-name*
 | DESCRIPTION_MIN_LENGTH | env | minimum free-text description length enforced on publish/validate. | no | 4 |
 | DESCRIPTION_MAX_LENGTH | env | maximum free-text description length enforced on publish/validate. | no | 500 |
 | DEFAULT_LISTING_TTL_DAYS | env | days until a freshly published listing expires (None disables expiry). | no | 30 |
+| ALLOW_ANONYMOUS_WRITES | env | whether a guest (anonymous account) may author a listing. Gates `create`, `PUT`/`PATCH`, `save-draft` and `publish`; favorites, wind-down actions and every read stay open either way. | no | false |
+
+### ALLOW_ANONYMOUS_WRITES
+
+A storefront may mint an anonymous account silently — press "save this listing"
+as a stranger and you get a real user row with `is_anonymous=True` and a valid
+session. That session is genuinely authenticated, so `IsAuthenticated` cannot
+tell it from a registered one and a "sign up to sell" wall drawn only in the
+frontend is decoration. This key is the wall server-side: with it off, a guest
+gets `error.403.listing_anonymous_not_allowed` on the authorship writes
+(`POST /listings`, `PUT`/`PATCH /listings/{id}`, `save-draft`, `publish`). The
+default is CLOSED because that is the cheap answer either way — a deployment
+that mints no anonymous users has none to reject, and one that does gets the
+wall it already believed it had. Setting it to `true` is the explicit statement
+"guests may publish here"; a seller who cannot be reached again is not a
+seller, so it should be said out loud.
+
+What it deliberately does NOT gate: `favorite`/`unfavorite`/`my/favorites` —
+the saved favorite is the very feature the anonymous session exists for — the
+wind-down actions on a listing one already owns (`archive`, `complete`,
+`destroy`), so flipping the key closed cannot strand content a guest published
+while it was open, and every read.

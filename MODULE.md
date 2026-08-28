@@ -203,6 +203,7 @@ attributes; subclass and remount the router to swap any of them.
 | Consume (Action) | `category.changed` | `{category_id, revision}` | `schemas/consumes/category.changed.json` (owned by stapel-categories) |
 | Consume (Action) | `moderation.completed` | `{target_type?, target_key, decision, reason_code?, note?, …}`; `{listing_id}` accepted as the pre-0.4 alias | `schemas/consumes/moderation.completed.json` (owned by stapel-moderation) |
 | Consume (Action) | `user.deleted` | `{user_id, …}` | `schemas/consumes/user.deleted.json` (owned by stapel-auth/gdpr) |
+| Consume (Action) | `user.merged` | `{from_user_id, into_user_id, reason}` | `schemas/consumes/user.merged.json` (owned by stapel-auth) — an anonymous guest absorbed into an existing account; favorites and listings are carried over to the survivor, colliding favorites folded to one row. A guest that owns nothing is a quiet no-op; a guest that owns rows while the survivor has no local user row raises `MergeTargetNotReady` so the outbox redelivers rather than losing the transfer |
 | Call (depends on) | `categories.features` | `{category_id}` | provided by stapel-categories |
 | Call (depends on) | `geo.geohash_encode` | `{lat, lon}` -> `{geohash}` | provided by stapel-geo; graceful when unanswered (`compute_geohash_draft()` above) — no `stapel-geo` dependency in `pyproject.toml` |
 

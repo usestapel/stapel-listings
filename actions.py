@@ -12,12 +12,26 @@ redelivery). Consumed contracts are documented in ``schemas/consumes/*.json``.
   ignored here.
 - ``user.deleted`` (from stapel-auth/gdpr) — erase the user's listings and
   favorites (GDPR Art. 17).
+- ``user.merged`` (from stapel-auth) — an anonymous guest was absorbed into an
+  existing account; carry the guest's favorites and listings over to it.
 """
 import logging
 
 from stapel_core.comm import on_action
 
 logger = logging.getLogger(__name__)
+
+
+class MergeTargetNotReady(RuntimeError):
+    """A ``user.merged`` arrived before the surviving account exists here.
+
+    Transient, not a bug: the guest has rows to carry over but there is no
+    local user row to point their FKs at yet. Raising is the comm layer's
+    retry signal — ``deliver()`` wraps a failing handler in
+    ``ActionDeliveryError`` and the outbox redelivers — so the transfer
+    completes once the survivor's user projection lands. An operator seeing
+    this in a redelivery loop is looking at an ordering lag, not a defect.
+    """
 
 
 @on_action("category.changed")
@@ -86,3 +100,90 @@ def handle_user_deleted(event):
         return
     ListingsGDPRProvider().delete(user_id)
     logger.info("listings erased for deleted user %s", user_id)
+
+
+@on_action("user.merged")
+def handle_user_merged(event):
+    """Carry a merged-away account's favorites and listings to the survivor.
+
+    stapel-auth deletes the absorbed row, and every row this module owns hangs
+    off it by ``on_delete=CASCADE`` — so without this handler a visitor who
+    saved listings as a guest loses them the moment they sign in with an
+    account that already exists. Reassignment happens here, in one
+    transaction, before that deletion can cascade.
+
+    Two different "unknown id" situations, and conflating them loses data:
+
+    * the guest owns nothing here (never visited, or a previous delivery
+      already moved it all) — a genuine no-op, returned quietly;
+    * the guest owns rows but the survivor has no user row here yet — NOT a
+      no-op. :class:`MergeTargetNotReady` is raised so the event is
+      redelivered, because returning success would let the outbox mark it
+      delivered and lose the favorites forever.
+    """
+    from django.contrib.auth import get_user_model
+    from django.db import transaction
+
+    from .models import Favorite, Listing
+
+    payload = event.payload or {}
+    from_user_id = payload.get("from_user_id")
+    into_user_id = payload.get("into_user_id")
+    if not from_user_id or not into_user_id:
+        logger.error("user.merged without from/into user id: %s", event.event_id)
+        return
+    if str(from_user_id) == str(into_user_id):
+        return
+
+    user_model = get_user_model()
+    with transaction.atomic():
+        # Both reads and the decision they feed happen inside the transaction
+        # and before the first write, so the "not yet" path below can never
+        # leave half the rows moved.
+        try:
+            owns_favorites = Favorite.objects.filter(user_id=from_user_id).exists()
+            owns_listings = Listing.all_objects.filter(owner_id=from_user_id).exists()
+        except (ValueError, TypeError):
+            logger.warning("user.merged with unusable user ids: %s", event.event_id)
+            return
+        if not (owns_favorites or owns_listings):
+            # Nothing to carry: the guest never reached this service, or a
+            # previous delivery already moved everything. Quiet by design —
+            # this is also the at-least-once idempotency path.
+            return
+        if not user_model.objects.filter(pk=into_user_id).exists():
+            # The guest HAS rows but the survivor has no row here yet, so
+            # nothing can point a FK at them. Not a no-op: raising is this
+            # comm layer's retry signal (deliver() wraps it in
+            # ActionDeliveryError and the outbox redelivers), so the transfer
+            # lands once the survivor's user projection arrives.
+            raise MergeTargetNotReady(
+                f"user.merged {from_user_id} -> {into_user_id}: the surviving "
+                f"account has no user row in stapel-listings yet; redeliver "
+                f"once its projection has landed"
+            )
+
+        # The survivor already saved some of these listings. A blind update
+        # would break uniq_user_listing_fav; drop the guest's duplicate rows
+        # instead — the listing stays saved, under the survivor.
+        already = Favorite.objects.filter(user_id=into_user_id).values_list(
+            "listing_id", flat=True
+        )
+        Favorite.objects.filter(
+            user_id=from_user_id, listing_id__in=list(already)
+        ).delete()
+        moved_favorites = Favorite.objects.filter(user_id=from_user_id).update(
+            user_id=into_user_id
+        )
+        # all_objects: a soft-deleted listing is still the survivor's to own.
+        moved_listings = Listing.all_objects.filter(owner_id=from_user_id).update(
+            owner_id=into_user_id
+        )
+
+    logger.info(
+        "user.merged %s -> %s: %s favorites, %s listings carried over",
+        from_user_id,
+        into_user_id,
+        moved_favorites,
+        moved_listings,
+    )

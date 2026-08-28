@@ -18,7 +18,7 @@ from rest_framework.response import Response
 from stapel_attributes.results import ValidationBatchResultSerializer
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
 from stapel_core.django.api.pagination import IDAnchorPagination
-from stapel_core.django.api.permissions import IsServiceRequest
+from stapel_core.django.api.permissions import IsNotAnonymousUser, IsServiceRequest
 
 from .dto import (
     DeleteResponse,
@@ -30,6 +30,7 @@ from .dto import (
 from .errors import (
     ERR_400_INVALID_STATUS_FILTER,
     ERR_400_PUBLISH_VALIDATION_FAILED,
+    ERR_403_ANONYMOUS_NOT_ALLOWED,
     ERR_403_LISTING_NOT_OWNER,
     ERR_404_LISTING_NOT_FOUND,
     ERR_409_INVALID_TRANSITION,
@@ -79,6 +80,35 @@ def parse_status_filter(raw_values):
     return wanted
 
 
+def anonymous_write_refusal(request):
+    """The 403 a GUEST gets on an authorship write, or ``None`` to let it through.
+
+    A storefront may mint an anonymous account silently (press the heart as a
+    stranger, get a real ``User`` row with ``is_anonymous=True`` and a valid
+    session). That session is authenticated, so ``IsAuthenticated`` waves it
+    through and the "sign up to sell" wall is decoration unless this module
+    asks the question itself. ``ALLOW_ANONYMOUS_WRITES`` is where the answer
+    lives, and it is closed by default (see ``conf.py``).
+
+    The predicate is core's :class:`IsNotAnonymousUser` — the module owns the
+    switch and the error key, never a second copy of the rule. A *response* is
+    returned rather than an exception raised because the refusal has to read
+    as this module's error dialect, and only ``StapelErrorResponse`` does that
+    under DRF's stock exception handler as well as under the host's.
+
+    Called from the authorship writes only. Favoriting is deliberately not one
+    of them: the anonymous session exists so a stranger CAN keep a favorite,
+    and a wall across that endpoint would break the feature it was built for.
+    """
+    from .conf import listings_settings
+
+    if listings_settings.ALLOW_ANONYMOUS_WRITES:
+        return None
+    if IsNotAnonymousUser().has_permission(request, None):
+        return None
+    return StapelErrorResponse(403, ERR_403_ANONYMOUS_NOT_ALLOWED)
+
+
 class SerializerSeamMixin:
     """Overridable serializer seam for stapel-listings views.
 
@@ -107,7 +137,16 @@ def _may_see_full_status(request, listing) -> bool:
 
 
 class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
-    """Listings CRUD plus owner lifecycle actions and favorites."""
+    """Listings CRUD plus owner lifecycle actions and favorites.
+
+    Read and write live in one class, so the guest wall
+    (:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)
+    is applied per ACTION and never as a class permission: an anonymous
+    session must keep browsing and keep its favorites, and only the
+    authorship actions — ``create``, ``update``/``partial_update``,
+    ``save-draft``, ``publish`` — are the ones that turn a caller into a
+    seller.
+    """
 
     queryset = Listing.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly]
@@ -157,11 +196,22 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
 
     # -- CRUD writes -------------------------------------------------------
 
+    def create(self, request, *args, **kwargs):
+        """Open a draft — the first act of becoming a seller, so the guest
+        wall stands here and not only at ``publish``."""
+        refusal = anonymous_write_refusal(request)
+        if refusal is not None:
+            return refusal
+        return super().create(request, *args, **kwargs)
+
     def update(self, request, *args, **kwargs):
         """Write the draft fields — the write ``save-draft`` also performs.
 
         Owner only: 404 for an absent listing, 403 for someone else's.
         """
+        refusal = anonymous_write_refusal(request)
+        if refusal is not None:
+            return refusal
         # DRF's generated update resolves its object off Listing.objects.all()
         # under IsAuthenticatedOrReadOnly, which is no ownership check at all.
         # partial_update routes through here, so PUT and PATCH pass the
@@ -265,6 +315,9 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
             permission_classes=[IsAuthenticated])
     def save_draft(self, request, pk=None):  # noqa: R007
         """Persist draft fields (declarative validation via serializer)."""
+        refusal = anonymous_write_refusal(request)
+        if refusal is not None:
+            return refusal
         listing, error = self._get_own(request, pk)
         if error:
             return error
@@ -288,6 +341,11 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
                               400: ValidationBatchResultSerializer})
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def publish(self, request, pk=None):  # noqa: R007
+        """Put a listing in front of buyers — the act the wall is named for:
+        a seller nobody can reach again is not a seller."""
+        refusal = anonymous_write_refusal(request)
+        if refusal is not None:
+            return refusal
         listing, error = self._get_own(request, pk)
         if error:
             return error

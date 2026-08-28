@@ -17,6 +17,11 @@ import stapel_attributes.errors  # noqa: F401
 
 ERR_404_LISTING_NOT_FOUND = "error.404.listing_not_found"
 ERR_403_LISTING_NOT_OWNER = "error.403.listing_not_owner"
+# A guest (anonymous account) on an authorship write while
+# ALLOW_ANONYMOUS_WRITES is off. Distinct from NOT_OWNER: that one is about
+# whose listing this is, this one is about the account itself, and only the
+# second is fixed by signing up.
+ERR_403_ANONYMOUS_NOT_ALLOWED = "error.403.listing_anonymous_not_allowed"
 ERR_409_LISTING_CANNOT_DELETE_ACTIVE = "error.409.listing_cannot_delete_active"
 ERR_400_CATEGORY_REQUIRED = "error.400.category_required"
 ERR_400_PUBLISH_VALIDATION_FAILED = "error.400.publish_validation_failed"
@@ -38,6 +43,7 @@ ERR_400_INVALID_STATUS_FILTER = "error.400.listing_invalid_status_filter"
 STAPEL_LISTINGS_ERRORS = {
     ERR_404_LISTING_NOT_FOUND: "Listing not found",
     ERR_403_LISTING_NOT_OWNER: "Not your listing",
+    ERR_403_ANONYMOUS_NOT_ALLOWED: "A guest account may not publish a listing",
     ERR_409_LISTING_CANNOT_DELETE_ACTIVE: (
         "Cannot delete an active listing. Archive it first."
     ),
@@ -56,6 +62,7 @@ __all__ = [
     "STAPEL_LISTINGS_ERRORS",
     "ERR_404_LISTING_NOT_FOUND",
     "ERR_403_LISTING_NOT_OWNER",
+    "ERR_403_ANONYMOUS_NOT_ALLOWED",
     "ERR_409_LISTING_CANNOT_DELETE_ACTIVE",
     "ERR_400_CATEGORY_REQUIRED",
     "ERR_400_PUBLISH_VALIDATION_FAILED",

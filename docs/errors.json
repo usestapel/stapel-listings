@@ -366,6 +366,14 @@
     "owner": "stapel_core"
   },
   {
+    "code": "error.403.listing_anonymous_not_allowed",
+    "status": 403,
+    "params": [],
+    "remediation": "retry",
+    "en": "A guest account may not publish a listing",
+    "owner": "stapel_listings"
+  },
+  {
     "code": "error.403.listing_not_owner",
     "status": 403,
     "params": [],

@@ -4,6 +4,34 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.9.0] — 2026-08-28
+
+### A merge deleted the guest and transferred nothing
+
+`user.merged` arrives when an anonymous visitor signs into a real account.
+This package now consumes it and moves the guest's rows onto the survivor.
+
+Before, nothing consumed it: the guest row was deleted and every CASCADE
+foreign key went with it, so a visitor who favourited three listings and then
+signed in lost all three. The comment promising a transfer had never been kept,
+and the loss was silent — the right number of rows simply stopped existing.
+
+The consumer opens a transaction and decides inside it, before any write:
+a guest that owns nothing here returns quietly (which also covers the second
+delivery of an already-completed merge, so idempotency stays silent), a
+survivor with no local user row yet raises so the outbox redelivers, and only
+then does the transfer run. Ordering is deliberate — the owns-nothing check
+runs first, so an unknown survivor plus an empty guest never starts a retry
+loop.
+
+### `ALLOW_ANONYMOUS_WRITES` — the wall was in the interface only
+
+A silently minted guest could `POST` a listing and publish it: 200, live.
+The refusal existed in the frontend and nowhere else. The axis defaults to
+**False**; favouriting and unfavouriting stay open on purpose, and are tested
+as such, because saving something you are looking at is the act auto-anonymous
+exists to allow.
+
 ## [0.8.0] — 2026-08-28
 
 ### The status probe was an enumeration oracle

@@ -54,6 +54,26 @@ listings_settings = AppSettings(
         "DESCRIPTION_MAX_LENGTH": 500,
         # Days until a freshly published listing expires (None disables expiry).
         "DEFAULT_LISTING_TTL_DAYS": 30,
+        # --- The guest wall ---------------------------------------------
+        # May a GUEST — an anonymous account (``User.is_anonymous``), the kind
+        # a storefront mints silently so a stranger can save a favourite —
+        # AUTHOR a listing? Such a session is genuinely authenticated, so
+        # IsAuthenticated cannot tell it from a registered one and the module
+        # has to be asked.
+        #
+        # CLOSED by default, and the default is the cheap answer either way: a
+        # deployment that mints no anonymous users has none to reject, so it
+        # costs them nothing; a deployment that does mint them gets the wall it
+        # already believed it had. Flipping this to True is the explicit
+        # statement "guests may publish here" — a seller who cannot be reached
+        # again is not a seller, so it should be said out loud.
+        #
+        # Gates the AUTHORSHIP writes only: create, PUT/PATCH, save-draft,
+        # publish. Favoriting, unfavoriting, the wind-down actions on a listing
+        # one already owns (archive/complete/destroy) and every read stay open
+        # in both positions — the favorite is the very feature the anonymous
+        # session exists for.
+        "ALLOW_ANONYMOUS_WRITES": False,
     },
     import_strings=("PRICE_BASE_CONVERTER",),
 )
