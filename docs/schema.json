@@ -45,7 +45,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "security": [
           {
@@ -70,7 +70,7 @@
         "operationId": "listings_api_v1_listings_create",
         "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
         "tags": [
-          "Listings"
+          "listings"
         ],
         "requestBody": {
           "content": {
@@ -127,7 +127,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "security": [
           {
@@ -163,7 +163,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "requestBody": {
           "content": {
@@ -218,7 +218,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "requestBody": {
           "content": {
@@ -272,7 +272,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "security": [
           {
@@ -309,7 +309,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "security": [
           {
@@ -346,7 +346,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "security": [
           {
@@ -383,7 +383,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "security": [
           {
@@ -420,7 +420,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "security": [
           {
@@ -467,7 +467,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "security": [
           {
@@ -504,7 +504,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "security": [
           {
@@ -542,7 +542,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "security": [
           {
@@ -579,7 +579,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "security": [
           {
@@ -605,7 +605,7 @@
         "operationId": "listings_api_v1_listings_my_counters_retrieve",
         "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
-          "Listings"
+          "listings"
         ],
         "security": [
           {
@@ -666,7 +666,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "security": [
           {
@@ -749,7 +749,7 @@
           }
         ],
         "tags": [
-          "Listings"
+          "listings"
         ],
         "security": [
           {

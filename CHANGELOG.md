@@ -4,6 +4,53 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.8.0] — 2026-08-28
+
+### The status probe was an enumeration oracle
+
+`GET /listings/{pk}/status/` was `AllowAny` and returned `owner_id`,
+`moderation_status` and the full lifecycle for any id — reading `all_objects`,
+so soft-deleted and unpublished rows answered too. Listing ids are sequential.
+Walking them anonymously harvested, for every listing in a deployment
+including other people's **drafts, rejected and deleted** listings, who owns it
+and what a moderator decided about it. Found by doing exactly that against a
+live stand:
+
+    GET /listings/api/v1/listings/10/status/
+    → 200 {"status":"draft","moderation_status":"pending","is_deleted":true,
+           "owner_id":"720a67e2-…"}
+
+### The first fix was wrong, which is worth recording
+
+The obvious repair — lock the action to `IsServiceRequest`, since it is
+documented as inter-service and carries the `listings.status` function — would
+have **broken a real browser client**. `@stapel/listings-react`'s
+`ListingDetail` calls this endpoint in parallel with the detail read for a
+reason its own docstring states: `GET /{pk}/` excludes soft-deleted rows, so a
+removed listing 404s and a made-up id 404s identically. The probe is what turns
+those into two different sentences, and "this listing was removed" is the one a
+person following a stale link actually needs.
+
+"The only caller is another service" was a search result, not a fact. A grep of
+the consuming pair found the browser caller in one command.
+
+### So the capability stays and the disclosure goes
+
+The action is `AllowAny` again. A fleet service (X-API-KEY) and the listing's
+**own owner** get the full `ListingStatusSerializer`. Everyone else — including
+a signed-in stranger, because otherwise the oracle costs an attacker one free
+account — gets `ListingPresenceSerializer`: a single `is_deleted` boolean,
+which is the only field the browser client reads.
+
+### Notes
+
+The suite asserts the stranger's shape, that `owner_id`/`moderation_status`/
+`status` are absent by name (so re-adding one fails loudly rather than
+silently widening the response), that a service and the owner still get the
+full view, that a signed-in non-owner does not, and that a soft-deleted row
+still answers at all — which is the whole reason the probe reads
+`all_objects`. Those assertions go red against the pre-fix code.
+
 ## [0.7.1] - 2026-08-24
 
 Patch (pre-1.0 semver: minor = breaking, patch = compatible). Bug fix — a

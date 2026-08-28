@@ -1,5 +1,6 @@
 """API smoke tests for the ListingViewSet."""
 import pytest
+from django.utils import timezone
 
 from stapel_listings.models import Favorite, Listing, ListingStatus
 
@@ -98,23 +99,69 @@ def test_favorite_and_unfavorite(auth_client, user, other_user):
     assert not Favorite.objects.filter(user=user, listing=listing).exists()
 
 
-def test_status_endpoint_rejects_anonymous(api_client, user):
-    # The status action reads all_objects (drafts/deleted included) and returns
-    # owner_id + moderation state; it must not be an anonymous enumeration oracle.
+def test_status_tells_a_stranger_only_whether_the_row_is_gone(api_client, user):
+    """The capability is the feature; the disclosure was the defect.
+
+    Listing ids are sequential, so returning `owner_id` and
+    `moderation_status` to anyone was an enumeration oracle over every
+    listing in the fleet — other people's drafts, rejected and deleted rows
+    included. Found live on a stand by walking ids.
+
+    A stranger still gets an answer, because a browser client needs to tell
+    "this listing was removed" from "there was never a listing here", and a
+    404 alone cannot. It just gets one boolean.
+    """
     listing = Listing.objects.create(owner=user, category_id="7")
     resp = api_client.get(f"/listings/listings/{listing.pk}/status/")
-    assert resp.status_code == 403
+    assert resp.status_code == 200
+    assert set(resp.json()) == {"is_deleted"}
 
 
-def test_status_endpoint_allows_service_request(api_client, user):
+def test_a_stranger_never_learns_the_owner_or_the_moderation_verdict(api_client, user):
+    """Named separately from the shape test above: this is the fact that
+    leaked, and it should fail loudly if either field is ever added back."""
+    listing = Listing.objects.create(owner=user, category_id="7")
+    body = api_client.get(f"/listings/listings/{listing.pk}/status/").json()
+    assert "owner_id" not in body
+    assert "moderation_status" not in body
+    assert "status" not in body
+
+
+def test_a_service_still_gets_the_full_status(api_client, user):
+    """The `listings.status` function rides this endpoint over X-API-KEY."""
     listing = Listing.objects.create(owner=user, category_id="7")
     resp = api_client.get(
         f"/listings/listings/{listing.pk}/status/",
         HTTP_X_API_KEY="test-service-key",
     )
     assert resp.status_code == 200
-    assert resp.data["status"] == ListingStatus.DRAFT
-    assert resp.data["owner_id"] == str(user.id)
+    assert resp.json()["owner_id"] == str(user.pk)
+    assert "moderation_status" in resp.json()
+
+
+def test_the_owner_still_gets_the_full_status(auth_client, user):
+    """Their own moderation verdict is theirs to see."""
+    listing = Listing.objects.create(owner=user, category_id="7")
+    body = auth_client.get(f"/listings/listings/{listing.pk}/status/").json()
+    assert body["owner_id"] == str(user.pk)
+
+
+def test_another_signed_in_user_is_still_a_stranger(auth_client, other_user):
+    """Being logged in is not being the owner — the oracle would otherwise
+    just cost an attacker one free account."""
+    listing = Listing.objects.create(owner=other_user, category_id="7")
+    body = auth_client.get(f"/listings/listings/{listing.pk}/status/").json()
+    assert set(body) == {"is_deleted"}
+
+
+def test_a_soft_deleted_listing_still_answers(api_client, user):
+    """The whole reason the probe reads all_objects."""
+    listing = Listing.objects.create(owner=user, category_id="7")
+    listing.deleted_at = timezone.now()
+    listing.save(update_fields=["deleted_at"])
+    resp = api_client.get(f"/listings/listings/{listing.pk}/status/")
+    assert resp.status_code == 200
+    assert resp.json()["is_deleted"] is True
 
 
 def test_my_counters(auth_client, user):

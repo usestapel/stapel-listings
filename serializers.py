@@ -292,6 +292,32 @@ class ListingDetailSerializer(serializers.ModelSerializer):
         ]
 
 
+class ListingPresenceSerializer(serializers.Serializer):
+    """What a STRANGER may learn from the status probe: that a row exists.
+
+    The probe reads ``all_objects``, so it answers for soft-deleted and
+    unpublished listings — that is the point: it is what lets a page say "this
+    listing was removed" instead of the 404 a made-up id also produces.
+
+    But the full status view carries ``owner_id`` and ``moderation_status``,
+    and listing ids are sequential. Under ``AllowAny`` that made the endpoint
+    an enumeration oracle: walk the ids and harvest, for every listing in the
+    fleet including other people's drafts and rejected rows, who owns it and
+    what a moderator decided about it. Verified live on a stand.
+
+    Deleting the endpoint would have been the wrong fix — a real client uses
+    it, and the capability it grants a stranger (learning that a listing
+    existed and is gone) is the feature. So the CAPABILITY stays and the
+    DISCLOSURE goes: one boolean, which is all the removed-versus-never-existed
+    sentence needs.
+    """
+
+    is_deleted = serializers.BooleanField()
+
+    def to_representation(self, instance):
+        return {"is_deleted": instance.is_deleted}
+
+
 class ListingStatusSerializer(serializers.Serializer):
     """Lightweight status view (mirrors the listings.status comm Function)."""
 

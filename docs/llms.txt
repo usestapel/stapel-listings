@@ -1,4 +1,4 @@
-# stapel-listings 0.7.1
+# stapel-listings 0.8.0
 
 Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle including the moderation takedown state 'blocked', an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, first-class favorites, and the two pull seams its consumers read it through — listings.search_documents / listings.search_export for an indexer and listings.moderation_content for a moderation queue.
 
@@ -53,7 +53,7 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 
 ## HTTP operations (17) — call by operationId, never by a typed path
 Paths are relative to `/listings/api/v1/listings/`.
-### Listings
+### listings
 - POST /{id}/archive/ — listings_api_v1_listings_archive_create
 - POST /{id}/complete/ — listings_api_v1_listings_complete_create
 - POST / — listings_api_v1_listings_create

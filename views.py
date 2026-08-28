@@ -12,7 +12,7 @@ from django.db.models import Count, Q
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
 from stapel_attributes.results import ValidationBatchResultSerializer
@@ -43,6 +43,7 @@ from .serializers import (
     ListingCardSerializer,
     ListingDetailSerializer,
     ListingDraftSerializer,
+    ListingPresenceSerializer,
     ListingStatusSerializer,
     MyCountersResponseSerializer,
     MyListingCardSerializer,
@@ -90,6 +91,21 @@ class SerializerSeamMixin:
 
 
 @extend_schema(tags=["Listings"])
+def _may_see_full_status(request, listing) -> bool:
+    """Who gets `owner_id` and `moderation_status` from the status probe.
+
+    A fleet service (the `listings.status` function's transport, X-API-KEY)
+    and the listing's own owner. Everyone else learns only whether the row is
+    deleted, which is all the removed-versus-never-existed sentence needs.
+    """
+    if IsServiceRequest().has_permission(request, None):
+        return True
+    user = getattr(request, "user", None)
+    if user is None or not getattr(user, "is_authenticated", False):
+        return False
+    return str(getattr(user, "pk", "")) == str(listing.owner_id)
+
+
 class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
     """Listings CRUD plus owner lifecycle actions and favorites."""
 
@@ -157,20 +173,32 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
 
     # -- inter-service status ---------------------------------------------
 
-    # Service-only: this reads `all_objects` (soft-deleted and unpublished
-    # rows included) and returns `owner_id`, moderation and lifecycle state.
-    # Under AllowAny that was an anonymous enumeration oracle over every
-    # listing id — including other users' drafts, rejected and deleted rows.
-    # The one legitimate caller is another fleet service (X-API-KEY), which
-    # is also how the `listings.status` function is invoked.
+    # Reads `all_objects`, so it answers for soft-deleted and unpublished rows.
+    # That is the FEATURE: it is what lets a page distinguish "this listing was
+    # removed" from the 404 a made-up id also produces, and a real browser
+    # client uses it for exactly that.
+    #
+    # What it must NOT do is hand a stranger `owner_id` and `moderation_status`
+    # for every id in the fleet. Listing ids are sequential, so under a single
+    # AllowAny shape this was an enumeration oracle over other people's drafts,
+    # rejected and deleted listings — verified live on a stand, which is how it
+    # was found. Locking the whole action to services was the first fix tried
+    # and it was wrong: it would have broken the browser client that legitimately
+    # needs the removed-versus-never-existed answer.
+    #
+    # So the CAPABILITY stays and the DISCLOSURE goes. A service (the
+    # `listings.status` function's transport) and the listing's own owner get
+    # the full view; everyone else gets one boolean.
     @extend_schema(responses={200: ListingStatusSerializer})
-    @action(detail=True, methods=["get"], permission_classes=[IsServiceRequest])
+    @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def status(self, request, pk=None):  # noqa: R007
         try:
             listing = Listing.all_objects.get(pk=pk)
         except Listing.DoesNotExist:
             return StapelErrorResponse(404, ERR_404_LISTING_NOT_FOUND)
-        return StapelResponse(ListingStatusSerializer(listing))
+        if _may_see_full_status(request, listing):
+            return StapelResponse(ListingStatusSerializer(listing))
+        return StapelResponse(ListingPresenceSerializer(listing))
 
     # -- owner: counters & drafts -----------------------------------------
 
