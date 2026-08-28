@@ -98,9 +98,20 @@ def test_favorite_and_unfavorite(auth_client, user, other_user):
     assert not Favorite.objects.filter(user=user, listing=listing).exists()
 
 
-def test_status_endpoint_public(api_client, user):
+def test_status_endpoint_rejects_anonymous(api_client, user):
+    # The status action reads all_objects (drafts/deleted included) and returns
+    # owner_id + moderation state; it must not be an anonymous enumeration oracle.
     listing = Listing.objects.create(owner=user, category_id="7")
     resp = api_client.get(f"/listings/listings/{listing.pk}/status/")
+    assert resp.status_code == 403
+
+
+def test_status_endpoint_allows_service_request(api_client, user):
+    listing = Listing.objects.create(owner=user, category_id="7")
+    resp = api_client.get(
+        f"/listings/listings/{listing.pk}/status/",
+        HTTP_X_API_KEY="test-service-key",
+    )
     assert resp.status_code == 200
     assert resp.data["status"] == ListingStatus.DRAFT
     assert resp.data["owner_id"] == str(user.id)

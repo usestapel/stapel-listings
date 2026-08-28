@@ -28,6 +28,13 @@ def pytest_configure(config):
             DEFAULT_AUTO_FIELD="django.db.models.BigAutoField",
             USE_TZ=True,
             ROOT_URLCONF="stapel_listings.tests.urls",
+            # Header-gated: it only marks a request service-originated when a
+            # matching X-API-KEY is present, so it is inert for every other
+            # test. Wired so the service-only `status` action is testable.
+            MIDDLEWARE=[
+                "stapel_core.django.jwt.middleware.ServiceAPIKeyMiddleware",
+            ],
+            SERVICE_API_KEY="test-service-key",
             CACHES={
                 "default": {
                     "BACKEND": "django.core.cache.backends.locmem.LocMemCache",

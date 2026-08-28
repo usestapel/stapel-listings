@@ -12,12 +12,13 @@ from django.db.models import Count, Q
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
 from stapel_attributes.results import ValidationBatchResultSerializer
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
 from stapel_core.django.api.pagination import IDAnchorPagination
+from stapel_core.django.api.permissions import IsServiceRequest
 
 from .dto import (
     DeleteResponse,
@@ -156,8 +157,14 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
 
     # -- inter-service status ---------------------------------------------
 
+    # Service-only: this reads `all_objects` (soft-deleted and unpublished
+    # rows included) and returns `owner_id`, moderation and lifecycle state.
+    # Under AllowAny that was an anonymous enumeration oracle over every
+    # listing id — including other users' drafts, rejected and deleted rows.
+    # The one legitimate caller is another fleet service (X-API-KEY), which
+    # is also how the `listings.status` function is invoked.
     @extend_schema(responses={200: ListingStatusSerializer})
-    @action(detail=True, methods=["get"], permission_classes=[AllowAny])
+    @action(detail=True, methods=["get"], permission_classes=[IsServiceRequest])
     def status(self, request, pk=None):  # noqa: R007
         try:
             listing = Listing.all_objects.get(pk=pk)
