@@ -4,6 +4,33 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.9.1] — 2026-08-30
+
+### The public read was true but unowned
+
+Anonymous browsing works today because `ListingViewSet` carries
+`IsAuthenticatedOrReadOnly` and the detail read resolves through
+`visible_to`. Nothing asserted either from the outside, so it was a property
+of the code rather than a promise of the surface: change that one line to
+`IsAuthenticated` and the whole suite stays green while every catalogue page
+on the internet answers 401. For a classified — where most traffic arrives
+from a search engine with no session and will never get one — that is the
+single most expensive regression this module can ship, and it was the one
+regression no test would have caught.
+
+`tests/test_public_read.py` makes it a contract. A client with **no
+credentials at all** (not a guest account — a stranger) gets 200 on the list
+and on a published listing, another user's draft is absent from the list and
+404s by id exactly as an absent row does, and none of those responses carries
+a `Set-Cookie` — a read must stay cacheable at the edge and must not start a
+session per crawler. The permission class is asserted by name, so a
+regression fails a test that says what broke instead of fifty that say
+`401 != 200`. The write door is checked from the same anonymous side: refused,
+and 401 rather than 403 wherever the deployment's authenticator offers a
+challenge, which is what a fleet on `JWTCookieAuthentication` returns.
+
+Tests only. No behaviour, no schema, no settings change.
+
 ## [0.9.0] — 2026-08-28
 
 ### A merge deleted the guest and transferred nothing
