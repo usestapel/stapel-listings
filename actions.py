@@ -17,6 +17,8 @@ redelivery). Consumed contracts are documented in ``schemas/consumes/*.json``.
 """
 import logging
 
+from django.core.exceptions import ValidationError
+
 from stapel_core.comm import on_action
 
 logger = logging.getLogger(__name__)
@@ -80,7 +82,9 @@ def handle_moderation_completed(event):
         return
     try:
         listing = Listing.all_objects.get(pk=listing_id)
-    except (Listing.DoesNotExist, ValueError, TypeError):
+    except (Listing.DoesNotExist, ValidationError, ValueError, TypeError):
+        # A key that cannot be coerced to this model's pk type names no row:
+        # Django raises ValidationError (not ValueError) for a malformed UUID.
         logger.warning("moderation.completed for unknown listing %r", listing_id)
         return
 
@@ -98,7 +102,16 @@ def handle_user_deleted(event):
     if not user_id:
         logger.error("user.deleted without user_id: %s", event.event_id)
         return
-    ListingsGDPRProvider().delete(user_id)
+    try:
+        ListingsGDPRProvider().delete(user_id)
+    except (ValidationError, ValueError, TypeError):
+        # An id that cannot address a row here owns nothing to erase. Django
+        # raises ValidationError (not ValueError) for a malformed UUID, and an
+        # escaping exception is a poison pill: no redelivery can fix a typo.
+        logger.error(
+            "user.deleted with unusable user_id %r: %s", user_id, event.event_id
+        )
+        return
     logger.info("listings erased for deleted user %s", user_id)
 
 
@@ -143,7 +156,12 @@ def handle_user_merged(event):
         try:
             owns_favorites = Favorite.objects.filter(user_id=from_user_id).exists()
             owns_listings = Listing.all_objects.filter(owner_id=from_user_id).exists()
-        except (ValueError, TypeError):
+            # The survivor probe is read here, under the same guard, because a
+            # malformed *into* id must not escape as a poison pill either.
+            survivor_exists = user_model.objects.filter(pk=into_user_id).exists()
+        except (ValidationError, ValueError, TypeError):
+            # Django raises ValidationError (not ValueError) for a malformed
+            # UUID; an id that cannot address a row here names nothing.
             logger.warning("user.merged with unusable user ids: %s", event.event_id)
             return
         if not (owns_favorites or owns_listings):
@@ -151,7 +169,7 @@ def handle_user_merged(event):
             # previous delivery already moved everything. Quiet by design —
             # this is also the at-least-once idempotency path.
             return
-        if not user_model.objects.filter(pk=into_user_id).exists():
+        if not survivor_exists:
             # The guest HAS rows but the survivor has no row here yet, so
             # nothing can point a FK at them. Not a no-op: raising is this
             # comm layer's retry signal (deliver() wraps it in

@@ -4,6 +4,43 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.9.2] — 2026-08-30
+
+### Fixed — a malformed id in an action payload was a poison pill
+
+`ValidationError` is not a `ValueError`. Django answers a key it cannot coerce
+to a column's type — a malformed UUID above all — with
+`django.core.exceptions.ValidationError`, which does **not** subclass
+`ValueError` or `TypeError`. The `user.deleted` / `user.merged` guards here
+caught only `(ValueError, TypeError)`, so a bad id walked straight through
+them, the handler raised, `consume_actions` re-raised to the bus, and the
+event came back forever: a redelivery loop over a payload no retry can repair,
+burning the consumer's retry budget while looking exactly like a downstream
+outage.
+
+The consumed contracts do not save anyone from this. They type an id as
+`{"type": "string"}` — and where they do say `format: uuid`, `jsonschema`
+does not enforce `format` unless a format checker is passed, which the comm
+registry does not do. A malformed id is a well-formed payload.
+
+Every guard that turns a payload id into rows now catches `ValidationError`
+alongside `ValueError`/`TypeError` and takes the same quiet path it always
+took for an id it has never seen: `handle_user_deleted` (previously
+unguarded — the erasure call went straight at the GDPR provider),
+`handle_user_merged`, and `handle_moderation_completed`'s listing lookup.
+
+`user.merged` had a second door: the *from* id was probed under the guard but
+the survivor probe, `user_model.objects.filter(pk=into_user_id)`, sat outside
+it, so a malformed *into* id still escaped whenever the guest genuinely owned
+rows. That read moved inside the guarded block — still before the first write,
+so the "survivor not projected yet" path can no more leave rows half-moved
+than it could before.
+
+`MergeTargetNotReady` is untouched: a survivor id that *parses* but has no row
+here still raises, because that one is a real ordering lag and redelivery does
+fix it.
+
+
 ## [0.9.1] — 2026-08-30
 
 ### The public read was true but unowned
