@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-listings"
-version = "0.10.1"
+version = "0.10.2"
 description = "Listings and catalog for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -33,7 +33,15 @@ dependencies = [
     # Floor: 0.5 brings the conditional-rule pre-pass (requiredness is the
     # rule state, not `mandatory`) and the two vocabulary-backed types the
     # publish projections now carry.
-    "stapel-attributes>=0.5,<1.0",
+    # Cap: <0.7, not <1.0. Pre-1.0 house semver reads a MINOR as breaking, and
+    # this line was the exception that proved it — a published stapel-attributes
+    # can add a built-in type, which changes the discriminator mapping this
+    # module emits into docs/schema.json, and an unbounded cap let 0.6.0 turn
+    # tests/test_contract.py red with nothing here having changed. The floor is
+    # 0.6 because the committed schema NAMES the composite `group`: on 0.5 the
+    # mapping would list a type the registry does not have, which is the same
+    # lie in the other direction.
+    "stapel-attributes>=0.6,<0.7",
     "djangorestframework>=3.14",
     "djangorestframework-dataclasses>=1.2",
     "drf-spectacular>=0.27",

@@ -4,6 +4,23 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.10.2] — 2026-08-31
+
+### Fixed
+
+- **`stapel-attributes>=0.5,<1.0` → `>=0.6,<0.7`.** 0.10.1 regenerated the
+  schema against stapel-attributes 0.6 — `FeatureDto`/`FeatureDao` now name
+  `group` — while still declaring a floor of 0.5, where that type does not
+  exist. `test_feature_dto_dao_discriminator_is_slug_keyed` compares the
+  committed mapping against the LIVE registry, so on 0.5 that release fails its
+  own suite: a contract naming a type the installed engine cannot serve is the
+  same defect as a contract missing one, pointing the other way.
+
+  The cap is `<0.7` for the reason the floor moved at all: pre-1.0 house semver
+  reads a minor as breaking, and an unbounded cap is what let a sibling's
+  release start failing this module's tests with nothing here having changed.
+  A host that stays on stapel-attributes 0.5.x stays on stapel-listings 0.10.0.
+
 ## [0.10.1] — 2026-08-31
 
 ### Changed — the composite `group` joins the polymorphic contract
