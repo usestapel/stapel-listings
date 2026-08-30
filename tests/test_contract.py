@@ -138,11 +138,16 @@ def test_feature_dto_dao_discriminator_is_slug_keyed(schema_artifact):
     key. openapi-typescript then stripped ``type`` from generated call
     sites and re-added a synthetic wrong one (fixed upstream in
     stapel-attributes 0.4.7, see its CHANGELOG).
+
+    The assertion is set equality against the LIVE registry, not a count: an
+    upstream release adding a type (0.5.0 added ``ref_select`` and
+    ``ref_hierarchical_select``) must fail this as stale artifacts, which a
+    hard-coded number turns into a failure about arithmetic instead.
     """
     from stapel_attributes.registry import get_all_type_slugs
 
     slugs = set(get_all_type_slugs())
-    assert len(slugs) == 10
+    assert slugs, "the attributes type registry came back empty"
 
     for component_name in ("FeatureDto", "FeatureDao"):
         component = schema_artifact["components"]["schemas"][component_name]
