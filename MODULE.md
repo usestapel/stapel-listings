@@ -51,6 +51,21 @@
   over comm (`categories.features`) and delegates every check / DTO→DAO
   conversion to **stapel-attributes** — no attribute engine is re-implemented
   here.
+- **Conditional rules are the schema's, not this module's** (stapel-attributes
+  0.5.0). The `categories.features` payload carries `rules` alongside
+  `mandatory`, and `get_feature_configs` hands the dicts through untouched, so
+  requiredness on publish is the rule pre-pass's answer, not `mandatory` alone:
+  a field can be required only when a sibling holds a given value, and a field
+  the rules **hide** is neither validated nor stored — a hidden answer left in
+  the draft is dropped from `features` and from `features_search`, though the
+  draft keeps it. Nothing here whitelists feature-def keys; a whitelist on that
+  path would silently disarm every rule.
+- **Vocabulary-backed values keep codes and labels apart**: `features_title` /
+  `features_badges` are the DAO itself, so a `ref_select` value travels with
+  both its term codes (`value`) and the label snapshot taken at write time
+  (`labels`), and display needs no second lookup. `features_search` takes
+  `value` — codes — because a label changes with the vocabulary's language and
+  a stored filter must not stop matching on translation.
 - **Publish service** (draft→pending on a first publication, moderation-axis
   only on a live re-publish; projections built, moderation requested)
   and **favorites** as first-class engagement (the `UserAdLike`/`UserAdView`

@@ -4,6 +4,66 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.10.0] — 2026-08-30
+
+**Minor = breaking** (pre-1.0): publishing behaves differently for a schema
+that carries `rules`, and the floor moves to `stapel-attributes>=0.5,<1.0`.
+
+### Changed — requiredness on publish is the rule state, not `mandatory`
+
+stapel-attributes 0.5.0 runs a rule pre-pass over the submitted values before
+every per-feature check. Two consequences land squarely on this module's
+publish path, and neither is visible in code here, because the rules ride
+inside the `categories.features` payload:
+
+- **A field can be required conditionally.** `screen_condition` with
+  `mandatory: false` and a `require when condition in ["b-u"]` rule now blocks
+  publication exactly as a statically mandatory field does — with the same
+  `mandatory_missing` code, on the same slug, through `validate_draft` and
+  through `publish_listing` alike. Anything that read `mandatory` as the whole
+  answer to "must this be filled" was reading half of it.
+- **A field the rules hide is dropped, not merely unvalidated.** A hidden
+  answer left in `features_draft` — filled before the control moved, or by a
+  client that never filtered — no longer reaches `features`, and therefore no
+  longer reaches `features_search`. The draft keeps it; the published listing
+  does not show an attribute its own schema says does not apply to it.
+
+A rule violation adds no error vocabulary: `forbid_option` narrows the config
+before `parse_config`, so `select` answers `not_in_options` itself, and
+`limit` surfaces as `above_maximum` / `below_minimum`.
+
+`get_feature_configs` was already a pass-through — it hands the
+`categories.features` dicts to `coerce_feature_defs` untouched — so the six
+new `FeatureDef` keys (`rules`, `description`, `example`, `default`, `hints`,
+`group`) arrive intact with no change. That is now a test rather than an
+accident: a whitelist anywhere on that path would silently disarm every rule.
+
+### Added — vocabulary-backed features in the four projections
+
+`ref_select` / `ref_hierarchical_select` store term **codes** in `value` and a
+`labels` snapshot taken at write time. The projections already keep the two
+apart, and that split is now pinned:
+
+- `features_title` / `features_badges` are the DAO itself, so a ref value
+  travels with both halves and display never re-reads the vocabulary.
+- `features_search` takes `value` — the codes. The two types are declared in
+  `_LIST_VALUE_TYPES` instead of falling through the unknown-type branch,
+  because a label changes with the vocabulary's language and a stored filter
+  must not stop matching on translation.
+
+### Fixed
+- `test_feature_dto_dao_discriminator_is_slug_keyed` asserted a hard-coded
+  count of ten registered attribute types. It broke on an upstream release
+  that adds a type — a failure about arithmetic, not about the staleness the
+  test exists to catch. It now asserts set equality against the live registry
+  (which it already did) and merely that the registry is non-empty.
+
+### Contract
+- `docs/schema.json` gains `RefSelectDto`/`RefSelectDao` and the
+  `ref_hierarchical_select` pair in the `FeatureDto`/`FeatureDao`
+  discriminators; `docs/errors.json` gains
+  `error.400.feature_invalid_rules`. No serializer of this module changed.
+
 ## [0.9.2] — 2026-08-30
 
 ### Fixed — a malformed id in an action payload was a poison pill

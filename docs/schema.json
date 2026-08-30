@@ -974,10 +974,11 @@
           "description_too_long",
           "invalid_config",
           "min_greater_than_max",
-          "empty_options"
+          "empty_options",
+          "invalid_rules"
         ],
         "type": "string",
-        "description": "* `below_minimum` - below_minimum\n* `above_maximum` - above_maximum\n* `not_in_options` - not_in_options\n* `invalid_type` - invalid_type\n* `invalid_format` - invalid_format\n* `mandatory_missing` - mandatory_missing\n* `duplicate_slug` - duplicate_slug\n* `unknown_feature_type` - unknown_feature_type\n* `not_allowed` - not_allowed\n* `unknown_feature` - unknown_feature\n* `description_too_short` - description_too_short\n* `description_too_long` - description_too_long\n* `invalid_config` - invalid_config\n* `min_greater_than_max` - min_greater_than_max\n* `empty_options` - empty_options"
+        "description": "* `below_minimum` - below_minimum\n* `above_maximum` - above_maximum\n* `not_in_options` - not_in_options\n* `invalid_type` - invalid_type\n* `invalid_format` - invalid_format\n* `mandatory_missing` - mandatory_missing\n* `duplicate_slug` - duplicate_slug\n* `unknown_feature_type` - unknown_feature_type\n* `not_allowed` - not_allowed\n* `unknown_feature` - unknown_feature\n* `description_too_short` - description_too_short\n* `description_too_long` - description_too_long\n* `invalid_config` - invalid_config\n* `min_greater_than_max` - min_greater_than_max\n* `empty_options` - empty_options\n* `invalid_rules` - invalid_rules"
       },
       "FavoriteToggleResponse": {
         "type": "object",
@@ -1026,6 +1027,12 @@
           },
           {
             "$ref": "#/components/schemas/ConvertibleUnitDao"
+          },
+          {
+            "$ref": "#/components/schemas/RefSelectDao"
+          },
+          {
+            "$ref": "#/components/schemas/RefHierarchicalSelectDao"
           }
         ],
         "discriminator": {
@@ -1040,7 +1047,9 @@
             "date": "#/components/schemas/DateDao",
             "header": "#/components/schemas/HeaderDao",
             "hierarchical_select": "#/components/schemas/HierarchicalSelectDao",
-            "convertible_unit": "#/components/schemas/ConvertibleUnitDao"
+            "convertible_unit": "#/components/schemas/ConvertibleUnitDao",
+            "ref_select": "#/components/schemas/RefSelectDao",
+            "ref_hierarchical_select": "#/components/schemas/RefHierarchicalSelectDao"
           }
         }
       },
@@ -1075,6 +1084,12 @@
           },
           {
             "$ref": "#/components/schemas/ConvertibleUnitDto"
+          },
+          {
+            "$ref": "#/components/schemas/RefSelectDto"
+          },
+          {
+            "$ref": "#/components/schemas/RefHierarchicalSelectDto"
           }
         ],
         "discriminator": {
@@ -1089,7 +1104,9 @@
             "date": "#/components/schemas/DateDto",
             "header": "#/components/schemas/HeaderDto",
             "hierarchical_select": "#/components/schemas/HierarchicalSelectDto",
-            "convertible_unit": "#/components/schemas/ConvertibleUnitDto"
+            "convertible_unit": "#/components/schemas/ConvertibleUnitDto",
+            "ref_select": "#/components/schemas/RefSelectDto",
+            "ref_hierarchical_select": "#/components/schemas/RefHierarchicalSelectDto"
           }
         }
       },
@@ -2243,6 +2260,136 @@
           "status"
         ]
       },
+      "RefHierarchicalSelectDao": {
+        "type": "object",
+        "description": "Serializer for the ref_hierarchical_select feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/Type565Enum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "vocabulary": {
+            "type": "string",
+            "nullable": true
+          },
+          "levels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RefHierarchicalSelectDto": {
+        "type": "object",
+        "description": "Serializer for the ref_hierarchical_select feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/Type565Enum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RefSelectDao": {
+        "type": "object",
+        "description": "Serializer for the ref_select feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/TypeCcbEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "vocabulary": {
+            "type": "string",
+            "nullable": true
+          },
+          "level": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RefSelectDto": {
+        "type": "object",
+        "description": "Serializer for the ref_select feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/TypeCcbEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "SelectDao": {
         "type": "object",
         "description": "Serializer for select feature DAO.",
@@ -2411,6 +2558,13 @@
         "type": "string",
         "description": "* `hex_color` - hex_color"
       },
+      "Type565Enum": {
+        "enum": [
+          "ref_hierarchical_select"
+        ],
+        "type": "string",
+        "description": "* `ref_hierarchical_select` - ref_hierarchical_select"
+      },
       "Type5beEnum": {
         "enum": [
           "hierarchical_select"
@@ -2438,6 +2592,13 @@
         ],
         "type": "string",
         "description": "* `int` - int"
+      },
+      "TypeCcbEnum": {
+        "enum": [
+          "ref_select"
+        ],
+        "type": "string",
+        "description": "* `ref_select` - ref_select"
       },
       "TypeD7cEnum": {
         "enum": [

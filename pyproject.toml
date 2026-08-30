@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-listings"
-version = "0.9.2"
+version = "0.10.0"
 description = "Listings and catalog for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -30,9 +30,10 @@ dependencies = [
     # attributes 0.3.x caps `stapel-core<0.12`, which made stapel-listings
     # unresolvable next to any modern core (stapel-categories 0.5.4 hit the
     # same wall and moved the same way).
-    # Floor: 0.4.7 fixes the FeatureConfig/Dto/Dao discriminator.mapping
-    # null-collapse bug (all ten type slugs mapped to one bogus "null" key).
-    "stapel-attributes>=0.4.7,<0.5",
+    # Floor: 0.5 brings the conditional-rule pre-pass (requiredness is the
+    # rule state, not `mandatory`) and the two vocabulary-backed types the
+    # publish projections now carry.
+    "stapel-attributes>=0.5,<1.0",
     "djangorestframework>=3.14",
     "djangorestframework-dataclasses>=1.2",
     "drf-spectacular>=0.27",
