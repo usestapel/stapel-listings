@@ -13,6 +13,12 @@ Projections:
 - ``features_title``  — DAOs flagged ``title``;
 - ``features_badges`` — DAOs flagged ``badge``;
 - ``features_search`` — ``{slug: [values]}`` for a future stapel-search indexer.
+
+Title and badge are the DAO itself, not a rendered string, which is what makes
+a vocabulary-backed value work without a second lookup: a ``ref_select`` DAO
+carries ``labels`` (the display snapshot taken at write time) alongside
+``value`` (the term codes), and the reader picks the half it needs. Search
+takes ``value``, always — see ``_LIST_VALUE_TYPES``.
 """
 from __future__ import annotations
 
@@ -125,8 +131,14 @@ def build_features_search(
     return search
 
 
-# Types whose ``value`` is already a list (path / multi-select).
-_LIST_VALUE_TYPES = frozenset({"select", "hierarchical_select"})
+# Types whose ``value`` is already a list (path / multi-select). The two
+# vocabulary-backed types belong here and not in the unknown-type fallback:
+# their ``value`` is the term CODES, which is the filter axis, while the
+# ``labels`` they also carry are a display snapshot that changes with the
+# vocabulary's language and must never reach the index.
+_LIST_VALUE_TYPES = frozenset(
+    {"select", "hierarchical_select", "ref_select", "ref_hierarchical_select"}
+)
 # Scalar types kept as-is (numbers stay numbers, strings stay strings).
 _SCALAR_VALUE_TYPES = frozenset({"int", "float", "string", "bool", "date"})
 
