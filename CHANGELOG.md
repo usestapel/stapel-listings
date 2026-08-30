@@ -4,6 +4,28 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.10.1] — 2026-08-31
+
+### Changed — the composite `group` joins the polymorphic contract
+
+stapel-attributes 0.6.0 registers a thirteenth builtin type. The published
+OpenAPI schema names every one of them: `FeatureDto`/`FeatureDao` are
+`oneOf` + `discriminator.mapping`, built from the live type registry, so a
+thirteenth slug the committed `docs/schema.json` does not mention is a
+contract that has stopped describing what this service accepts —
+`test_feature_dto_dao_discriminator_is_slug_keyed` is the gate that says so,
+and it went red the moment the floor resolved onto 0.6.
+
+`docs/schema.json` regenerated: `GroupDto` / `GroupDao` and their two mapping
+entries. No code changes — the composite rides the same
+`coerce_feature_defs` -> `validate_dto` path every other kind does, and its
+value never reaches `features_search`, `features_title` or `features_badges`
+as anything but the list of rows the engine produced.
+
+The dependency floor stays `stapel-attributes>=0.5,<1.0`: nothing here needs
+0.6, and a host on 0.5 simply has twelve types and a schema that names
+thirteen.
+
 ## [0.10.0] — 2026-08-30
 
 **Minor = breaking** (pre-1.0): publishing behaves differently for a schema

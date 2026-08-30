@@ -1033,6 +1033,9 @@
           },
           {
             "$ref": "#/components/schemas/RefHierarchicalSelectDao"
+          },
+          {
+            "$ref": "#/components/schemas/GroupDao"
           }
         ],
         "discriminator": {
@@ -1049,7 +1052,8 @@
             "hierarchical_select": "#/components/schemas/HierarchicalSelectDao",
             "convertible_unit": "#/components/schemas/ConvertibleUnitDao",
             "ref_select": "#/components/schemas/RefSelectDao",
-            "ref_hierarchical_select": "#/components/schemas/RefHierarchicalSelectDao"
+            "ref_hierarchical_select": "#/components/schemas/RefHierarchicalSelectDao",
+            "group": "#/components/schemas/GroupDao"
           }
         }
       },
@@ -1090,6 +1094,9 @@
           },
           {
             "$ref": "#/components/schemas/RefHierarchicalSelectDto"
+          },
+          {
+            "$ref": "#/components/schemas/GroupDto"
           }
         ],
         "discriminator": {
@@ -1106,7 +1113,8 @@
             "hierarchical_select": "#/components/schemas/HierarchicalSelectDto",
             "convertible_unit": "#/components/schemas/ConvertibleUnitDto",
             "ref_select": "#/components/schemas/RefSelectDto",
-            "ref_hierarchical_select": "#/components/schemas/RefHierarchicalSelectDto"
+            "ref_hierarchical_select": "#/components/schemas/RefHierarchicalSelectDto",
+            "group": "#/components/schemas/GroupDto"
           }
         }
       },
@@ -1230,6 +1238,58 @@
           "value": {
             "type": "number",
             "format": "double"
+          }
+        }
+      },
+      "GroupDao": {
+        "type": "object",
+        "description": "Serializer for group feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/Type312Enum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        }
+      },
+      "GroupDto": {
+        "type": "object",
+        "description": "Serializer for group feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/Type312Enum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
           }
         }
       },
@@ -2536,6 +2596,13 @@
         ],
         "type": "string",
         "description": "* `convertible_unit` - convertible_unit"
+      },
+      "Type312Enum": {
+        "enum": [
+          "group"
+        ],
+        "type": "string",
+        "description": "* `group` - group"
       },
       "Type37eEnum": {
         "enum": [
