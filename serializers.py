@@ -6,9 +6,12 @@ come from stapel-attributes (``get_feature_dto_serializer_class`` /
 types. The draft-write serializer replaces the legacy catalog's ~150-line hand-rolled
 per-field validation in the ``save-draft`` view with declarative DRF fields.
 """
+import decimal
+
 from django.core.exceptions import ValidationError as DjangoValidationError
 from drf_spectacular.extensions import OpenApiSerializerFieldExtension
 from rest_framework import serializers
+from rest_framework.fields import DecimalField
 
 from stapel_attributes import (
     get_feature_dao_proxy_serializer,
@@ -62,6 +65,58 @@ class ListingFeaturesOutputFieldExtension(OpenApiSerializerFieldExtension):
         return {"type": "array", "items": {"$ref": "#/components/schemas/FeatureDao"}}
 
 
+# --- Coordinates ----------------------------------------------------------
+
+
+class CoordinateField(DecimalField):
+    """A latitude or a longitude, rounded to the column's precision.
+
+    ``DecimalField`` refuses a number carrying more decimal places than its
+    column holds. For money that is right: silently dropping a digit changes
+    what somebody is charged, so the caller has to say what it meant. For a
+    coordinate it is not a defect at all — every geocoder answers in whatever
+    precision its source happened to carry, Photon in seven places, a phone's
+    GPS in fourteen, and the seventh place of a latitude is **eleven
+    centimetres**. Nothing downstream of this field can tell the difference:
+    the geohash is computed from the stored value, and search boxes it.
+
+    So a coordinate is quantized on the way in, not rejected. The bounds still
+    apply — ``max_digits`` keeps 1000.5 out — because a longitude of 1000 is a
+    wrong answer, while a longitude of 37.6174782 is a right one written more
+    precisely than the column.
+
+    Rounding happens BEFORE ``validate_precision``, which is the only reason
+    this is a subclass and not a ``validate_<field>`` method: DRF raises inside
+    ``to_internal_value``, before any per-field validator gets to see the value.
+    """
+
+    def validate_precision(self, value):
+        return super().validate_precision(self._quantize_to_column(value))
+
+    def _quantize_to_column(self, value):
+        if self.decimal_places is None:
+            return value
+        return value.quantize(
+            decimal.Decimal(1).scaleb(-self.decimal_places),
+            rounding=self.rounding,
+        )
+
+
+def coordinate_field_for(field_name):
+    """A ``CoordinateField`` matching the model column, so it cannot drift.
+
+    The precision is read off the field rather than repeated here: a migration
+    that widens the column widens what the API accepts, in one place.
+    """
+    model_field = Listing._meta.get_field(field_name)
+    return CoordinateField(
+        max_digits=model_field.max_digits,
+        decimal_places=model_field.decimal_places,
+        required=False,
+        allow_null=True,
+    )
+
+
 # --- Write (draft) --------------------------------------------------------
 
 
@@ -77,6 +132,9 @@ class ListingDraftSerializer(serializers.ModelSerializer):
     images_draft = serializers.ListField(
         child=serializers.CharField(), required=False, allow_empty=True
     )
+    # A geocoder's precision is not a client error. See CoordinateField.
+    lat_draft = coordinate_field_for("lat_draft")
+    lon_draft = coordinate_field_for("lon_draft")
 
     class Meta:
         model = Listing

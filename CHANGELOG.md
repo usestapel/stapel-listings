@@ -4,6 +4,38 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.10.3] — 2026-08-31
+
+### Fixed — a geocoder's precision is not a client error
+
+`lat_draft`/`lon_draft` are `DecimalField(max_digits=9, decimal_places=6)`, and
+DRF refused anything more precise. Every geocoder answers in whatever precision
+its source carried — Photon in seven places, a phone's GPS in fourteen — so a
+seller who picked an address from the suggestions got
+
+```
+400 POST /listings/api/v1/listings/187/save-draft/
+    "lat_draft": "55.7505412"
+    {"error": "Ensure that there are no more than 6 decimal places.",
+     "params": {"field": "lat_draft"}}
+```
+
+on every attempt, and the listing could not be filed at all. Deterministic,
+and reproducible in two lines on a clean API.
+
+The seventh decimal place of a latitude is **eleven centimetres**, and nothing
+downstream can tell the difference: the geohash is computed from the stored
+value and search boxes it. So the boundary rounds instead of refusing. The new
+`CoordinateField` quantizes to the column's own precision — read off the model
+field, so a migration that widens the column widens what the API accepts — and
+does it before `validate_precision`, which is the only reason it is a field
+subclass rather than a `validate_<field>` method: DRF raises inside
+`to_internal_value`, before any per-field validator sees the value.
+
+Bounds are untouched: a longitude of 1000 is still a wrong answer, and money is
+still money — `price_draft` refuses a third decimal place exactly as before,
+because dropping a digit there changes what somebody is charged.
+
 ## [0.10.2] — 2026-08-31
 
 ### Fixed
