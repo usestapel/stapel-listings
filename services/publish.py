@@ -20,7 +20,7 @@ from django.utils import timezone
 
 from stapel_core.comm import mutate_and_emit
 
-from stapel_attributes import normalize_to_dao, validate_description, validate_dto
+from stapel_attributes import validate_description, validate_dto
 from stapel_attributes.results import (
     FeatureValidationResult,
     ValidationBatchResult,
@@ -32,13 +32,7 @@ from ..conf import listings_settings
 from ..errors import ERR_400_FEATURE_NOT_ALLOWED
 from ..models import INDEXED_STATUSES, ListingStatus, ModerationStatus
 from . import category_schema
-from .features import (
-    build_features_badges,
-    build_features_list,
-    build_features_search,
-    build_features_title,
-    get_consecutive_header_pairs,
-)
+from .features import build_projections
 
 logger = logging.getLogger(__name__)
 
@@ -135,18 +129,13 @@ def publish_listing(listing) -> None:
 
     if features_draft:
         validate_dto(configs, features_draft)  # raises on invalid
-        features_dao_dict = normalize_to_dao(configs, features_draft)
-    else:
-        features_dao_dict = {}
 
-    consecutive_headers = get_consecutive_header_pairs(configs)
-    features_list = build_features_list(features_dao_dict, consecutive_headers)
-
-    # Promote draft -> published fields.
-    listing.features = features_list
-    listing.features_title = build_features_title(features_list)
-    listing.features_badges = build_features_badges(features_list)
-    listing.features_search = build_features_search(features_dao_dict)
+    # Promote draft -> published fields. The four attribute projections come
+    # from ``build_projections`` — the single definition of what they are,
+    # shared with ``services.reproject`` so a refreshed snapshot and a freshly
+    # published one can never mean different things.
+    for field, value in build_projections(configs, features_draft).items():
+        setattr(listing, field, value)
     listing.title = listing.title_draft or listing.title
     listing.description = listing.description_draft
     listing.location_id = listing.location_id_draft

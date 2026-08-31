@@ -65,7 +65,25 @@
   both its term codes (`value`) and the label snapshot taken at write time
   (`labels`), and display needs no second lookup. `features_search` takes
   `value` — codes — because a label changes with the vocabulary's language and
-  a stored filter must not stop matching on translation.
+  a stored filter must not stop matching on translation. Since
+  stapel-attributes 0.7.0 plain `select` carries the same pair, which is why
+  the floor on that dependency moved with the cap: on 0.6 a stored `select`
+  had only its option values and every card printed the storage slug.
+- **The projections are a write-time snapshot, and a snapshot can be
+  refreshed.** `publish_listing` builds all four through
+  `services.features.build_projections` — the single definition of what they
+  are — and stores them, so a card renders without ever fetching the category.
+  The cost is that a snapshot is only as fresh as the last publish: rows
+  written by an older attribute engine, and any category whose option copy an
+  owner edits, keep serving the old copy. `python manage.py
+  listings_reproject_features` (`--category`, `--batch-size`, `--dry-run`; see
+  `services/reproject.py`) re-derives the four columns from the stored
+  `features_draft` and the *current* schema through that same function. It is
+  **not** a re-publication — status, moderation, expiry and timestamps do not
+  move and no `listing.submitted` is emitted — but it does let `Listing.save()`
+  emit `listing.updated` for every changed indexed row, deliberately: an index
+  serving the stale text is exactly what it exists to repair. Idempotent,
+  chunked, and it counts and names every row it has to skip.
 - **Publish service** (draft→pending on a first publication, moderation-axis
   only on a live re-publish; projections built, moderation requested)
   and **favorites** as first-class engagement (the `UserAdLike`/`UserAdView`

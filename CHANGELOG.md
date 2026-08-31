@@ -4,6 +4,91 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.11.0] — 2026-08-31
+
+### Fixed — a card printed the storage slug where the copy belonged
+
+`stapel-attributes>=0.6,<0.7` → **`>=0.7,<0.8`**.
+
+The projections this module writes at publish time *are* the DAOs: a card
+renders `features_badges` and a detail page renders `features` without ever
+fetching the category, which is the entire reason those columns exist. Up to
+stapel-attributes 0.6 a stored `select` DAO carried its option values and
+nothing else, so every one of those readers printed the storage slug at a
+person:
+
+```
+Condition: b-u
+Sensors: gps
+Screen condition: bez-defektov
+```
+
+Nothing downstream could repair it. The copy was lost at *write* time, and the
+projection is deliberately the only thing a reader has.
+
+stapel-attributes 0.7.0 fixes the engine — `SelectFeatureType.dto_to_dao` now
+snapshots the chosen options' `label` into `SelectDao.labels`, positionally
+aligned with `value`, exactly the way `RefSelectDao` has carried `labels`
+since 0.5 — and this release floors on it. **The floor moves with the cap**,
+as it did in 0.10.2 and for the same reason: a deployment able to resolve back
+onto 0.6 is a deployment whose listing projections silently lose their display
+copy again, on the next publish, with nothing red anywhere to say so. A host
+that stays on stapel-attributes 0.6.x stays on stapel-listings 0.10.3.
+
+`docs/schema.json` is regenerated: `FeatureDao`'s `select` variant now names
+`labels`.
+
+### Added — `listings_reproject_features`, because a snapshot goes stale
+
+```
+python manage.py listings_reproject_features [--category ID[,ID...]]
+                                             [--batch-size N] [--dry-run]
+```
+
+Fixing the engine does not fix the rows. Every listing published before
+attributes 0.7.0 still carries `select` DAOs with no `labels` and keeps
+printing slugs until *something* re-projects it — and until now nothing could,
+because the four projections have only ever been written by `publish_listing`.
+The same staleness has always applied to `ref_select`'s label snapshot and to
+any category whose option copy an owner edits after the fact; this is the
+general repair, not a one-off backfill.
+
+The command re-derives `features` / `features_title` / `features_badges` /
+`features_search` from each listing's stored `features_draft` and the
+**current** category schema. It does so through
+`services.features.build_projections`, which is new only in the sense that it
+is now *named*: `publish_listing`'s projection block moved into it wholesale
+and both call it. One definition of what the projections are, or the refreshed
+snapshot and the freshly published one are free to disagree.
+
+**It is not a re-publication.** `status`, `moderation_status`,
+`moderation_note`, `expires_at`, `published_at`, `created_at` and `updated_at`
+are untouched (the write is a `save(update_fields=[…four columns])`), and no
+`listing.submitted` is emitted — an owner's listing does not go back through
+moderation because we fixed the rendering of a value already approved.
+
+**`listing.updated` is emitted, on purpose.** A search index holding the stale
+text is precisely the damage being repaired, so leaving the index alone would
+fix the half nobody looks at. That is why the run writes row by row through
+`Listing.save()` — which raises the event itself, in its own transaction, for
+an indexed row whose content actually moved — instead of the faster
+`bulk_update`, which would emit nothing. The count is in the summary
+(`events_emitted`) rather than left to be inferred.
+
+Idempotent (a row whose projections would not move is not written, so a second
+full run reports zero changes and emits nothing), chunked through
+`.iterator(chunk_size=…)`, and it prints numbers instead of the word *done*:
+examined / re-projected / already current / skipped, with the skips broken out
+by reason and their listing ids named. A row is skipped, never dropped
+silently and never fatal to the run, when its category no longer resolves
+(`category_unresolved`), its stored draft no longer validates against the
+current schema (`draft_invalid` — the same policy `publish_listing` applies),
+it has projections but no draft to re-derive them from (`no_draft`; projecting
+an empty draft would *erase* the listing's attributes), or the projection
+raised anything else (`projection_failed`). Soft-deleted rows are outside the
+population: they render nowhere and have already announced their
+`listing.removed`.
+
 ## [0.10.3] — 2026-08-31
 
 ### Fixed — a geocoder's precision is not a client error

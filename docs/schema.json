@@ -2483,6 +2483,12 @@
               "type": "string"
             }
           },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "uiStyle": {
             "nullable": true,
             "oneOf": [

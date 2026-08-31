@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-listings"
-version = "0.10.3"
+version = "0.11.0"
 description = "Listings and catalog for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -30,18 +30,28 @@ dependencies = [
     # attributes 0.3.x caps `stapel-core<0.12`, which made stapel-listings
     # unresolvable next to any modern core (stapel-categories 0.5.4 hit the
     # same wall and moved the same way).
-    # Floor: 0.5 brings the conditional-rule pre-pass (requiredness is the
-    # rule state, not `mandatory`) and the two vocabulary-backed types the
-    # publish projections now carry.
-    # Cap: <0.7, not <1.0. Pre-1.0 house semver reads a MINOR as breaking, and
+    # Floor: 0.7 is where `select` finally snapshots its display copy.
+    # `SelectFeatureType.dto_to_dao` now fills `SelectDao.labels` from the
+    # chosen options, positionally aligned with `value`, exactly the way
+    # `RefSelectDao` has carried `labels` since 0.5. That matters here more
+    # than anywhere else, because the DAO *is* the projection: a card renders
+    # `features_badges` and a detail page renders `features` without ever
+    # fetching the category, which is the entire reason those columns exist.
+    # Under 0.6 a stored `select` carried option values and nothing else, so
+    # every one of those readers printed the storage slug at a person —
+    # "Condition: b-u", "Sensors: gps", "Screen condition: bez-defektov" — and
+    # no reader could repair it, because the copy was lost at WRITE time and
+    # the projection is deliberately the only thing a reader has. So the floor
+    # moves with the cap, the same way it did in 0.10.2: a deployment able to
+    # resolve back onto 0.6 is a deployment whose listing projections silently
+    # lose their display copy again, on the next publish, with nothing red
+    # anywhere to say so.
+    # Cap: <0.8, not <1.0. Pre-1.0 house semver reads a MINOR as breaking, and
     # this line was the exception that proved it — a published stapel-attributes
     # can add a built-in type, which changes the discriminator mapping this
     # module emits into docs/schema.json, and an unbounded cap let 0.6.0 turn
-    # tests/test_contract.py red with nothing here having changed. The floor is
-    # 0.6 because the committed schema NAMES the composite `group`: on 0.5 the
-    # mapping would list a type the registry does not have, which is the same
-    # lie in the other direction.
-    "stapel-attributes>=0.6,<0.7",
+    # tests/test_contract.py red with nothing here having changed.
+    "stapel-attributes>=0.7,<0.8",
     "djangorestframework>=3.14",
     "djangorestframework-dataclasses>=1.2",
     "drf-spectacular>=0.27",

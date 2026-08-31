@@ -24,7 +24,53 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Set, Tuple
 
-from stapel_attributes import coerce_feature_defs, get_feature_slug, parse_config
+from stapel_attributes import (
+    coerce_feature_defs,
+    get_feature_slug,
+    normalize_to_dao,
+    parse_config,
+)
+
+# The stored columns that are *entirely* derived from (category schema,
+# features_draft). Named once so every writer of the projections — publish and
+# the re-projection command — moves exactly this set and nothing else.
+PROJECTION_FIELDS: Tuple[str, ...] = (
+    "features",
+    "features_title",
+    "features_badges",
+    "features_search",
+)
+
+
+def build_projections(
+    configs, features_draft: Dict[str, Any] | None
+) -> Dict[str, Any]:
+    """The four projections, as ``{field name: value}``.
+
+    THE definition of "what the projections are". ``publish_listing`` calls it
+    to promote a validated draft; ``services.reproject`` calls it to refresh a
+    snapshot taken by an older writer. Two call sites, one derivation — a
+    second hand-rolled copy would be a projection that goes stale in one place
+    and not the other, which is the class of bug this whole module already
+    fights in :func:`build_features_search_from_list`.
+
+    Does NOT validate: *features_draft* is expected to have passed
+    ``validate_dto`` against *configs* already. Callers own that step because
+    they disagree about what an invalid draft means (publish raises, the
+    re-projection command counts and skips).
+    """
+    features_dao_dict = (
+        normalize_to_dao(configs, features_draft) if features_draft else {}
+    )
+    features_list = build_features_list(
+        features_dao_dict, get_consecutive_header_pairs(configs)
+    )
+    return {
+        "features": features_list,
+        "features_title": build_features_title(features_list),
+        "features_badges": build_features_badges(features_list),
+        "features_search": build_features_search(features_dao_dict),
+    }
 
 
 def build_features_list(
