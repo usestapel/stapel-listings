@@ -17,7 +17,7 @@ from stapel_listings.services import publish as publish_service
 pytestmark = pytest.mark.django_db
 
 
-# A schema whose shape is the one the Avito import produces: a controlling
+# A schema whose shape is the one a catalogue import produces: a controlling
 # select, a conditionally required sibling, a conditionally hidden number, and
 # an option forbidden by the same control.
 RULE_FEATURE_DEFS = [

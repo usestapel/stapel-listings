@@ -4,6 +4,16 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.11.1] — 2026-09-01
+
+Patch. One test comment — no code, schema or API change.
+
+The comment introducing `RULE_FEATURE_DEFS` in `tests/test_publish_rules.py`
+named the external marketplace whose catalogue import produces that schema
+shape. It now names the shape instead: a controlling select, a conditionally
+required sibling, a conditionally hidden number, and an option forbidden by
+the same control.
+
 ## [0.11.0] — 2026-08-31
 
 ### Fixed — a card printed the storage slug where the copy belonged
