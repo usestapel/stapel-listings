@@ -4,6 +4,16 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.12.1] — 2026-09-02
+
+Patch. A floor that stated less than it needed.
+
+`tests/test_feature_visibility.py` passes `ignore=` to
+`stapel_attributes.guard.assert_raw_access_confined`, which arrived in
+stapel-attributes **0.8.1**, but the pin said `>=0.8`. CI resolved 0.8.0 and
+the reach gate failed with a `TypeError` — the gate itself worked, the
+declaration of what it needs did not. Floor raised to `>=0.8.1,<0.9`.
+
 ## [0.12.0] — 2026-09-02
 
 Minor (pre-1.0: minor = breaking, patch = compatible). A feature value the
