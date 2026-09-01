@@ -76,7 +76,7 @@
   The cost is that a snapshot is only as fresh as the last publish: rows
   written by an older attribute engine, and any category whose option copy an
   owner edits, keep serving the old copy. `python manage.py
-  listings_reproject_features` (`--category`, `--batch-size`, `--dry-run`; see
+  listings_reproject_features` (`--category`, `--batch-size`, `--dry-run`, `--strict`; see
   `services/reproject.py`) re-derives the four columns from the stored
   `features_draft` and the *current* schema through that same function. It is
   **not** a re-publication — status, moderation, expiry and timestamps do not
@@ -84,6 +84,16 @@
   emit `listing.updated` for every changed indexed row, deliberately: an index
   serving the stale text is exactly what it exists to repair. Idempotent,
   chunked, and it counts and names every row it has to skip.
+  **Repair is per field (0.13.0).** One attribute that no longer validates used
+  to cost a listing its whole re-projection, so every other field on it kept
+  printing storage slugs — 12 listings measured stuck that way on a client
+  fleet. The pass now judges each field on its own
+  (`validate_dto_structured`, not `validate_dto`): valid fields are
+  re-derived, invalid ones **keep their stored DAO** (dropping them would turn
+  a stale value into a missing one) and are reported per listing with slug and
+  reason. `--strict` fails the run on any such field; without it the exit code
+  is non-zero only when the pass repaired *nothing* it was asked to
+  (`services.reproject.repair_failures` — a row with no draft is not damage).
 - **Publish service** (draft→pending on a first publication, moderation-axis
   only on a live re-publish; projections built, moderation requested)
   and **favorites** as first-class engagement (the `UserAdLike`/`UserAdView`

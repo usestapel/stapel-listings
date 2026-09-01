@@ -42,13 +42,12 @@ from __future__ import annotations
 import logging
 from typing import Any, Iterable
 
-from django.core.exceptions import ValidationError
-
-from stapel_attributes import validate_dto
+from stapel_attributes import validate_dto_structured
+from stapel_attributes.results import ValidationStatus
 
 from ..models import INDEXED_STATUSES, Listing
 from . import category_schema
-from .features import PROJECTION_FIELDS, build_projections
+from .features import PROJECTION_FIELDS, build_projections_partial
 
 logger = logging.getLogger(__name__)
 
@@ -59,15 +58,30 @@ SKIP_REASONS: tuple[str, ...] = (
     # ``categories.features`` could not answer for this listing's category:
     # the category was deleted, or no categories provider is wired at all.
     "category_unresolved",
-    # The stored draft no longer validates against the current schema — a
-    # feature was removed from the category, or its bounds tightened. Same
-    # policy as ``publish_listing``, which would also refuse it.
+    # The draft could not be validated AT ALL — it is not an object keyed by
+    # slug, or the category's own ``rules`` break the grammar so no field can
+    # be judged. This is the only remaining whole-listing validation skip:
+    # a draft with SOME invalid fields is repaired per field (see
+    # ``build_projections_partial``), because one drifted attribute is not a
+    # reason to leave every other field on this listing printing storage
+    # slugs.
     "draft_invalid",
     # The row carries projections but no draft to re-derive them from.
     # Projecting an empty draft would ERASE a listing's attributes, which is
     # data loss wearing a migration's clothes.
     "no_draft",
     # Anything else the projection raised. Recorded rather than swallowed.
+    "projection_failed",
+)
+
+# The subset of SKIP_REASONS that means "there was damage here and this pass
+# could not repair it". ``no_draft`` is deliberately NOT one: a row carrying
+# projections with no draft to re-derive them from is not a failure, it is a
+# row this pass does not apply to, and exiting non-zero over it would make the
+# command red on catalogues that are perfectly healthy.
+REPAIR_FAILURE_REASONS: tuple[str, ...] = (
+    "category_unresolved",
+    "draft_invalid",
     "projection_failed",
 )
 
@@ -87,8 +101,36 @@ def _new_result() -> dict:
         "skipped_ids": {reason: [] for reason in SKIP_REASONS},
         "skipped_ids_truncated": False,
         "events_emitted": 0,
+        # Per-field repair bookkeeping. A listing can be BOTH changed and
+        # carrying invalid fields — that is the normal outcome of a repair
+        # and it is why "changed" alone is not enough to report.
+        "repaired_with_invalid_fields": 0,
+        "invalid_field_count": 0,
+        "invalid_fields": {},
+        "invalid_fields_truncated": False,
         "dry_run": False,
     }
+
+
+def _record_invalid_fields(result: dict, listing_id, failures: dict) -> None:
+    """Count and log the fields a listing could not re-derive.
+
+    Loudly, per listing, with the slug and the engine's own message: the
+    whole point of repairing around a bad field is that somebody still has to
+    go and fix it, and a repair that hides what it worked around is how a
+    catalogue quietly rots.
+    """
+    result["invalid_field_count"] += len(failures)
+    if len(result["invalid_fields"]) < SKIPPED_ID_SAMPLE:
+        result["invalid_fields"][listing_id] = dict(failures)
+    else:
+        result["invalid_fields_truncated"] = True
+    for slug, message in failures.items():
+        logger.warning(
+            "listings_reproject_features: listing %s field %r not re-derived "
+            "(kept its stored value): %s",
+            listing_id, slug, message,
+        )
 
 
 def _record_skip(result: dict, listing_id: Any, reason: str, detail: str) -> None:
@@ -205,19 +247,32 @@ def reproject_listings(
             continue
 
         try:
-            validate_dto(configs, features_draft)
-        except ValidationError as exc:
-            _record_skip(result, listing.pk, "draft_invalid", str(exc))
-            continue
+            verdict = validate_dto_structured(configs, features_draft)
         except Exception as exc:
             _record_skip(
                 result, listing.pk, "projection_failed",
-                f"validate_dto raised {exc.__class__.__name__}: {exc}",
+                f"validate_dto_structured raised {exc.__class__.__name__}: {exc}",
             )
             continue
 
+        failures = _field_failures(verdict)
+        if _ROOT in failures:
+            # Not a field problem: the draft is not an object keyed by slug,
+            # or the CATEGORY's rules break the grammar so no field can be
+            # judged at all. Nothing here is per-field repairable.
+            _record_skip(result, listing.pk, "draft_invalid", failures[_ROOT])
+            continue
+
+        if failures:
+            _record_invalid_fields(result, listing.pk, failures)
+
         try:
-            projections = build_projections(configs, features_draft)
+            projections = build_projections_partial(
+                configs,
+                features_draft,
+                skip_slugs=set(failures),
+                stored_features=listing.features or [],
+            )
         except Exception as exc:
             _record_skip(
                 result, listing.pk, "projection_failed",
@@ -233,6 +288,8 @@ def reproject_listings(
             continue
 
         result["changed"] += 1
+        if failures:
+            result["repaired_with_invalid_fields"] += 1
         if listing.status in INDEXED_STATUSES:
             result["events_emitted"] += 1
         if dry_run:
@@ -247,6 +304,29 @@ def reproject_listings(
 
     logger.info("listings_reproject_features: %r", _loggable(result))
     return result
+
+
+#: ``validate_dto_structured`` reports a failure that is not about any one
+#: field under this slug — a draft that is not an object, or a category whose
+#: ``rules`` break the grammar. Neither is repairable per field.
+_ROOT = "_root"
+
+
+def _field_failures(verdict) -> dict:
+    """``{slug: message}`` for every field the current schema rejects.
+
+    ``validate_dto_structured`` is used here instead of ``validate_dto``
+    precisely because it answers per field. ``validate_dto`` raises one
+    ``ValidationError`` for the whole draft, which is why this pass used to
+    have to choose between projecting everything and projecting nothing.
+    """
+    if getattr(verdict, "valid", False):
+        return {}
+    failures: dict = {}
+    for item in getattr(verdict, "results", []) or []:
+        if getattr(item, "status", None) == ValidationStatus.VALIDATION_FAILED:
+            failures[str(item.slug)] = item.message or str(item.error)
+    return failures
 
 
 def _empty_for(field: str):
@@ -265,4 +345,23 @@ def _loggable(result: dict) -> dict:
     return {k: v for k, v in result.items() if k != "skipped_ids"}
 
 
-__all__ = ["reproject_listings", "SKIP_REASONS", "SKIPPED_ID_SAMPLE"]
+def repair_failures(result: dict) -> int:
+    """How many rows this pass was asked to repair and could not.
+
+    The number the command's exit code is about. Kept here, beside the reason
+    table it reads, so "what counts as a failure" is one definition rather
+    than a filter written out again in the command.
+    """
+    return sum(
+        result["skipped_by_reason"].get(reason, 0)
+        for reason in REPAIR_FAILURE_REASONS
+    )
+
+
+__all__ = [
+    "reproject_listings",
+    "repair_failures",
+    "SKIP_REASONS",
+    "REPAIR_FAILURE_REASONS",
+    "SKIPPED_ID_SAMPLE",
+]

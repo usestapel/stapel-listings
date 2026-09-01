@@ -89,6 +89,71 @@ def build_projections(
     }
 
 
+def build_projections_from_list(
+    features_list: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """The four projections from an already-assembled DAO list.
+
+    The same four derivations as :func:`build_projections`, entered one step
+    later — for the caller that has a DAO list rather than a draft. Split out
+    so "what the projections are" still has ONE definition: this function and
+    the tail of ``build_projections`` must not be two lists that drift.
+    """
+    return {
+        "features": features_list,
+        "features_title": build_features_title(features_list),
+        "features_badges": build_features_badges(features_list),
+        "features_search": build_features_search_from_list(features_list),
+    }
+
+
+def build_projections_partial(
+    configs,
+    features_draft: Dict[str, Any] | None,
+    *,
+    skip_slugs: Set[str],
+    stored_features: List[Dict[str, Any]] | None,
+) -> Dict[str, Any]:
+    """Projections for every field EXCEPT *skip_slugs*, keeping their old DAOs.
+
+    The repair path. One field of a draft that no longer validates used to
+    cost the listing its whole re-projection: every other field stayed as some
+    older writer left it, printing storage slugs at people, because one
+    unrelated attribute had drifted out of its category's bounds.
+
+    So the invalid fields are set aside and everything else is re-derived
+    normally. Their **stored** DAOs are then merged back in rather than
+    dropped — dropping them would delete an attribute from the card, which
+    turns a stale value into a missing one and makes the repair a regression
+    for the field it could not fix. A preserved DAO is stale, and it was
+    already stale before this ran; nothing about it gets worse.
+
+    The merged list is re-sorted by ``order`` so a preserved field keeps its
+    place in the table, and the other three projections are derived from the
+    merged list — not from the fresh half — so ``features_title``,
+    ``features_badges`` and ``features_search`` stay consistent with
+    ``features`` rather than quietly disagreeing about which fields exist.
+    """
+    kept_draft = {
+        key: value
+        for key, value in (features_draft or {}).items()
+        if str(key) not in skip_slugs
+    }
+    fresh = build_projections(configs, kept_draft)
+    preserved = [
+        dao
+        for dao in (stored_features or [])
+        if isinstance(dao, dict) and str(dao.get("slug")) in skip_slugs
+    ]
+    if not preserved:
+        return fresh
+    merged = sorted(
+        list(fresh["features"]) + preserved,
+        key=lambda dao: dao.get("order", 0),
+    )
+    return build_projections_from_list(merged)
+
+
 def build_features_list(
     features_dao_dict: Dict[str, Dict[str, Any]],
     consecutive_header_pairs: Set[Tuple[str, str]],

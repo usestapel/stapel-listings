@@ -317,9 +317,16 @@ class TestSkips:
         assert result["changed"] == 1
         assert result["skipped"] == 1
 
-    def test_a_draft_that_no_longer_validates_is_skipped(
+    def test_one_invalid_field_no_longer_costs_the_listing_its_repair(
         self, live_listing, stub_categories
     ):
+        """The measured failure: 12 listings stuck on a stale shape.
+
+        Before 0.13.0 this asserted the opposite — one field out of bounds and
+        the whole listing was skipped, so ``condition`` kept printing its
+        storage slug because ``mileage`` had drifted. The two fields have
+        nothing to do with each other, and that is the point.
+        """
         _as_pre_070(live_listing)
         # The category tightened its bounds under a listing that predates the
         # change: the stored mileage of 42000 no longer validates.
@@ -331,9 +338,85 @@ class TestSkips:
         result = reproject_listings()
 
         live_listing.refresh_from_db()
-        assert "labels" not in _badge(live_listing)
+        # The healthy field WAS repaired: _as_pre_070 stripped `labels`, and
+        # the badge carries them again.
+        assert _badge(live_listing)["labels"], "condition kept its stale shape"
+        assert result["changed"] == 1
+        assert result["skipped_by_reason"]["draft_invalid"] == 0
+        # And the broken one was reported, by slug, with the reason.
+        assert result["invalid_field_count"] == 1
+        assert set(result["invalid_fields"][live_listing.pk]) == {"mileage"}
+        assert result["repaired_with_invalid_fields"] == 1
+
+    def test_an_unrepairable_field_keeps_its_stored_value_it_is_not_dropped(
+        self, live_listing, stub_categories
+    ):
+        """Dropping it would turn a stale value into a missing one."""
+        before = {
+            dao["slug"]: dao
+            for dao in Listing.objects.get(pk=live_listing.pk).features
+        }
+        _as_pre_070(live_listing)
+        for feature in stub_categories:
+            if feature["slug"] == "mileage":
+                feature["config"] = {"type": "int", "min": 0, "max": 10}
+        cache.clear()
+
+        reproject_listings()
+
+        live_listing.refresh_from_db()
+        after = {dao["slug"]: dao for dao in live_listing.features}
+        assert "mileage" in after, "the field the pass could not fix was deleted"
+        assert after["mileage"]["value"] == before["mileage"]["value"]
+
+    def test_the_other_three_projections_agree_with_the_merged_list(
+        self, live_listing, stub_categories
+    ):
+        """title/badges/search are derived from the MERGED list, not the fresh half."""
+        _as_pre_070(live_listing)
+        for feature in stub_categories:
+            if feature["slug"] == "mileage":
+                feature["config"] = {"type": "int", "min": 0, "max": 10}
+        cache.clear()
+
+        reproject_listings()
+
+        live_listing.refresh_from_db()
+        slugs = {dao["slug"] for dao in live_listing.features}
+        # mileage is the title field in the fixture; it survived, so the title
+        # projection must still carry it.
+        assert "mileage" in slugs
+        assert {dao["slug"] for dao in live_listing.features_title} <= slugs
+        assert set(live_listing.features_search) <= slugs
+
+    def test_a_rerun_after_a_partial_repair_changes_nothing(
+        self, live_listing, stub_categories
+    ):
+        """Idempotence survives the repair path."""
+        _as_pre_070(live_listing)
+        for feature in stub_categories:
+            if feature["slug"] == "mileage":
+                feature["config"] = {"type": "int", "min": 0, "max": 10}
+        cache.clear()
+
+        reproject_listings()
+        second = reproject_listings()
+
+        assert second["changed"] == 0
+        # Still reported on every run — the field is still broken.
+        assert second["invalid_field_count"] == 1
+
+    def test_a_draft_that_is_not_an_object_is_still_a_whole_listing_skip(
+        self, live_listing
+    ):
+        """No field can be judged, so there is nothing to repair per field."""
+        Listing.all_objects.filter(pk=live_listing.pk).update(
+            features_draft=["not", "an", "object"]
+        )
+
+        result = reproject_listings()
+
         assert result["skipped_by_reason"]["draft_invalid"] == 1
-        assert result["skipped_ids"]["draft_invalid"] == [live_listing.pk]
         assert result["changed"] == 0
 
     def test_projections_without_a_draft_are_left_alone(self, live_listing):
@@ -439,6 +522,83 @@ class TestCommand:
         call_command("listings_reproject_features", "--category", "404")
 
         assert "nothing to re-project" in capsys.readouterr().out
+
+    def test_command_names_every_field_it_could_not_re_derive(
+        self, live_listing, stub_categories, capsys
+    ):
+        """A repair that hides what it worked around is how a catalogue rots."""
+        _as_pre_070(live_listing)
+        for feature in stub_categories:
+            if feature["slug"] == "mileage":
+                feature["config"] = {"type": "int", "min": 0, "max": 10}
+        cache.clear()
+
+        call_command("listings_reproject_features")
+
+        out = capsys.readouterr().out
+        assert "could not be re-derived" in out
+        assert "KEPT THEIR STORED VALUES" in out
+        assert f"listing {live_listing.pk} [mileage]" in out
+
+    def test_command_exits_zero_when_it_repaired_something(
+        self, live_listing, stub_categories, capsys
+    ):
+        """An invalid field that was worked around is a report, not a failure."""
+        _as_pre_070(live_listing)
+        for feature in stub_categories:
+            if feature["slug"] == "mileage":
+                feature["config"] = {"type": "int", "min": 0, "max": 10}
+        cache.clear()
+
+        call_command("listings_reproject_features")  # must not raise
+
+    def test_command_exits_non_zero_when_it_repaired_nothing(
+        self, live_listing, stub_categories, capsys
+    ):
+        from django.core.management.base import CommandError
+
+        from stapel_core.comm import register_function
+
+        _as_pre_070(live_listing)
+        # The category is gone entirely: nothing on this listing is repairable.
+        Listing.all_objects.filter(pk=live_listing.pk).update(category_id="999")
+
+        def gone(payload):
+            raise LookupError(f"no such category: {payload['category_id']}")
+
+        _reregister(register_function, gone)
+
+        with pytest.raises(CommandError, match="repaired nothing"):
+            call_command("listings_reproject_features")
+
+    def test_a_row_with_no_draft_is_not_a_repair_failure(
+        self, live_listing, capsys
+    ):
+        """`no_draft` is a row this pass does not apply to, not damage."""
+        legacy = _as_pre_070(live_listing)
+        Listing.all_objects.filter(pk=legacy.pk).update(features_draft={})
+
+        call_command("listings_reproject_features")  # must not raise
+
+    def test_strict_turns_a_worked_around_field_into_a_failure(
+        self, live_listing, stub_categories, capsys
+    ):
+        from django.core.management.base import CommandError
+
+        _as_pre_070(live_listing)
+        for feature in stub_categories:
+            if feature["slug"] == "mileage":
+                feature["config"] = {"type": "int", "min": 0, "max": 10}
+        cache.clear()
+
+        with pytest.raises(CommandError, match="--strict"):
+            call_command("listings_reproject_features", "--strict")
+
+    def test_command_refuses_a_batch_size_below_one(self):
+        from django.core.management.base import CommandError
+
+        with pytest.raises(CommandError, match="batch-size"):
+            call_command("listings_reproject_features", "--batch-size", "0")
 
     def test_command_batch_size_flag_is_accepted(self, live_listing):
         _as_pre_070(live_listing)

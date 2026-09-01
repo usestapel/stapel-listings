@@ -4,6 +4,77 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.13.0] — 2026-09-02
+
+Minor (pre-1.0: minor = breaking, patch = compatible).
+`listings_reproject_features` repairs what it can instead of what it can
+prove entirely.
+
+### One bad field cost a listing its whole repair
+
+The pass validated each listing's draft with `validate_dto`, which raises one
+error for the whole draft. So a single attribute that had drifted out of its
+category's bounds — a `max` tightened under a row published years earlier —
+skipped the listing entirely, and every OTHER field on it kept whatever an
+older engine had left there: `select` DAOs with no `labels`, cards printing
+`Condition: b-u` at people. The two fields have nothing to do with each
+other. Measured on a client fleet: **12 listings stuck on a stale
+`box_sealed` shape**, none of them stuck for a reason that had anything to do
+with the fields that were broken on screen.
+
+### Per-field repair
+
+`validate_dto_structured` answers per field, so the pass now does too:
+
+- every field the current schema accepts is re-projected;
+- every field it rejects **keeps its stored DAO** and is named in the report.
+  Not dropped — dropping it would delete the attribute from the card, turning
+  a stale value into a missing one and making the repair a regression for the
+  one field it could not fix. A preserved DAO is stale, and it was already
+  stale before the run;
+- the merged list is re-sorted by `order`, and `features_title` /
+  `features_badges` / `features_search` are derived **from the merged list**
+  (`build_projections_from_list`), not from the fresh half — otherwise the
+  three would quietly disagree with `features` about which fields exist.
+
+`services.features.build_projections_partial` is the mechanism, beside
+`build_projections` so "what the projections are" keeps one definition.
+
+### The report is per listing, per field, with the reason
+
+```
+  3 field(s) on 2 listing(s) could not be re-derived and KEPT THEIR STORED VALUES
+  (2 of those listings were still repaired in their other fields):
+    listing 41 [mileage]: Value must be <= 10
+```
+
+A repair that hides what it worked around is how a catalogue rots quietly:
+the run goes green, the numbers improve every time, and the fields nobody can
+fix are never named to anybody. Every one is also logged individually, so the
+bounded in-memory sample never hides one.
+
+### Exit codes
+
+- **0** — anything was repaired, including a run where some fields were
+  worked around. That is the whole point of the change; failing over a
+  worked-around field would put back the all-or-nothing gate this removes.
+- **non-zero** — the pass repaired *nothing* it was asked to repair
+  (`repair_failures()`: `category_unresolved`, `draft_invalid`,
+  `projection_failed`). `no_draft` is deliberately **not** in that set — a row
+  carrying projections with no draft is a row this pass does not apply to, not
+  damage, and exiting non-zero over it would make the command red on healthy
+  catalogues.
+- **`--strict`** — non-zero on any field that could not be re-derived, for CI
+  and monitoring that want the stricter reading.
+
+### Also
+
+- `--batch-size` below 1 is now a `CommandError` instead of a silently empty
+  run.
+- `draft_invalid` narrows to the only case that is still un-repairable per
+  field: a draft that is not an object keyed by slug, or a category whose own
+  `rules` break the grammar so no field can be judged at all.
+
 ## [0.12.1] — 2026-09-02
 
 Patch. A floor that stated less than it needed.
