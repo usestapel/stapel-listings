@@ -21,6 +21,9 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Iterable
 
+from stapel_attributes import dao_visibility, public_daos
+from stapel_attributes.visibility import PUBLIC
+
 
 def _decimal(value: Decimal | None) -> str | None:
     return None if value is None else str(value)
@@ -41,6 +44,20 @@ def sequence_of(listing) -> int:
     return int(listing.updated_at.timestamp() * 1000) if listing.updated_at else 0
 
 
+def hidden_slugs(listing) -> set[str]:
+    """Slugs on this listing whose value no reader outside it may have.
+
+    Read off the stored ``features`` DAOs, which carry their own
+    ``visibility`` stamp (stapel-attributes 0.8.0) — no category schema needed.
+    """
+    return {
+        str(dao["slug"])
+        for dao in (listing.features or [])
+        if isinstance(dao, dict) and dao.get("slug")
+        and dao_visibility(dao) != PUBLIC
+    }
+
+
 def build_search_document(listing) -> dict[str, Any]:
     """The indexable document for one listing.
 
@@ -48,7 +65,24 @@ def build_search_document(listing) -> dict[str, Any]:
     nothing is computed on the fly, so the cost is one row read. ``status`` is
     included raw: index membership is the consumer's predicate over
     ``INDEXED_STATUSES``, not a boolean this module bakes in.
+
+    **A non-public value is filtered again on the way out.**
+    ``services.features`` already keeps it out of ``features_search`` and
+    ``features_title`` at build time, so on a freshly projected row this costs
+    one set difference and removes nothing. It is here for the rows projected
+    by an older writer, which are the entire installed base on the day this
+    ships: those columns still hold the VIN until
+    ``listings_reproject_features`` has run, and an indexer that pulled one in
+    the meantime would keep serving it as a filterable term long after the
+    re-projection. The document is where this module's data stops being ours,
+    so it is the last place that can still say no.
     """
+    hidden = hidden_slugs(listing)
+    features_search = {
+        slug: values
+        for slug, values in (listing.features_search or {}).items()
+        if slug not in hidden
+    }
     return {
         "title": listing.title or "",
         "description": listing.description or "",
@@ -65,8 +99,11 @@ def build_search_document(listing) -> dict[str, Any]:
         "location_label": listing.location_label or "",
         "status": listing.status,
         "moderation_status": listing.moderation_status,
-        "features_search": listing.features_search or {},
-        "features_title": listing.features_title or [],
+        "features_search": features_search,
+        # ``features_title`` feeds the index's free-text arm, where a badge
+        # attribute's value makes the document findable by `q=`. A hidden value
+        # in there is the same oracle as a facet, spelled differently.
+        "features_title": public_daos(listing.features_title or []),
         "images": listing.images or [],
         "published_at": _isoformat(listing.published_at),
         "updated_at": _isoformat(listing.updated_at),

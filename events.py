@@ -45,12 +45,32 @@ def emit_listing_submitted(listing) -> None:
     )
 
 
+def _public_features_search(listing) -> dict:
+    """``features_search`` with non-public values removed.
+
+    The same filter as ``services.search_feed.build_search_document``, and for
+    the same reason: an event fans out to every subscriber in the fleet, so it
+    is the widest audience a value ever reaches. On a freshly projected row it
+    removes nothing — ``services.features`` never put a hidden value in the
+    column — but the installed base on the day this ships is entirely rows
+    projected before the axis existed.
+    """
+    from .services.search_feed import hidden_slugs
+
+    hidden = hidden_slugs(listing)
+    return {
+        slug: values
+        for slug, values in (listing.features_search or {}).items()
+        if slug not in hidden
+    }
+
+
 def emit_listing_published(listing) -> None:
     """Emit ``listing.published`` — a listing entered the index."""
     from stapel_core.comm import emit
 
     payload = _base_payload(listing)
-    payload["features_search"] = listing.features_search or {}
+    payload["features_search"] = _public_features_search(listing)
     emit("listing.published", payload, key=str(listing.pk))
 
 
@@ -59,7 +79,7 @@ def emit_listing_updated(listing) -> None:
     from stapel_core.comm import emit
 
     payload = _base_payload(listing)
-    payload["features_search"] = listing.features_search or {}
+    payload["features_search"] = _public_features_search(listing)
     emit("listing.updated", payload, key=str(listing.pk))
 
 

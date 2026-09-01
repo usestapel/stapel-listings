@@ -307,7 +307,12 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         if statuses:
             qs = qs.filter(status__in=statuses)
         page = self.paginate_queryset(qs)
-        serializer = self.my_card_serializer_class(page, many=True)
+        # The context is what makes the owner an OWNER to
+        # ``FeatureVisibilityMixin``: without it the mixin fails closed and
+        # would redact the seller's own VIN out of their own dashboard.
+        serializer = self.my_card_serializer_class(
+            page, many=True, context=self.get_serializer_context()
+        )
         return self.get_paginated_response(serializer.data)
 
     @extend_schema(request=None, responses={200: ListingDraftSerializer})
@@ -442,5 +447,7 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
             .with_favorited(request.user)
         )
         page = self.paginate_queryset(qs)
-        serializer = self.card_serializer_class(page, many=True)
+        serializer = self.card_serializer_class(
+            page, many=True, context=self.get_serializer_context()
+        )
         return self.get_paginated_response(serializer.data)

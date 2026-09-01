@@ -797,6 +797,15 @@
             "type": "string",
             "nullable": true
           },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
           "type": {
             "$ref": "#/components/schemas/TypeE3eEnum"
           },
@@ -847,6 +856,15 @@
           },
           "translate": {
             "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
             "nullable": true
           },
           "type": {
@@ -918,6 +936,15 @@
           },
           "translate": {
             "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
             "nullable": true
           },
           "type": {
@@ -1203,6 +1230,15 @@
             "type": "string",
             "nullable": true
           },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
           "type": {
             "$ref": "#/components/schemas/TypeD7cEnum"
           },
@@ -1265,6 +1301,15 @@
             "type": "string",
             "nullable": true
           },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
           "type": {
             "$ref": "#/components/schemas/Type312Enum"
           },
@@ -1317,6 +1362,15 @@
             "type": "string",
             "nullable": true
           },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
           "type": {
             "$ref": "#/components/schemas/Type3feEnum"
           },
@@ -1360,6 +1414,15 @@
           },
           "translate": {
             "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
             "nullable": true
           },
           "type": {
@@ -1439,6 +1502,15 @@
             "type": "string",
             "nullable": true
           },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
           "type": {
             "$ref": "#/components/schemas/Type5beEnum"
           },
@@ -1487,6 +1559,15 @@
           },
           "translate": {
             "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
             "nullable": true
           },
           "type": {
@@ -1579,14 +1660,112 @@
           "features_title": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/FeatureDao"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/FeatureDao"
+                },
+                {
+                  "type": "object",
+                  "title": "RedactedFeatureDao",
+                  "description": "A feature the catalogue marked non-public (visibility 'owner' or 'staff') read by someone without that entitlement — an identifier such as a VIN or an IMEI. Carries no value. `present` says whether the seller filled it in, which is all this system observes; `verification` is absent unless an outside check was actually run, so a UI may say the value was supplied and must not say it was verified.",
+                  "required": [
+                    "redacted",
+                    "present"
+                  ],
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "order": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "translate": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "visibility": {
+                      "enum": [
+                        "owner",
+                        "staff"
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "redacted": {
+                      "const": true
+                    },
+                    "present": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
             },
             "readOnly": true
           },
           "features_badges": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/FeatureDao"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/FeatureDao"
+                },
+                {
+                  "type": "object",
+                  "title": "RedactedFeatureDao",
+                  "description": "A feature the catalogue marked non-public (visibility 'owner' or 'staff') read by someone without that entitlement — an identifier such as a VIN or an IMEI. Carries no value. `present` says whether the seller filled it in, which is all this system observes; `verification` is absent unless an outside check was actually run, so a UI may say the value was supplied and must not say it was verified.",
+                  "required": [
+                    "redacted",
+                    "present"
+                  ],
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "order": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "translate": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "visibility": {
+                      "enum": [
+                        "owner",
+                        "staff"
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "redacted": {
+                      "const": true
+                    },
+                    "present": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
             },
             "readOnly": true
           },
@@ -1714,21 +1893,168 @@
           "features": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/FeatureDao"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/FeatureDao"
+                },
+                {
+                  "type": "object",
+                  "title": "RedactedFeatureDao",
+                  "description": "A feature the catalogue marked non-public (visibility 'owner' or 'staff') read by someone without that entitlement — an identifier such as a VIN or an IMEI. Carries no value. `present` says whether the seller filled it in, which is all this system observes; `verification` is absent unless an outside check was actually run, so a UI may say the value was supplied and must not say it was verified.",
+                  "required": [
+                    "redacted",
+                    "present"
+                  ],
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "order": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "translate": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "visibility": {
+                      "enum": [
+                        "owner",
+                        "staff"
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "redacted": {
+                      "const": true
+                    },
+                    "present": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
             },
             "readOnly": true
           },
           "features_title": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/FeatureDao"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/FeatureDao"
+                },
+                {
+                  "type": "object",
+                  "title": "RedactedFeatureDao",
+                  "description": "A feature the catalogue marked non-public (visibility 'owner' or 'staff') read by someone without that entitlement — an identifier such as a VIN or an IMEI. Carries no value. `present` says whether the seller filled it in, which is all this system observes; `verification` is absent unless an outside check was actually run, so a UI may say the value was supplied and must not say it was verified.",
+                  "required": [
+                    "redacted",
+                    "present"
+                  ],
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "order": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "translate": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "visibility": {
+                      "enum": [
+                        "owner",
+                        "staff"
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "redacted": {
+                      "const": true
+                    },
+                    "present": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
             },
             "readOnly": true
           },
           "features_badges": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/FeatureDao"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/FeatureDao"
+                },
+                {
+                  "type": "object",
+                  "title": "RedactedFeatureDao",
+                  "description": "A feature the catalogue marked non-public (visibility 'owner' or 'staff') read by someone without that entitlement — an identifier such as a VIN or an IMEI. Carries no value. `present` says whether the seller filled it in, which is all this system observes; `verification` is absent unless an outside check was actually run, so a UI may say the value was supplied and must not say it was verified.",
+                  "required": [
+                    "redacted",
+                    "present"
+                  ],
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "order": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "translate": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "visibility": {
+                      "enum": [
+                        "owner",
+                        "staff"
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "redacted": {
+                      "const": true
+                    },
+                    "present": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
             },
             "readOnly": true
           },
@@ -2014,14 +2340,112 @@
           "features_title": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/FeatureDao"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/FeatureDao"
+                },
+                {
+                  "type": "object",
+                  "title": "RedactedFeatureDao",
+                  "description": "A feature the catalogue marked non-public (visibility 'owner' or 'staff') read by someone without that entitlement — an identifier such as a VIN or an IMEI. Carries no value. `present` says whether the seller filled it in, which is all this system observes; `verification` is absent unless an outside check was actually run, so a UI may say the value was supplied and must not say it was verified.",
+                  "required": [
+                    "redacted",
+                    "present"
+                  ],
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "order": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "translate": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "visibility": {
+                      "enum": [
+                        "owner",
+                        "staff"
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "redacted": {
+                      "const": true
+                    },
+                    "present": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
             },
             "readOnly": true
           },
           "features_badges": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/FeatureDao"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/FeatureDao"
+                },
+                {
+                  "type": "object",
+                  "title": "RedactedFeatureDao",
+                  "description": "A feature the catalogue marked non-public (visibility 'owner' or 'staff') read by someone without that entitlement — an identifier such as a VIN or an IMEI. Carries no value. `present` says whether the seller filled it in, which is all this system observes; `verification` is absent unless an outside check was actually run, so a UI may say the value was supplied and must not say it was verified.",
+                  "required": [
+                    "redacted",
+                    "present"
+                  ],
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "order": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "translate": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "visibility": {
+                      "enum": [
+                        "owner",
+                        "staff"
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "redacted": {
+                      "const": true
+                    },
+                    "present": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
             },
             "readOnly": true
           },
@@ -2344,6 +2768,15 @@
             "type": "string",
             "nullable": true
           },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
           "type": {
             "$ref": "#/components/schemas/Type565Enum"
           },
@@ -2410,6 +2843,15 @@
             "type": "string",
             "nullable": true
           },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
           "type": {
             "$ref": "#/components/schemas/TypeCcbEnum"
           },
@@ -2472,6 +2914,15 @@
           },
           "translate": {
             "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
             "nullable": true
           },
           "type": {
@@ -2558,6 +3009,15 @@
           },
           "translate": {
             "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
             "nullable": true
           },
           "type": {

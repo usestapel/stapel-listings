@@ -4,6 +4,91 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.12.0] — 2026-09-02
+
+Minor (pre-1.0: minor = breaking, patch = compatible). A feature value the
+catalogue marked non-public no longer leaves this module to a reader without
+the entitlement. Requires `stapel-attributes>=0.8`.
+
+### Fixed
+
+- **An anonymous read no longer carries an identifier attribute's value.**
+  On the live stand, `GET /listings/api/v1/listings/287/` answered a stranger
+  with the car's VIN in `features`, and the same string sat in
+  `features_search`, where `?f.vin=<value>` made it an oracle: the index would
+  confirm that this exact listing is that exact vehicle. A VIN and an IMEI
+  identify a specific physical unit, so publishing one lets a stranger act as
+  its owner.
+
+### Added
+
+- **`serializers.FeatureVisibilityMixin` — the read-time chokepoint.** It
+  resolves the audience for the row actually being rendered (service
+  transport and staff read as staff, the row's owner as owner, everyone else
+  as anonymous) and redacts `features` / `features_title` / `features_badges`
+  through `stapel_attributes.visibility.redact_daos`. A stored DAO carries its
+  own `visibility` stamp, so this needs no category fetch on the read path —
+  which is the only reason it can live here at all.
+
+  It **fails closed**: no request in the serializer context resolves to
+  anonymous. `my_listings` and `my_favorites` build their serializers by hand
+  and now pass `get_serializer_context()`, without which the mixin would have
+  redacted a seller's own VIN out of their own dashboard.
+
+  A hidden row is kept in `features` as a value-free stub — `redacted: true`,
+  `present: <bool>`, no `value` — rather than dropped, so the public attribute
+  table has the same rows in the same order as the seller's and a buyer can
+  see that a VIN exists and was supplied. `present` is a fact this system
+  observes; `verification` is a claim about the outside world that nothing in
+  the fleet makes today, so a client may render «указан продавцом» and must
+  not render «проверен». The wire shape is in `docs/schema.json` as
+  `RedactedFeatureDao`.
+
+### Changed
+
+- **Three of the four projections are built without the value at all.**
+  `services.features` keeps a non-public DAO out of `features_title`,
+  `features_badges` and `features_search` at write time. Those columns are
+  read raw — by every card, by `services.search_feed.build_search_document`
+  and by the `listing.published` / `listing.updated` bus payloads — and none
+  of those readers has a viewer or a schema in hand, so the only way they can
+  be safe for everyone is for the value never to enter them. `features` keeps
+  everything; it is the column the mixin redacts per viewer.
+
+- **The document builder and the two bus payloads filter again on the way
+  out** (`search_feed.hidden_slugs`, `events._public_features_search`). On a
+  freshly projected row this removes nothing. It is there for the rows
+  projected before the axis existed — which is the entire installed base on
+  the day this ships — because an indexer that pulled one in the meantime
+  would keep serving the value as a filterable term long after the
+  re-projection.
+
+### Migration
+
+**Existing rows keep the value in their public projections until they are
+re-projected.** Nothing is fixed by deploying alone:
+
+```
+python manage.py listings_reproject_features --category <id>
+```
+
+It re-runs the projections against the current category schema, stamps
+`visibility` onto the stored DAOs and rebuilds the title/badge/search columns.
+It does not touch lifecycle, moderation status or `updated_at`; it does emit
+`listing.updated` per indexed row, so an indexer picks up the cleaned document.
+After it, the search index still holds the old terms until the consumer
+reindexes.
+
+### Tests
+
+`tests/test_feature_visibility.py` — 23 tests in three kinds. Behavioural ones
+prove today's payloads are clean. A **structural** one enumerates every
+serializer in the module that emits a feature column and fails if one does not
+inherit the mixin. A **reach** one (`stapel_attributes.guard`) fails if the raw
+columns are read anywhere outside eight named files. The last two are the point:
+the original leak was not a wrong redaction rule, it was a plain `JSONField`
+that every new serializer inherited the disclosure from.
+
 ## [0.11.1] — 2026-09-01
 
 Patch. One test comment — no code, schema or API change.

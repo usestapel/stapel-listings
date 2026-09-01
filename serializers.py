@@ -18,6 +18,8 @@ from stapel_attributes import (
     get_feature_dto_proxy_serializer,
     get_feature_dto_serializer_class,
 )
+from stapel_attributes import visibility
+from stapel_core.django.api.permissions import IsServiceRequest
 from stapel_core.django.api.serializers import StapelDataclassSerializer
 
 from .dto import (
@@ -53,16 +55,134 @@ class ListingFeaturesInputFieldExtension(OpenApiSerializerFieldExtension):
 
 
 class ListingFeaturesOutputField(serializers.JSONField):
-    """``List[FeatureDao]`` — the stored, ordered feature projection."""
+    """``List[FeatureDao]`` — the stored, ordered feature projection.
+
+    Emits the column verbatim. Redaction is NOT here: a DRF field is handed a
+    value, not the row it came off, so it cannot tell whether the person asking
+    owns the listing. :class:`FeatureVisibilityMixin` does it one level up,
+    where the instance and the request are both in hand.
+    """
 
 
 class ListingFeaturesOutputFieldExtension(OpenApiSerializerFieldExtension):
     target_class = ListingFeaturesOutputField
 
+    #: What a reader gets instead of a value they are not entitled to. Declared
+    #: here rather than on ``FeatureDao`` because it is never *stored*: it only
+    #: exists on the wire, produced by :class:`FeatureVisibilityMixin`. A client
+    #: branches on ``redacted``, renders the field's presence from ``present``,
+    #: and may claim a check was run only if ``verification`` is there.
+    REDACTED_SCHEMA = {
+        "type": "object",
+        "title": "RedactedFeatureDao",
+        "description": (
+            "A feature the catalogue marked non-public (visibility 'owner' or "
+            "'staff') read by someone without that entitlement — an identifier "
+            "such as a VIN or an IMEI. Carries no value. `present` says whether "
+            "the seller filled it in, which is all this system observes; "
+            "`verification` is absent unless an outside check was actually run, "
+            "so a UI may say the value was supplied and must not say it was "
+            "verified."
+        ),
+        "required": ["redacted", "present"],
+        "properties": {
+            "slug": {"type": "string"},
+            "type": {"type": "string"},
+            "name": {"type": "string", "nullable": True},
+            "order": {"type": "integer", "nullable": True},
+            "translate": {"type": "string", "nullable": True},
+            "visibility": {"enum": ["owner", "staff"]},
+            "verification": {"type": "object", "additionalProperties": True},
+            "redacted": {"const": True},
+            "present": {"type": "boolean"},
+        },
+    }
+
     def map_serializer_field(self, auto_schema, direction):
         dao_proxy = get_feature_dao_proxy_serializer()
         auto_schema.resolve_serializer(dao_proxy, direction)
-        return {"type": "array", "items": {"$ref": "#/components/schemas/FeatureDao"}}
+        return {
+            "type": "array",
+            "items": {
+                "oneOf": [
+                    {"$ref": "#/components/schemas/FeatureDao"},
+                    self.REDACTED_SCHEMA,
+                ]
+            },
+        }
+
+
+# --- Who may read a stored feature value ----------------------------------
+
+
+class FeatureVisibilityMixin:
+    """Redacts non-public feature values for the person actually asking.
+
+    Some attributes identify a specific physical unit instead of describing it:
+    a VIN, an IMEI, a serial number. The catalogue marks them
+    ``visibility: "owner"`` (or ``"staff"``) and stapel-attributes stamps that
+    onto every stored DAO, so this mixin needs no category schema — the value
+    says for itself who may read it.
+
+    **It is applied to every serializer in this module that emits a feature
+    column, and ``tests/test_feature_visibility.py`` fails if a new one is
+    added without it.** That gate is the point: the leak this fixes existed
+    because ``features`` was a plain ``JSONField``, so each serializer that
+    listed the field inherited the disclosure for free and nothing anywhere
+    said "wait".
+
+    It fails closed. No request in the serializer context — a
+    ``many=True`` instantiation, a comm caller, a management command rendering
+    a payload — resolves to ``anonymous`` and redacts, because the only safe
+    answer to "who is this?" when nobody said is "a stranger".
+    """
+
+    #: Columns carrying ``List[FeatureDao]``. ``features_search`` is absent on
+    #: purpose: it is a ``{slug: [value]}`` map with no DAO to read a stamp
+    #: off, and it is built already-clean (``services.features``), which is the
+    #: only correct place for a column that is also read raw by the indexer and
+    #: by two bus payloads.
+    FEATURE_DAO_FIELDS = ("features", "features_title", "features_badges")
+
+    def resolve_feature_audience(self, instance) -> str:
+        """``anonymous`` / ``owner`` / ``staff`` for this request and row.
+
+        Mirrors ``views._may_see_full_status``: a fleet service (X-API-KEY) and
+        a staff user read as staff, the row's owner reads as owner. Note that
+        moderation does NOT come through this viewset at all — a moderator
+        reads a listing through stapel-moderation and the
+        ``listings.moderation_content`` function — so the staff branch here is
+        for the service transport and the admin, not for the console.
+        """
+        request = self.context.get("request")
+        if request is None:
+            return visibility.ANONYMOUS
+        if IsServiceRequest().has_permission(request, None):
+            return visibility.AUDIENCE_STAFF
+        user = getattr(request, "user", None)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return visibility.ANONYMOUS
+        if getattr(user, "is_staff", False):
+            return visibility.AUDIENCE_STAFF
+        owner_id = getattr(instance, "owner_id", None)
+        if owner_id is not None and str(getattr(user, "pk", "")) == str(owner_id):
+            return visibility.AUDIENCE_OWNER
+        return visibility.ANONYMOUS
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        audience = self.resolve_feature_audience(instance)
+        for field in self.FEATURE_DAO_FIELDS:
+            rows = data.get(field)
+            if rows:
+                # `features` keeps the hidden row as a value-free stub so the
+                # public attribute table has the same shape as the seller's and
+                # a buyer can see that a VIN exists and was filled in. The
+                # title and badge projections are built without hidden values
+                # at all, so this is a no-op on them unless the row predates
+                # the axis and has not been re-projected yet.
+                data[field] = visibility.redact_daos(rows, audience)
+        return data
 
 
 # --- Coordinates ----------------------------------------------------------
@@ -221,7 +341,7 @@ class ListingDraftSerializer(serializers.ModelSerializer):
 # --- Read -----------------------------------------------------------------
 
 
-class ListingCardSerializer(serializers.ModelSerializer):
+class ListingCardSerializer(FeatureVisibilityMixin, serializers.ModelSerializer):
     """Compact card projection for lists."""
 
     # Published twin of `images_draft` — same shape (opaque CDN refs,
@@ -295,7 +415,7 @@ class MyListingCardSerializer(ListingCardSerializer):
         ]
 
 
-class ListingDetailSerializer(serializers.ModelSerializer):
+class ListingDetailSerializer(FeatureVisibilityMixin, serializers.ModelSerializer):
     """Full listing detail."""
 
     # See ListingCardSerializer.images — same fix, same reason.

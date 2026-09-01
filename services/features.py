@@ -19,6 +19,21 @@ a vocabulary-backed value work without a second lookup: a ``ref_select`` DAO
 carries ``labels`` (the display snapshot taken at write time) alongside
 ``value`` (the term codes), and the reader picks the half it needs. Search
 takes ``value``, always — see ``_LIST_VALUE_TYPES``.
+
+**Three of the four projections are public artefacts; ``features`` is not.**
+A feature the catalogue marked ``visibility: owner`` or ``staff`` — a VIN, an
+IMEI, a serial number — carries that stamp on its own DAO (stapel-attributes
+0.8.0), and this module keeps such a value out of ``features_title``,
+``features_badges`` and ``features_search`` at BUILD time, permanently. Those
+three columns are read raw by a card, by the search-document builder and by the
+``listing.published``/``listing.updated`` bus payloads, none of which has a
+viewer or a schema in hand; the only way they can be safe for every reader is
+for the value never to enter them.
+
+``features`` keeps everything, because the owner's own view and moderation both
+need the value. It is redacted per viewer on the way out, in
+``serializers.FeatureVisibilityMixin`` — the one read path that knows who is
+asking.
 """
 from __future__ import annotations
 
@@ -27,6 +42,7 @@ from typing import Any, Dict, List, Set, Tuple
 from stapel_attributes import (
     coerce_feature_defs,
     get_feature_slug,
+    is_public,
     normalize_to_dao,
     parse_config,
 )
@@ -135,11 +151,17 @@ def get_consecutive_header_pairs(configs) -> Set[Tuple[str, str]]:
 
 
 def build_features_title(features_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    return [dao for dao in features_list if dao.get("title") is True]
+    # ``is_public`` is belt to the engine's braces: a non-public FeatureDef
+    # already refuses to stamp ``title``/``badge`` onto its DAO. It is repeated
+    # here because this list is read raw by every card in the fleet and by the
+    # search document's free-text arm, and because a row projected by an older
+    # writer (before the visibility axis) can still carry ``title: true`` until
+    # ``listings_reproject_features`` has run over it.
+    return [dao for dao in features_list if dao.get("title") is True and is_public(dao)]
 
 
 def build_features_badges(features_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    return [dao for dao in features_list if dao.get("badge") is True]
+    return [dao for dao in features_list if dao.get("badge") is True and is_public(dao)]
 
 
 def build_features_search_from_list(
@@ -166,10 +188,19 @@ def build_features_search_from_list(
 def build_features_search(
     features_dao_dict: Dict[str, Dict[str, Any]],
 ) -> Dict[str, List[Any]]:
-    """``{slug: [searchable values]}`` from the DAO dict (headers excluded)."""
+    """``{slug: [searchable values]}`` from the DAO dict (headers excluded).
+
+    A non-public value never enters this column. That is not a display choice —
+    an indexed identifier is an *oracle*: `?f.vin=<value>` either returns the
+    listing or does not, which confirms to a stranger that this exact car is
+    that exact VIN. The value has to be absent from the index, not merely
+    absent from the facet panel.
+    """
     search: Dict[str, List[Any]] = {}
     for slug, dao in features_dao_dict.items():
         if dao.get("type") == "header":
+            continue
+        if not is_public(dao):
             continue
         values = _extract_search_values(dao)
         if values:
