@@ -4,6 +4,15 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.16.1] — 2026-09-03
+
+### Fixed
+
+- Re-cut of 0.16.0. Its tag was created before the pre-push exposure sweep
+  and ended up on a commit that is not on `main` — the code is identical, but
+  a release whose tag does not build from the branch is not a release. Pin
+  0.16.1.
+
 ## [0.16.0] — 2026-09-03
 
 ### Added
