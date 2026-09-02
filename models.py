@@ -276,7 +276,13 @@ class Listing(models.Model):
 
     # Opaque currency code (e.g. "USD"); no FK to stapel-currencies.
     currency = models.CharField(max_length=8, default="USD")
-    price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    # NULL means "price not stated" — a legal, honest state for a classified
+    # («Цена не указана»). The old ``default=0`` published every skipped price
+    # as a public «0 ₽» (Д51/Д60). An explicit 0 is a different claim ("free")
+    # and is gated by FREE_PRICE_CATEGORY_IDS in validate_draft.
+    price = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True, default=None
+    )
     price_base = models.DecimalField(
         max_digits=12, decimal_places=2, null=True, blank=True
     )
@@ -484,13 +490,39 @@ class Listing(models.Model):
             else set()
         )
 
+        # Index-boundary detector (the Д50 lesson): a status write that crosses
+        # INDEXED_STATUSES must emit published/removed WHEREVER it happens, not
+        # only inside transition_to. `Listing.status = "archived"; save()` — an
+        # orchestrator's raw write, a shell one-liner — used to change public
+        # visibility while every search index kept serving the ghost. The FSM
+        # remains the front door (it validates the edge and owns its emit via
+        # _skip_updated_emit); this is the model refusing to let ANY save
+        # route move a listing across the boundary silently. Queryset
+        # ``.update(status=...)`` still bypasses the model — that hole is
+        # covered by stapel-search's reconcile sweep, not by pretending it
+        # cannot happen.
+        boundary = None
+        if (
+            not self._skip_updated_emit
+            and not self._state.adding
+            and self._touches(update_fields, {"status"})
+        ):
+            boundary = self._status_boundary_crossing()
+        if boundary == "published":
+            # Parity with transition_to: entering the index re-derives the
+            # projection so the announced document is not stale by construction.
+            if self.rebuild_features_search() and update_fields is not None:
+                if "features_search" not in update_fields:
+                    update_fields = list(update_fields) + ["features_search"]
+                    kwargs["update_fields"] = update_fields
+
         emit_updated = (
             not self._skip_updated_emit
             and not self._state.adding
             and self.status in INDEXED_STATUSES
             and self._indexed_content_changed(update_fields)
         )
-        if not emit_updated:
+        if not emit_updated and boundary is None:
             super().save(*args, **kwargs)
         else:
             from . import events
@@ -499,7 +531,14 @@ class Listing(models.Model):
             # search index reacts to commit together or not at all.
             with mutate_and_emit():
                 super().save(*args, **kwargs)
-                events.emit_listing_updated(self)
+                if boundary == "published":
+                    # The published payload carries the full document signal;
+                    # a same-write listing.updated would be a duplicate.
+                    events.emit_listing_published(self)
+                elif boundary == "removed":
+                    events.emit_listing_removed(self, reason=self.status)
+                else:
+                    events.emit_listing_updated(self)
 
         if touches_refs:
             self._sync_cdn_image_refs(self.pk, old_refs, self.cdn_image_refs())
@@ -511,6 +550,31 @@ class Listing(models.Model):
         ``update_fields=None`` is a full-row write — it may write anything.
         """
         return update_fields is None or bool(names & set(update_fields))
+
+    def _status_boundary_crossing(self) -> str | None:
+        """Whether this save moves ``status`` across INDEXED_STATUSES.
+
+        Compares the instance against the stored row (one narrow SELECT, only
+        on saves that may write ``status``): ``"published"`` when the write
+        enters the indexed set, ``"removed"`` when it leaves it, ``None`` for
+        everything else — including moves entirely inside or entirely outside
+        the boundary, which an index does not care about.
+        """
+        stored = (
+            type(self)
+            .all_objects.filter(pk=self.pk)
+            .values_list("status", flat=True)
+            .first()
+        )
+        if stored is None or stored == self.status:
+            return None
+        was_indexed = stored in INDEXED_STATUSES
+        now_indexed = self.status in INDEXED_STATUSES
+        if was_indexed and not now_indexed:
+            return "removed"
+        if now_indexed and not was_indexed:
+            return "published"
+        return None
 
     def _indexed_content_changed(self, update_fields) -> bool:
         """Whether this save actually moves a field an index holds.
@@ -775,8 +839,16 @@ class Listing(models.Model):
         self._sync_cdn_image_refs(entity_id, old_refs, set())
 
     def restore(self):
-        self.deleted_at = None
-        self.save(update_fields=["deleted_at", "updated_at"])
+        """Undo a soft delete; emits ``listing.published`` if the row is in an
+        indexed status — delete() announced the leave, the way back in must be
+        announced too or the index stays a ghost in the other direction."""
+        from . import events
+
+        with mutate_and_emit():
+            self.deleted_at = None
+            self.save(update_fields=["deleted_at", "updated_at"])
+            if self.status in INDEXED_STATUSES:
+                events.emit_listing_published(self)
 
     @property
     def is_deleted(self) -> bool:

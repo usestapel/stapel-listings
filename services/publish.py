@@ -70,6 +70,31 @@ def _unknown_slug_results(configs, features_draft) -> list:
     return results
 
 
+def _zero_price_result(listing):
+    """A structured failure for an EXPLICIT 0 price, or ``None``.
+
+    NULL ("price not stated") is legal everywhere; 0 is the claim "free" and
+    is legal only in the categories the host names in FREE_PRICE_CATEGORY_IDS.
+    The distinction is the whole Д51 fix: the composer's skipped price used to
+    publish as a public «0 ₽» because the model defaulted the difference away.
+    """
+    from ..errors import ERR_400_ZERO_PRICE_NOT_ALLOWED
+
+    if listing.price_draft is None or listing.price_draft != 0:
+        return None
+    allowed = {str(cid) for cid in listings_settings.FREE_PRICE_CATEGORY_IDS or ()}
+    if str(listing.category_id) in allowed:
+        return None
+    return FeatureValidationResult(
+        slug="price",
+        status=ValidationStatus.VALIDATION_FAILED,
+        localizable_error=ERR_400_ZERO_PRICE_NOT_ALLOWED,
+        params={"category_id": str(listing.category_id)},
+        message="A price of 0 is not allowed in this category; "
+                "leave the price empty for 'price not stated'",
+    )
+
+
 def validate_draft(listing) -> ValidationBatchResult:
     """Structured validation of a listing's draft against its category schema.
 
@@ -84,6 +109,11 @@ def validate_draft(listing) -> ValidationBatchResult:
     unknown = _unknown_slug_results(configs, listing.features_draft or {})
     if unknown:
         result.results.extend(unknown)
+        result.valid = False
+
+    price_error = _zero_price_result(listing)
+    if price_error is not None:
+        result.results.insert(0, price_error)
         result.valid = False
 
     desc_error = validate_description(
@@ -148,8 +178,11 @@ def publish_listing(listing) -> None:
     listing.geohash = listing.geohash_draft
     listing.lat = listing.lat_draft
     listing.lon = listing.lon_draft
-    if listing.price_draft is not None:
-        listing.price = listing.price_draft
+    # Unconditional, like every other draft twin: a cleared price publishes as
+    # NULL («Цена не указана»), not as the previously published number. The
+    # old ``if price_draft is not None`` guard existed only because price had
+    # ``default=0`` and a None promote would have been destructive.
+    listing.price = listing.price_draft
 
     images_draft = listing.images_draft or []
     if listings_settings.REQUIRE_IMAGE_ON_PUBLISH and not images_draft:

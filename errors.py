@@ -39,6 +39,10 @@ ERR_400_FEATURE_NOT_ALLOWED = "error.400.listing_feature_not_allowed"
 # state does not exist" are different answers, and only one of them is a
 # client bug worth surfacing.
 ERR_400_INVALID_STATUS_FILTER = "error.400.listing_invalid_status_filter"
+# An explicit price of 0 outside a FREE_PRICE_CATEGORY_IDS category (Д51):
+# «0 ₽» on a marketplace card is either a lie or a missed field, and a missed
+# field is spelled NULL. The storefront renders NULL as «Цена не указана».
+ERR_400_ZERO_PRICE_NOT_ALLOWED = "error.400.listing_zero_price_not_allowed"
 
 STAPEL_LISTINGS_ERRORS = {
     ERR_404_LISTING_NOT_FOUND: "Listing not found",
@@ -54,6 +58,10 @@ STAPEL_LISTINGS_ERRORS = {
     ERR_409_ALREADY_FAVORITED: "Listing already favorited",
     ERR_400_FEATURE_NOT_ALLOWED: "Feature '{feature}' is not allowed for this category",
     ERR_400_INVALID_STATUS_FILTER: "Unknown listing status '{status}'",
+    ERR_400_ZERO_PRICE_NOT_ALLOWED: (
+        "A price of 0 is not allowed in this category. "
+        "Leave the price empty for \"price not stated\"."
+    ),
 }
 
 register_service_errors(STAPEL_LISTINGS_ERRORS)
@@ -71,4 +79,5 @@ __all__ = [
     "ERR_409_ALREADY_FAVORITED",
     "ERR_400_FEATURE_NOT_ALLOWED",
     "ERR_400_INVALID_STATUS_FILTER",
+    "ERR_400_ZERO_PRICE_NOT_ALLOWED",
 ]

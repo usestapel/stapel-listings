@@ -71,6 +71,12 @@ listings_settings = AppSettings(
         # a moderator's card links to the real listing only where the host
         # said what "real" is. This module serves no public site of its own.
         "LISTING_URL_TEMPLATE": "",
+        # Category ids (compared as strings) where an EXPLICIT price of 0 is a
+        # legal claim — a "free items" / «Отдам даром» section. Everywhere
+        # else validate_draft rejects 0: a marketplace card reading «0 ₽» is
+        # either a lie or a missed field, and a missed field is spelled NULL
+        # («Цена не указана»), which stays legal in every category.
+        "FREE_PRICE_CATEGORY_IDS": (),
         # Free-text description length bounds enforced on publish/validate.
         "DESCRIPTION_MIN_LENGTH": 4,
         "DESCRIPTION_MAX_LENGTH": 500,

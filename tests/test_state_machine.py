@@ -128,3 +128,69 @@ def test_soft_delete_hides_and_emits_removed_if_indexed(user, capture_events):
     assert Listing.all_objects.filter(pk=listing.pk).count() == 1
     # one removed for SOLD-like leave... here published->deleted => one removed
     assert removed[-1].payload["reason"] == "deleted"
+
+
+# --- raw status writes cross the index boundary too ------------------------
+#
+# The Д50 family: `listing.status = "archived"; listing.save()` — a write that
+# never went through transition_to — used to change visibility without the
+# listing.removed event, leaving ghost cards in every search index. The
+# boundary detector lives in save() itself now: ANY route into or out of
+# INDEXED_STATUSES announces itself.
+
+
+def test_raw_status_write_to_archived_emits_removed(user, capture_events):
+    removed = capture_events("listing.removed")
+    listing = Listing.objects.create(owner=user, category_id="7", status=ListingStatus.PENDING)
+    listing.transition_to(ListingStatus.PUBLISHED)
+    listing.status = ListingStatus.ARCHIVED  # raw write, no transition_to
+    listing.save()
+    assert len(removed) == 1
+    assert removed[0].payload["reason"] == ListingStatus.ARCHIVED
+
+
+def test_raw_status_write_with_update_fields_emits_removed(user, capture_events):
+    removed = capture_events("listing.removed")
+    listing = Listing.objects.create(owner=user, category_id="7", status=ListingStatus.PENDING)
+    listing.transition_to(ListingStatus.PUBLISHED)
+    listing.status = ListingStatus.ARCHIVED
+    listing.save(update_fields=["status", "updated_at"])
+    assert len(removed) == 1
+
+
+def test_raw_status_write_to_published_emits_published(user, capture_events):
+    published = capture_events("listing.published")
+    listing = Listing.objects.create(owner=user, category_id="7", status=ListingStatus.PENDING)
+    listing.status = ListingStatus.PUBLISHED  # raw write, no transition_to
+    listing.save()
+    assert len(published) == 1
+    assert listing.published_at is not None
+
+
+def test_raw_status_write_within_boundary_emits_nothing(user, capture_events):
+    published = capture_events("listing.published")
+    removed = capture_events("listing.removed")
+    listing = Listing.objects.create(owner=user, category_id="7")
+    listing.status = ListingStatus.PENDING  # draft -> pending: both unindexed
+    listing.save()
+    assert published == [] and removed == []
+
+
+def test_transition_to_still_emits_exactly_once(user, capture_events):
+    """The boundary detector must not double the FSM's own emit."""
+    removed = capture_events("listing.removed")
+    listing = Listing.objects.create(owner=user, category_id="7", status=ListingStatus.PENDING)
+    listing.transition_to(ListingStatus.PUBLISHED)
+    listing.transition_to(ListingStatus.ARCHIVED)
+    assert len(removed) == 1
+
+
+def test_restore_of_indexed_listing_emits_published(user, capture_events):
+    """delete() emits removed; restore() of a still-published row must announce
+    the way back in, or the index stays a ghost in the other direction."""
+    published = capture_events("listing.published")
+    listing = Listing.objects.create(owner=user, category_id="7", status=ListingStatus.PENDING)
+    listing.transition_to(ListingStatus.PUBLISHED)
+    listing.delete()
+    listing.restore()
+    assert len(published) == 2  # once on publish, once on restore

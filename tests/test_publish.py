@@ -406,3 +406,75 @@ def test_post_gate_atomicity_a_failed_submit_emit_rolls_back_the_publish(
 
     draft_listing.refresh_from_db()
     assert draft_listing.status == ListingStatus.DRAFT
+
+
+# --- price honesty (Д51/Д60): no price is NULL, never 0 ---------------------
+#
+# A classified may honestly carry no price («Цена не указана»), but the model's
+# old ``default=0`` turned "seller skipped the field" into a public «0 ₽».
+# NULL is the honest spelling of "not stated"; an EXPLICIT 0 is a claim
+# ("free") that must be rejected unless the host allows free items there.
+
+
+def test_publish_without_price_stays_null_not_zero(draft_listing):
+    draft_listing.price_draft = None
+    draft_listing.save()
+    publish_service.publish_listing(draft_listing)
+    draft_listing.refresh_from_db()
+    assert draft_listing.price is None
+    assert draft_listing.price_base is None
+
+
+def test_publish_promotes_cleared_price_to_null(draft_listing):
+    """A seller clearing the price on edit really clears it — the promote is
+    unconditional, like every other draft twin."""
+    publish_service.publish_listing(draft_listing)
+    draft_listing.refresh_from_db()
+    assert draft_listing.price is not None
+
+    draft_listing.price_draft = None
+    draft_listing.save()
+    publish_service.publish_listing(draft_listing)
+    draft_listing.refresh_from_db()
+    assert draft_listing.price is None
+
+
+def test_validate_draft_rejects_explicit_zero_price(draft_listing):
+    from decimal import Decimal
+
+    draft_listing.price_draft = Decimal("0.00")
+    draft_listing.save()
+    result = publish_service.validate_draft(draft_listing)
+    assert not result.valid
+    assert any(r.slug == "price" for r in result.results)
+
+
+def test_validate_draft_allows_zero_price_where_host_says_free_is_legal(
+    draft_listing, settings
+):
+    from decimal import Decimal
+
+    settings.STAPEL_LISTINGS = {"FREE_PRICE_CATEGORY_IDS": ["7"]}
+    draft_listing.price_draft = Decimal("0.00")
+    draft_listing.save()
+    result = publish_service.validate_draft(draft_listing)
+    assert result.valid
+
+
+def test_validate_draft_accepts_absent_price(draft_listing):
+    draft_listing.price_draft = None
+    draft_listing.save()
+    result = publish_service.validate_draft(draft_listing)
+    assert result.valid
+
+
+def test_search_document_carries_null_price(draft_listing):
+    from stapel_listings.services.search_feed import build_search_document
+
+    draft_listing.price_draft = None
+    draft_listing.save()
+    publish_service.publish_listing(draft_listing)
+    draft_listing.refresh_from_db()
+    doc = build_search_document(draft_listing)
+    assert doc["price"] is None
+    assert doc["price_base"] is None

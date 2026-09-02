@@ -1637,7 +1637,8 @@
           "price": {
             "type": "string",
             "format": "decimal",
-            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$"
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
           },
           "price_base": {
             "type": "string",
@@ -1846,7 +1847,8 @@
           "price": {
             "type": "string",
             "format": "decimal",
-            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$"
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
           },
           "price_base": {
             "type": "string",
@@ -2317,7 +2319,8 @@
           "price": {
             "type": "string",
             "format": "decimal",
-            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$"
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
           },
           "price_base": {
             "type": "string",

@@ -4,6 +4,53 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.15.0] — 2026-09-02
+
+Minor (breaking: `price` is nullable, and any status write announces itself).
+
+### Fixed — a status write that skipped the FSM changed visibility silently
+
+`listing.status = "archived"; listing.save()` — an orchestrator's raw write,
+a shell one-liner, a management command — moved a listing out of every
+public read while every search index kept serving it. Six listings on a
+client stand were archived that way and stayed in the SERP as ghost cards
+whose click answered «Объявление снято с публикации».
+
+`transition_to` was never the problem: it emits correctly and remains the
+front door (it validates the edge and owns its own emit). The defect was
+that it was the ONLY door. `Listing.save()` now carries the index-boundary
+detector itself: a save that may write `status` compares the instance
+against the stored row and emits `listing.published` on entering
+INDEXED_STATUSES, `listing.removed` on leaving it, exactly once, inside the
+same `mutate_and_emit()` block as the write. A move entirely inside or
+entirely outside the boundary still emits nothing. Entering the index
+re-derives `features_search` first, the same as `transition_to`.
+
+`restore()` gained the missing counterpart: `delete()` announced the leave,
+so an undelete of a still-published row now announces the way back in.
+
+A queryset `.update(status=...)` bypasses the model layer entirely and
+always will; that hole is closed from the other side by stapel-search
+0.10.5's `search_reconcile` sweep, not by pretending it cannot happen.
+
+### Fixed — an empty price published as «0 ₽»
+
+`price` was `default=0`, so "the seller skipped the field" and "this item is
+free" were the same value, and a marketplace card advertised a free iPhone.
+NULL is now the honest spelling of "price not stated": `price` is
+`null=True, default=None` (migration 0006), `publish_listing` promotes
+`price_draft` unconditionally so a cleared price really clears, and
+`validate_draft` REJECTS an explicit 0 — `error.400.listing_zero_price_not_allowed`
+— unless the category is named in the new `FREE_PRICE_CATEGORY_IDS` setting.
+`price_base` follows (`compute_price_base` already returned None for a NULL
+price), and `listings.search_documents` / `listings.search_export` emit both
+as JSON `null`, so a storefront can render «Цена не указана» from the DTO
+instead of inventing a zero.
+
+The migration deliberately rewrites no data: an existing 0 cannot be told
+apart from a genuinely free item by a migration, so the decision stays with
+the host.
+
 ## [0.14.1] — 2026-09-02
 
 Patch (additive). `python manage.py listings_backfill_cdn_refs` — the

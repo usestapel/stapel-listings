@@ -320,6 +320,14 @@
     "owner": "stapel_listings"
   },
   {
+    "code": "error.400.listing_zero_price_not_allowed",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "A price of 0 is not allowed in this category. Leave the price empty for \"price not stated\".",
+    "owner": "stapel_listings"
+  },
+  {
     "code": "error.400.publish_validation_failed",
     "status": 400,
     "params": [],
