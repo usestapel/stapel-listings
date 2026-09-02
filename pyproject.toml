@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-listings"
-version = "0.13.1"
+version = "0.13.2"
 description = "Listings and catalog for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -26,7 +26,7 @@ classifiers = [
 dependencies = [
     # Floor: the core this app is developed and tested against. The old
     # `>=0.10` let a consumer resolve a core the app has not seen in a year.
-    "stapel-core>=0.54.1,<1.0",
+    "stapel-core>=0.26.0,<1.0",
     # attributes 0.3.x caps `stapel-core<0.12`, which made stapel-listings
     # unresolvable next to any modern core (stapel-categories 0.5.4 hit the
     # same wall and moved the same way).
