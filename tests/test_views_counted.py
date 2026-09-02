@@ -276,3 +276,30 @@ def test_the_engagement_function_omits_an_absent_listing(published):
 
     answer = call("listings.engagement", {"keys": [str(published.pk), "999999"]})
     assert set(answer) == {str(published.pk)}
+
+
+def test_the_engagement_endpoint_answers_a_page_in_one_call(api_client, published, user):
+    api_client.force_authenticate(user)
+    api_client.get(f"/listings/listings/{published.pk}/")
+
+    body = api_client.get("/listings/listings/engagement/", {"ids": f"{published.pk},999999"}).json()
+    assert body["items"] == {
+        str(published.pk): {"view_count": 1, "viewed": True, "is_favorited": False}
+    }
+
+
+def test_the_engagement_endpoint_is_open_to_a_guest(api_client, published):
+    """`view_count` is public and the per-viewer flags answer null, so a
+    storefront makes the SAME request signed in or not — a guest's grid is
+    not a second code path."""
+    api_client.get(f"/listings/listings/{published.pk}/")
+    body = api_client.get("/listings/listings/engagement/", {"ids": str(published.pk)}).json()
+    row = body["items"][str(published.pk)]
+    assert row == {"view_count": 1, "viewed": None, "is_favorited": None}
+
+
+def test_the_engagement_batch_is_capped(api_client, published, settings):
+    settings.STAPEL_LISTINGS = {"ENGAGEMENT_BATCH_LIMIT": 1}
+    ids = ",".join(str(n) for n in range(1, 50))
+    body = api_client.get("/listings/listings/engagement/", {"ids": ids}).json()
+    assert len(body["items"]) <= 1

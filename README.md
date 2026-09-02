@@ -24,10 +24,10 @@ pip install stapel-listings
 
 | Fact | Value |
 |---|---|
-| Version | `0.16.1` |
+| Version | `0.17.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | Django | `djangorestframework>=3.14` |
-| HTTP operations | 17 |
+| HTTP operations | 18 |
 | Config axes | 3 |
 | Usage surface | 7 |
 | Extension points | 6 |

@@ -4,6 +4,22 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.17.0] — 2026-09-03
+
+### Added
+
+- **`GET listings/engagement?ids=…`** — the per-viewer overlay for a whole
+  page of cards in one call, the HTTP twin of the `listings.engagement` comm
+  Function. A storefront's grid is served by the SEARCH index, whose stored
+  card can carry neither a flag that differs per reader nor a counter that
+  moves faster than a document re-indexed on a listing event; without this
+  endpoint the flags shipped in 0.16.0 reach the listings REST card and stop
+  short of the one grid a buyer actually looks at. `AllowAny`, because
+  `view_count` is public and the two per-viewer flags answer `null` for a
+  guest — so the storefront makes the same request signed in or not, and a
+  guest's grid is not a second code path. Capped by
+  `ENGAGEMENT_BATCH_LIMIT` (100).
+
 ## [0.16.1] — 2026-09-03
 
 ### Fixed

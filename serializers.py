@@ -484,6 +484,40 @@ class ListingDetailSerializer(FeatureVisibilityMixin, serializers.ModelSerialize
         ]
 
 
+class ListingEngagementSerializer(serializers.Serializer):
+    """The per-viewer overlay for ONE listing in a batch read.
+
+    Exists because a storefront's grid does not come from this module: the
+    SERP is served by the search index, whose stored card can carry neither a
+    flag that differs per reader nor a counter that moves faster than a
+    document re-indexed on a listing event. So the grid draws the card from
+    search and asks HERE, once for the whole page, for the three things that
+    are about the person looking.
+    """
+
+    view_count = serializers.IntegerField(
+        help_text="Distinct viewers who have opened this listing. Public — it "
+        "is the same number for every reader.",
+    )
+    viewed = serializers.BooleanField(
+        allow_null=True,
+        help_text="Whether the CALLER has opened this listing before. `null` "
+        "for an anonymous caller: nothing is remembered for a stranger, and "
+        "`false` would be a claim rather than an absence.",
+    )
+    is_favorited = serializers.BooleanField(
+        allow_null=True,
+        help_text="Whether the CALLER has favorited it. `null` for anonymous, "
+        "same reason.",
+    )
+
+
+class ListingEngagementBatchSerializer(serializers.Serializer):
+    """``{listing id: overlay}``. An id with no listing is simply absent."""
+
+    items = serializers.DictField(child=ListingEngagementSerializer())
+
+
 class ListingPresenceSerializer(serializers.Serializer):
     """What a STRANGER may learn from the status probe: that a row exists.
 

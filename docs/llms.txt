@@ -1,8 +1,8 @@
-# stapel-listings 0.16.1
+# stapel-listings 0.17.0
 
 Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle including the moderation takedown state 'blocked', an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, first-class favorites, and the two pull seams its consumers read it through — listings.search_documents / listings.search_export for an indexer and listings.moderation_content for a moderation queue.
 
-Contract: axes 3 · surface 7 · extension points 6 · operations 17 · error codes 68.
+Contract: axes 3 · surface 7 · extension points 6 · operations 18 · error codes 68.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -53,13 +53,14 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - stapel-categories (optional) — comm-only dependency: the categories.features Function provides the category feature schema for value validation; no direct Python import (MODULE.md boundaries: 'this module never imports it')
 - stapel-core (required) — comm bus (mutate_and_emit/emit/function/call), GDPR provider registry, AUTH_USER_MODEL base (pyproject.toml dependency; apps.py:18, models.py:31, functions.py:20, events.py)
 
-## HTTP operations (17) — call by operationId, never by a typed path
+## HTTP operations (18) — call by operationId, never by a typed path
 Paths are relative to `/listings/api/v1/listings/`.
 ### listings
 - POST /{id}/archive/ — listings_api_v1_listings_archive_create
 - POST /{id}/complete/ — listings_api_v1_listings_complete_create
 - POST / — listings_api_v1_listings_create
 - DELETE /{id}/ — listings_api_v1_listings_destroy
+- GET /engagement/ — listings_api_v1_listings_engagement_retrieve
 - POST /{id}/favorite/ — listings_api_v1_listings_favorite_create
 - GET / — listings_api_v1_listings_list
 - GET /my/counters/ — listings_api_v1_listings_my_counters_retrieve

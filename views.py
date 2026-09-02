@@ -43,6 +43,7 @@ from .serializers import (
     ListingActionResponseSerializer,
     ListingCardSerializer,
     ListingDetailSerializer,
+    ListingEngagementBatchSerializer,
     ListingDraftSerializer,
     ListingPresenceSerializer,
     ListingStatusSerializer,
@@ -300,6 +301,46 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         return StapelResponse(ListingPresenceSerializer(listing))
 
     # -- owner: counters & drafts -----------------------------------------
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="ids",
+                description="Listing ids, comma-separated or the parameter "
+                "repeated. Capped at ENGAGEMENT_BATCH_LIMIT ids per call — "
+                "one page of cards, not a crawl of the board.",
+                required=True,
+                many=True,
+                type=str,
+            )
+        ],
+        responses={200: ListingEngagementBatchSerializer},
+    )
+    @action(detail=False, methods=["get"], url_path="engagement",
+            permission_classes=[AllowAny])
+    def engagement(self, request):  # noqa: R007
+        """The per-viewer overlay for a page of cards, in one call.
+
+        ``AllowAny`` on purpose: ``view_count`` is public, and an anonymous
+        caller gets it with both per-viewer flags answering ``null``. A
+        storefront therefore makes the same request whether or not anyone is
+        signed in, and a guest's grid is not a second code path.
+        """
+        raw: list[str] = []
+        for value in request.query_params.getlist("ids"):
+            raw.extend(part.strip() for part in str(value).split(","))
+        from .conf import listings_settings
+
+        ids = [part for part in raw if part][
+            : int(listings_settings.ENGAGEMENT_BATCH_LIMIT)
+        ]
+        user = request.user
+        user_id = str(user.pk) if getattr(user, "is_authenticated", False) else ""
+        from .services.engagement import engagement_for
+
+        return StapelResponse(
+            ListingEngagementBatchSerializer({"items": engagement_for(ids, user_id=user_id)})
+        )
 
     @extend_schema(responses={200: MyCountersResponseSerializer})
     @action(detail=False, methods=["get"], url_path="my/counters",

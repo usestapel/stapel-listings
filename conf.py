@@ -82,6 +82,10 @@ listings_settings = AppSettings(
         # client-supplied label is then published verbatim, which is what
         # every version before 0.16.0 did.
         "GEO_REVERSE_FUNCTION": "geo.reverse_geocode",
+        # Ids one /engagement call may ask about. A page of cards, not a
+        # crawl: the endpoint is AllowAny (view_count is public), so the cap
+        # is what keeps it from being a cheap way to enumerate the board.
+        "ENGAGEMENT_BATCH_LIMIT": 100,
         # The moderation queue is target-generic: its verdicts carry
         # ``{target_type, target_key}``. This is the target_type a composite
         # registered listings under — a moderation.completed for any other

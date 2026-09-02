@@ -600,6 +600,47 @@
         }
       }
     },
+    "/listings/api/v1/listings/engagement/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_engagement_retrieve",
+        "description": "The per-viewer overlay for a page of cards, in one call.\n\n``AllowAny`` on purpose: ``view_count`` is public, and an anonymous\ncaller gets it with both per-viewer flags answering ``null``. A\nstorefront therefore makes the same request whether or not anyone is\nsigned in, and a guest's grid is not a second code path.\n\n**Permissions:** `AllowAny`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ids",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Listing ids, comma-separated or the parameter repeated. Capped at ENGAGEMENT_BATCH_LIMIT ids per call — one page of cards, not a crawl of the board.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingEngagementBatch"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
     "/listings/api/v1/listings/my/counters/": {
       "get": {
         "operationId": "listings_api_v1_listings_my_counters_retrieve",
@@ -2262,6 +2303,46 @@
           "moderation_status",
           "status",
           "updated_at"
+        ]
+      },
+      "ListingEngagement": {
+        "type": "object",
+        "description": "The per-viewer overlay for ONE listing in a batch read.\n\nExists because a storefront's grid does not come from this module: the\nSERP is served by the search index, whose stored card can carry neither a\nflag that differs per reader nor a counter that moves faster than a\ndocument re-indexed on a listing event. So the grid draws the card from\nsearch and asks HERE, once for the whole page, for the three things that\nare about the person looking.",
+        "properties": {
+          "view_count": {
+            "type": "integer",
+            "description": "Distinct viewers who have opened this listing. Public — it is the same number for every reader."
+          },
+          "viewed": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the CALLER has opened this listing before. `null` for an anonymous caller: nothing is remembered for a stranger, and `false` would be a claim rather than an absence."
+          },
+          "is_favorited": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the CALLER has favorited it. `null` for anonymous, same reason."
+          }
+        },
+        "required": [
+          "is_favorited",
+          "view_count",
+          "viewed"
+        ]
+      },
+      "ListingEngagementBatch": {
+        "type": "object",
+        "description": "``{listing id: overlay}``. An id with no listing is simply absent.",
+        "properties": {
+          "items": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ListingEngagement"
+            }
+          }
+        },
+        "required": [
+          "items"
         ]
       },
       "ListingStatus": {
