@@ -224,6 +224,25 @@ class ListingQuerySet(models.QuerySet):
             )
         )
 
+    def with_viewed(self, user):
+        """Annotate ``viewed`` for *user* (None for anonymous).
+
+        The same three-state shape as ``with_favorited`` and for the same
+        reason: ``False`` is the claim "this viewer has not opened it", and
+        an anonymous caller supports no such claim. Collapsing unknown into
+        false would grey out nothing for a stranger while looking exactly
+        like an answer.
+        """
+        from django.db.models import BooleanField, Exists, OuterRef, Value
+
+        if not user or not getattr(user, "is_authenticated", False):
+            return self.annotate(viewed=Value(None, output_field=BooleanField()))
+        return self.annotate(
+            viewed=Exists(
+                ListingView.objects.filter(user_id=user.id, listing_id=OuterRef("pk"))
+            )
+        )
+
 
 class ListingManager(models.Manager.from_queryset(ListingQuerySet)):
     """Manager that hides soft-deleted listings by default.
@@ -296,6 +315,16 @@ class Listing(models.Model):
     # ``validate_countable_stock`` and the migration for the full rationale.
     countable = models.BooleanField(default=True)
     stock_quantity = models.PositiveIntegerField(null=True, blank=True, default=0)
+
+    # How many distinct viewers have opened this listing. NOT a request
+    # counter: ``services.engagement.record_view`` collapses every open by
+    # one viewer inside ``VIEW_DEDUP_WINDOW_SECONDS`` into a single
+    # increment, and refuses the owner's own opens outright. So a reload
+    # costs no write and a seller cannot inflate their own number — the two
+    # ways this column would otherwise become a lie that still looks like a
+    # metric. Denormalized rather than ``COUNT(*)`` over ``ListingView``,
+    # because anonymous viewers leave no row and must still be counted.
+    view_count = models.PositiveIntegerField(default=0, editable=False)
 
     # Opaque list of CDN image references (validated/synced by stapel-cdn).
     images = models.JSONField(blank=True, null=True, default=list)
@@ -892,3 +921,45 @@ class Favorite(models.Model):
 
     def __str__(self) -> str:
         return f"User {self.user_id} ♥ Listing {self.listing_id}"
+
+
+class ListingView(models.Model):
+    """One (viewer, listing) pair an AUTHENTICATED viewer has opened.
+
+    Two jobs, and it refuses a third.
+
+    It answers «have I seen this» — the grey «просмотрено» on a card — which
+    is a question only a signed-in viewer can have asked. And it carries
+    ``last_seen_at``, so «recently viewed» is a read of this table rather
+    than a second one.
+
+    What it is NOT is the view COUNTER. Anonymous viewers are the majority of
+    a classified's traffic and leave no row here on purpose: a row per
+    (session, listing) grows with traffic and answers nothing, which is
+    exactly the shape of the legacy ``UserAdView`` read-cache this module
+    dropped. The count lives on ``Listing.view_count`` and covers everyone.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="listing_views",
+    )
+    listing = models.ForeignKey(
+        Listing, on_delete=models.CASCADE, related_name="viewers"
+    )
+    first_seen_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "listing"], name="uniq_user_listing_view"
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user", "-last_seen_at"], name="view_user_seen_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"User {self.user_id} saw Listing {self.listing_id}"

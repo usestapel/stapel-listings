@@ -42,4 +42,42 @@ def check_moderation_gate(app_configs, **kwargs):
     ]
 
 
-__all__ = ["check_moderation_gate"]
+
+@checks.register("stapel_listings")
+def check_view_dedup_cache(app_configs, **kwargs):
+    """W001: a per-process cache makes the view counter count workers.
+
+    View deduplication IS the cache (``services/engagement.py``): one
+    ``cache.add`` per (viewer, listing, window) is what keeps a reload from
+    becoming a write, and what keeps the number a count of PEOPLE rather
+    than of requests. Under ``LocMemCache`` each gunicorn worker holds its
+    own window, so one buyer refreshing a page is counted once per worker —
+    the counter still rises, the endpoint still answers 200, and the number
+    is quietly a multiple of the truth.
+
+    A warning rather than an error, and deliberately: a single-process dev
+    server is a legitimate place to run under LocMem, and a library that
+    refuses to boot without Redis is a library nobody can try out.
+    """
+    from django.conf import settings
+
+    backend = str(
+        (getattr(settings, "CACHES", {}) or {}).get("default", {}).get("BACKEND", "")
+    )
+    if "locmem" not in backend.lower():
+        return []
+    return [
+        checks.Warning(
+            "The default cache is a per-process LocMemCache, and view "
+            "deduplication is held in it: with more than one worker process, "
+            "one viewer's single open is counted once per worker and "
+            "Listing.view_count is a multiple of the real number.",
+            hint="Point CACHES['default'] at a shared backend (Redis, "
+                 "Memcached) in any deployment that runs more than one "
+                 "process. Harmless on a single-process dev server.",
+            id="stapel_listings.W001",
+        )
+    ]
+
+
+__all__ = ["check_moderation_gate", "check_view_dedup_cache"]

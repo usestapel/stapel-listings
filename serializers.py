@@ -356,6 +356,11 @@ class ListingCardSerializer(FeatureVisibilityMixin, serializers.ModelSerializer)
     features_title = ListingFeaturesOutputField(read_only=True)
     features_badges = ListingFeaturesOutputField(read_only=True)
     is_favorited = serializers.BooleanField(read_only=True, allow_null=True)
+    # Three-state on purpose (models.py ``with_viewed``): true / false /
+    # null-for-anonymous. A storefront greys out a card on `true`; `null`
+    # means the answer is not knowable for this reader, which is a different
+    # sentence from "not seen".
+    viewed = serializers.BooleanField(read_only=True, allow_null=True)
 
     class Meta:
         model = Listing
@@ -376,6 +381,8 @@ class ListingCardSerializer(FeatureVisibilityMixin, serializers.ModelSerializer)
             "stock_quantity",
             "status",
             "is_favorited",
+            "viewed",
+            "view_count",
         ]
 
 
@@ -434,6 +441,11 @@ class ListingDetailSerializer(FeatureVisibilityMixin, serializers.ModelSerialize
     # the moment a category adds a feature.
     features_search = serializers.JSONField(read_only=True)
     is_favorited = serializers.BooleanField(read_only=True, allow_null=True)
+    # Three-state on purpose (models.py ``with_viewed``): true / false /
+    # null-for-anonymous. A storefront greys out a card on `true`; `null`
+    # means the answer is not knowable for this reader, which is a different
+    # sentence from "not seen".
+    viewed = serializers.BooleanField(read_only=True, allow_null=True)
 
     class Meta:
         model = Listing
@@ -467,6 +479,8 @@ class ListingDetailSerializer(FeatureVisibilityMixin, serializers.ModelSerialize
             "created_at",
             "updated_at",
             "is_favorited",
+            "viewed",
+            "view_count",
         ]
 
 

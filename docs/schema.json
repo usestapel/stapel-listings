@@ -114,7 +114,7 @@
     "/listings/api/v1/listings/{id}/": {
       "get": {
         "operationId": "listings_api_v1_listings_retrieve",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "description": "Read one listing — and count the open.\n\nA GET with a side effect, deliberately, because \"opening a listing\"\nIS the event and a storefront that had to POST it separately would\nreport a different number than the page it drew (and would stop\nreporting at all the moment a client forgot the second call).\n\nThe side effect is bounded on both ends. It cannot lie: the owner's\nown opens and unattributable ones are refused inside\n``record_view``. And it cannot become a write per read: every repeat\nopen inside ``VIEW_DEDUP_WINDOW_SECONDS`` is one cache hit and no\nquery. The response is therefore safe to give a private cache and\nmust never be given a shared one — which is the pre-existing rule\nfor an authenticated read anyway.\n\n``viewed`` is annotated BEFORE the recording, so the open that first\nsees a listing answers ``false`` and the next one answers ``true``.\nA card that greyed itself out on the very read that discovered it\nwould be telling the reader they had already been here.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
         "parameters": [
           {
             "in": "path",
@@ -1807,6 +1807,15 @@
             "type": "boolean",
             "readOnly": true,
             "nullable": true
+          },
+          "viewed": {
+            "type": "boolean",
+            "readOnly": true,
+            "nullable": true
+          },
+          "view_count": {
+            "type": "integer",
+            "readOnly": true
           }
         },
         "required": [
@@ -1814,7 +1823,9 @@
           "features_title",
           "id",
           "images",
-          "is_favorited"
+          "is_favorited",
+          "view_count",
+          "viewed"
         ]
       },
       "ListingDetail": {
@@ -2106,6 +2117,15 @@
             "type": "boolean",
             "readOnly": true,
             "nullable": true
+          },
+          "viewed": {
+            "type": "boolean",
+            "readOnly": true,
+            "nullable": true
+          },
+          "view_count": {
+            "type": "integer",
+            "readOnly": true
           }
         },
         "required": [
@@ -2119,7 +2139,9 @@
           "images",
           "is_favorited",
           "owner",
-          "updated_at"
+          "updated_at",
+          "view_count",
+          "viewed"
         ]
       },
       "ListingDraft": {
@@ -2490,6 +2512,15 @@
             "readOnly": true,
             "nullable": true
           },
+          "viewed": {
+            "type": "boolean",
+            "readOnly": true,
+            "nullable": true
+          },
+          "view_count": {
+            "type": "integer",
+            "readOnly": true
+          },
           "moderation_status": {
             "$ref": "#/components/schemas/ModerationStatusEnum"
           },
@@ -2530,7 +2561,9 @@
           "images",
           "images_draft",
           "is_favorited",
-          "updated_at"
+          "updated_at",
+          "view_count",
+          "viewed"
         ]
       },
       "NullEnum": {

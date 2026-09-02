@@ -59,6 +59,29 @@ listings_settings = AppSettings(
         "AUTO_APPROVE_ON_PUBLISH": False,
         # Require at least one image reference to publish.
         "REQUIRE_IMAGE_ON_PUBLISH": True,
+        # How long one viewer's opens of one listing collapse into a single
+        # counted view. This is the whole cost control of view counting: at
+        # 6 hours a buyer who opens a listing, leaves and comes back in the
+        # evening is two views and a buyer who refreshes twenty times is one,
+        # and every open after the first inside the window touches no
+        # database at all (services/engagement.py). Lowering it raises both
+        # the count and the write rate; raising it does the opposite. It is
+        # NOT a privacy control — nothing about a viewer is stored by this
+        # window beyond a hashed cache key that expires with it.
+        "VIEW_DEDUP_WINDOW_SECONDS": 21600,
+        # Д71: refuse to publish a listing with no coordinates. On by
+        # default, like REQUIRE_IMAGE_ON_PUBLISH and for the same reason —
+        # a listing nobody can find geographically is not a listing, it is a
+        # row. A deployment with no geographic dimension at all (a purely
+        # digital board) turns it off.
+        "REQUIRE_LOCATION_ON_PUBLISH": True,
+        # Д76: the comm Function that turns coordinates into address
+        # components, so the card's location line is a PLACE derived from
+        # the pin rather than the picker's street-address string echoed back
+        # from the client (services/location.py). Empty = do not derive; the
+        # client-supplied label is then published verbatim, which is what
+        # every version before 0.16.0 did.
+        "GEO_REVERSE_FUNCTION": "geo.reverse_geocode",
         # The moderation queue is target-generic: its verdicts carry
         # ``{target_type, target_key}``. This is the target_type a composite
         # registered listings under — a moderation.completed for any other

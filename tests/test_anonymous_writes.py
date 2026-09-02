@@ -71,6 +71,8 @@ def anon_draft(anonymous_user, stub_categories):
         price_draft="15000.00",
         currency="EUR",
         images_draft=["product/abc123"],
+        lat_draft="55.755800",
+        lon_draft="37.617300",
         features_draft={
             "mileage": {"type": "int", "value": 42000},
             "condition": {"type": "select", "value": ["used"]},

@@ -43,6 +43,12 @@ ERR_400_INVALID_STATUS_FILTER = "error.400.listing_invalid_status_filter"
 # «0 ₽» on a marketplace card is either a lie or a missed field, and a missed
 # field is spelled NULL. The storefront renders NULL as «Цена не указана».
 ERR_400_ZERO_PRICE_NOT_ALLOWED = "error.400.listing_zero_price_not_allowed"
+# Д71: a draft with no coordinates. «Где находится» was optional, so a
+# listing published with no place at all — outside every radius filter and
+# every map, findable only by scrolling past it, with nothing anywhere saying
+# why. The predicate is coordinates, not the label: the label is a string a
+# client sends, and only the coordinates reach the geographic surfaces.
+ERR_400_LOCATION_REQUIRED = "error.400.listing_location_required"
 
 STAPEL_LISTINGS_ERRORS = {
     ERR_404_LISTING_NOT_FOUND: "Listing not found",
@@ -58,6 +64,9 @@ STAPEL_LISTINGS_ERRORS = {
     ERR_409_ALREADY_FAVORITED: "Listing already favorited",
     ERR_400_FEATURE_NOT_ALLOWED: "Feature '{feature}' is not allowed for this category",
     ERR_400_INVALID_STATUS_FILTER: "Unknown listing status '{status}'",
+    ERR_400_LOCATION_REQUIRED: (
+        "Choose where the item is before publishing"
+    ),
     ERR_400_ZERO_PRICE_NOT_ALLOWED: (
         "A price of 0 is not allowed in this category. "
         "Leave the price empty for \"price not stated\"."
@@ -67,6 +76,7 @@ STAPEL_LISTINGS_ERRORS = {
 register_service_errors(STAPEL_LISTINGS_ERRORS)
 
 __all__ = [
+    "ERR_400_LOCATION_REQUIRED",
     "STAPEL_LISTINGS_ERRORS",
     "ERR_404_LISTING_NOT_FOUND",
     "ERR_403_LISTING_NOT_OWNER",
