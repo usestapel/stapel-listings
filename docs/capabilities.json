@@ -1,6 +1,6 @@
 {
   "module": "stapel-listings",
-  "version": "0.14.0",
+  "version": "0.14.1",
   "provides": "Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle including the moderation takedown state 'blocked', an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, first-class favorites, and the two pull seams its consumers read it through — listings.search_documents / listings.search_export for an indexer and listings.moderation_content for a moderation queue.",
   "axes": [
     {

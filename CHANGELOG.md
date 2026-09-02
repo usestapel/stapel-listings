@@ -4,6 +4,26 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.14.1] — 2026-09-02
+
+Patch (additive). `python manage.py listings_backfill_cdn_refs` — the
+one-time pass 0.14.0 was missing: rows written before claim-on-save are
+zero-ref on the CDN side, and a scripted re-save would NOT claim them,
+because `Listing.save()` only announces when the claimed set MOVES (it
+diffs the stored row against the write; an unchanged listing publishes
+nothing — by design, that is what keeps draft autosaves quiet). Without
+this pass the orphan sweeper would reap every pre-0.14.0 listing's photos:
+exactly the outcome the claim mechanism exists to prevent.
+
+The command publishes one ADDITIVE claim per live listing that references
+media — `old_hashes=[]`, so `apply_ref_sync`'s remove set is empty by
+construction: idempotent, rerunnable, never releases anything, safe over
+rows the save-path already claimed. Soft-deleted rows are skipped on
+purpose (a deleted listing claims nothing — the 0.14.0 contract). A failed
+bus publish is counted and reported, not raised; the command warns loudly
+when nothing at all got through. `--dry-run` counts, `--limit` slices.
+Run it before the sweeper (stapel-cdn 0.19.0) deploys.
+
 ## [0.14.0] — 2026-09-02
 
 Minor (a new outbound surface). Listings now CLAIM the CDN media they show:
