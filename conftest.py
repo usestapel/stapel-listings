@@ -229,6 +229,12 @@ def draft_listing(db, user, stub_categories):
         price_draft="15000.00",
         currency="EUR",
         images_draft=["product/abc123"],
+        # A place, because since 0.16.0 "ready to publish" INCLUDES one
+        # (REQUIRE_LOCATION_ON_PUBLISH, Д71). A fixture named for a state it
+        # no longer satisfies is a fixture that tests the wrong thing.
+        lat_draft="55.755800",
+        lon_draft="37.617300",
+        location_label_draft="Тверская улица, 7, Москва, Россия",
         features_draft={
             "mileage": {"type": "int", "value": 42000},
             "condition": {"type": "select", "value": ["used"]},

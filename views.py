@@ -169,10 +169,59 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         qs = super().get_queryset()
         user = self.request.user
         if self.action == "list":
-            return qs.published().with_favorited(user)
+            return qs.published().with_favorited(user).with_viewed(user)
         if self.action == "retrieve":
-            return qs.visible_to(user).with_favorited(user)
+            return qs.visible_to(user).with_favorited(user).with_viewed(user)
         return qs
+
+    def retrieve(self, request, *args, **kwargs):
+        """Read one listing — and count the open.
+
+        A GET with a side effect, deliberately, because "opening a listing"
+        IS the event and a storefront that had to POST it separately would
+        report a different number than the page it drew (and would stop
+        reporting at all the moment a client forgot the second call).
+
+        The side effect is bounded on both ends. It cannot lie: the owner's
+        own opens and unattributable ones are refused inside
+        ``record_view``. And it cannot become a write per read: every repeat
+        open inside ``VIEW_DEDUP_WINDOW_SECONDS`` is one cache hit and no
+        query. The response is therefore safe to give a private cache and
+        must never be given a shared one — which is the pre-existing rule
+        for an authenticated read anyway.
+
+        ``viewed`` is annotated BEFORE the recording, so the open that first
+        sees a listing answers ``false`` and the next one answers ``true``.
+        A card that greyed itself out on the very read that discovered it
+        would be telling the reader they had already been here.
+        """
+        from stapel_core.netintel import client_ip
+
+        from .services.engagement import record_view
+
+        listing = self.get_object()
+        session = getattr(request, "session", None)
+        record_view(
+            listing,
+            user=request.user,
+            session_key=getattr(session, "session_key", "") or "",
+            client_key=self._client_key(request, client_ip(request)),
+        )
+        listing.refresh_from_db(fields=["view_count"])
+        return Response(self.get_serializer(listing).data)
+
+    @staticmethod
+    def _client_key(request, ip):
+        """The coarse anonymous fingerprint: IP + User-Agent, or ``""``.
+
+        Assembled here and hashed in the service — see
+        ``services/engagement.py`` for why this is deliberately weak and why
+        making it stronger would be the wrong repair.
+        """
+        if not ip:
+            return ""
+        agent = request.META.get("HTTP_USER_AGENT", "")
+        return f"{ip}|{agent}"
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user, status=ListingStatus.DRAFT)
@@ -303,7 +352,11 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
             return StapelErrorResponse(
                 400, ERR_400_INVALID_STATUS_FILTER, {"status": str(exc)}
             )
-        qs = Listing.objects.owned_by(request.user).with_favorited(request.user)
+        qs = (
+            Listing.objects.owned_by(request.user)
+            .with_favorited(request.user)
+            .with_viewed(request.user)
+        )
         if statuses:
             qs = qs.filter(status__in=statuses)
         page = self.paginate_queryset(qs)

@@ -22,6 +22,9 @@ its database (MODULE.md: "talk over comm by string name"):
   re-indexing and a cursor snapshot for backfill/rebuild/drift-check. Nothing
   about a search engine leaks in here — this module only says what a listing
   IS.
+- ``listings.engagement`` — the storefront seam: the per-viewer overlay
+  (view count, viewed, favorited) a card built from the search index cannot
+  carry, batched for a whole page.
 - ``listings.moderation_content`` — the moderation seam. The verdict bus
   carries identifiers only, so the screener reads content through this call at
   the moment it screens, not from a six-hour-old event payload.
@@ -65,6 +68,22 @@ def search_documents_function(payload: dict) -> dict:
     from .services.search_feed import documents_by_keys
 
     return documents_by_keys(payload.get("keys") or [])
+
+
+@function("listings.engagement", schema=_schema("listings.engagement"))
+def engagement_function(payload: dict) -> dict:
+    """Per-viewer engagement overlay for a page of listings.
+
+    The read a SERP needs and the search index cannot serve: ``view_count``
+    changes far faster than a document re-indexed on a listing event, and
+    ``viewed`` / ``is_favorited`` are a property of the READER, not of the
+    listing. One call per page, never one per card.
+    """
+    from .services.engagement import engagement_for
+
+    return engagement_for(
+        payload.get("keys") or [], user_id=str(payload.get("user_id") or "")
+    )
 
 
 @function("listings.search_export", schema=_schema("listings.search_export"))

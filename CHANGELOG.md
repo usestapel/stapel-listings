@@ -4,6 +4,61 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.16.0] — 2026-09-03
+
+### Added
+
+- **View counting.** Opening a listing counts a view — once per (viewer,
+  listing) per `VIEW_DEDUP_WINDOW_SECONDS`, never for the listing's own owner,
+  and never at all for an open that cannot be attributed to anybody. The
+  dedup cache IS the buffer: every repeat open inside the window costs one
+  cache read and touches no database
+  (`test_a_repeat_open_writes_nothing` counts the queries). Anonymous viewers
+  are deduplicated by session key, falling back to a hashed IP+User-Agent
+  fingerprint that is declared coarse rather than dressed up — the count is a
+  floor, never an invented audience. New: `Listing.view_count`, the
+  `ListingView` table (authenticated viewers only — see its docstring for why
+  a row per anonymous session would be the legacy `UserAdView` read-cache
+  again), `ListingQuerySet.with_viewed`, `services.engagement`.
+- **The engagement flags reach the wire.** `view_count`, `viewed` and the
+  already-existing `is_favorited` are now on BOTH the card and the detail
+  serializer. `viewed` and `is_favorited` are three-state — true / false /
+  null-for-anonymous — because unknown is not the same sentence as false.
+- **`listings.engagement`**, a keyed batch read of that same overlay. It
+  exists because a SERP's cards come out of the search index, which can carry
+  neither a per-reader flag nor a counter that moves faster than a document
+  re-indexed on a listing event. One call per page, never one per card.
+- `stapel_listings.W001`: the default cache is a per-process LocMemCache. View
+  deduplication lives in it, so with more than one worker one viewer's single
+  open is counted once per worker and the counter is quietly a multiple of the
+  truth.
+
+### Changed
+
+- **BREAKING (Д71): a listing with no coordinates no longer publishes.**
+  `REQUIRE_LOCATION_ON_PUBLISH` defaults to true, next to
+  `REQUIRE_IMAGE_ON_PUBLISH` and for the same reason. «Где находится» was
+  optional, so listings went live outside every radius filter and every map,
+  findable only by scrolling past them, with nothing anywhere saying why. The
+  predicate is the COORDINATES, not the label: the label is a string a client
+  sends, and only the coordinates reach the geographic surfaces. The refusal
+  is a structured, per-field `ERR_400_LOCATION_REQUIRED` under the slug
+  `location` — the composer renders it under the control — and `publish` and
+  `validate-draft` read one predicate so they cannot drift apart. Hosts with
+  no geographic dimension set the switch to false.
+- **BREAKING (Д76): the published `location_label` is derived, not echoed.**
+  It was a writable draft field: the composer's map picker posted the
+  geocoder's `formatted` line — POI, street, house number, because that is
+  what a picker's confirmation line is FOR — and every card on the stand read
+  «ул. Тверская, д. 7, корп. 2, Москва, Россия», so no two rows in a grid
+  could be told apart by it. It was also a free advertising slot on a public
+  card, since nothing stopped a seller from posting a phone number there. On
+  publish the label is now resolved from the pin through
+  `GEO_REVERSE_FUNCTION` as «City, District» (county backs up city for a
+  settlement outside one). Fail-soft: a dark geocoder leaves the supplied
+  string in place — publication does not depend on a network call. The draft
+  twin stays writable and stays the picker's line.
+
 ## [0.15.0] — 2026-09-02
 
 Minor (breaking: `price` is nullable, and any status write announces itself).

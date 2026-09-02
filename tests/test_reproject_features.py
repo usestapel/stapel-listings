@@ -291,6 +291,8 @@ class TestSkips:
             title_draft="Second car",
             description_draft="Another well kept car in great condition.",
             images_draft=["product/def456"],
+            lat_draft="55.755800",
+            lon_draft="37.617300",
             features_draft=_draft(),
         )
         publish_service.publish_listing(healthy)
@@ -449,6 +451,8 @@ class TestCategoryFilter:
             title_draft="Second car",
             description_draft="Another well kept car in great condition.",
             images_draft=["product/def456"],
+            lat_draft="55.755800",
+            lon_draft="37.617300",
             features_draft=_draft(),
         )
         publish_service.publish_listing(second)

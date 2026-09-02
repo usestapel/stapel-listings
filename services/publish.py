@@ -33,6 +33,7 @@ from ..errors import ERR_400_FEATURE_NOT_ALLOWED
 from ..models import INDEXED_STATUSES, ListingStatus, ModerationStatus
 from . import category_schema
 from .features import build_projections
+from .location import resolve_place_label
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,33 @@ def _zero_price_result(listing):
     )
 
 
+def _missing_location_result(listing):
+    """A structured failure for a draft with no coordinates, or ``None`` (Д71).
+
+    Structured, not a bare ``ValidationError``: the composer renders errors
+    per control, and the image check's flattened
+    ``ERR_400_PUBLISH_VALIDATION_FAILED`` leaves a seller in front of a form
+    that says something is wrong and not what. The slug is ``location`` — not
+    a category feature, but the same channel, because the composer already
+    knows how to put a message under a named control and inventing a second
+    error shape for one field would be a second thing to render.
+    """
+    from ..errors import ERR_400_LOCATION_REQUIRED
+    from .location import has_place
+
+    if not listings_settings.REQUIRE_LOCATION_ON_PUBLISH:
+        return None
+    if has_place(listing):
+        return None
+    return FeatureValidationResult(
+        slug="location",
+        status=ValidationStatus.VALIDATION_FAILED,
+        localizable_error=ERR_400_LOCATION_REQUIRED,
+        params={},
+        message="Choose where the item is before publishing",
+    )
+
+
 def validate_draft(listing) -> ValidationBatchResult:
     """Structured validation of a listing's draft against its category schema.
 
@@ -114,6 +142,11 @@ def validate_draft(listing) -> ValidationBatchResult:
     price_error = _zero_price_result(listing)
     if price_error is not None:
         result.results.insert(0, price_error)
+        result.valid = False
+
+    location_error = _missing_location_result(listing)
+    if location_error is not None:
+        result.results.insert(0, location_error)
         result.valid = False
 
     desc_error = validate_description(
@@ -165,6 +198,14 @@ def publish_listing(listing) -> None:
     if features_draft:
         validate_dto(configs, features_draft)  # raises on invalid
 
+    # Д71, enforced on the same side of the door as the image check: a
+    # storefront that skipped validate-draft must not be able to publish a
+    # placeless listing anyway. Both gates read one predicate
+    # (``_missing_location_result``), so the structured answer the composer
+    # renders and the refusal the write path issues cannot drift apart.
+    if _missing_location_result(listing) is not None:
+        raise ValidationError("A location is required to publish a listing.")
+
     # Promote draft -> published fields. The four attribute projections come
     # from ``build_projections`` — the single definition of what they are,
     # shared with ``services.reproject`` so a refreshed snapshot and a freshly
@@ -174,7 +215,14 @@ def publish_listing(listing) -> None:
     listing.title = listing.title_draft or listing.title
     listing.description = listing.description_draft
     listing.location_id = listing.location_id_draft
-    listing.location_label = listing.location_label_draft
+    # Д76: the CARD's location line is derived from the pin, not echoed back
+    # from the client. Fail-soft to the supplied string — see
+    # ``services/location.py`` for why a dark geocoder must not block a
+    # publish, and why the picker's own line stays on the draft twin.
+    listing.location_label = (
+        resolve_place_label(listing.lat_draft, listing.lon_draft)
+        or listing.location_label_draft
+    )
     listing.geohash = listing.geohash_draft
     listing.lat = listing.lat_draft
     listing.lon = listing.lon_draft

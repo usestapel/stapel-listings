@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "listings.engagement",
+  "description": "Keyed batch read of the per-viewer engagement overlay for a page of listings — what a search-fed card cannot carry, because view_count moves faster than a re-indexed document and `viewed`/`is_favorited` differ for every reader. Answers {key: {view_count, viewed, is_favorited}}. `view_count` is public. `viewed` and `is_favorited` are null when no user_id is given: unknown is not false. A key with no listing (unknown or soft-deleted) is absent from the answer.",
+  "type": "object",
+  "required": ["keys"],
+  "properties": {
+    "keys": {
+      "type": "array",
+      "description": "Listing primary keys, as strings or integers.",
+      "items": { "type": ["string", "integer"] }
+    },
+    "user_id": {
+      "type": ["string", "integer"],
+      "description": "The reader the per-viewer flags are about. Omit for an anonymous page: the flags then answer null rather than false."
+    }
+  },
+  "additionalProperties": false
+}

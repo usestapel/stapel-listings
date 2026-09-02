@@ -320,6 +320,14 @@
     "owner": "stapel_listings"
   },
   {
+    "code": "error.400.listing_location_required",
+    "status": 400,
+    "params": [],
+    "remediation": "fix_input",
+    "en": "Choose where the item is before publishing",
+    "owner": "stapel_listings"
+  },
+  {
     "code": "error.400.listing_zero_price_not_allowed",
     "status": 400,
     "params": [],

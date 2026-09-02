@@ -178,6 +178,9 @@ def make_listing(db, user):
             price_draft="400.00",
             currency="EUR",
             images_draft=["product/abc123"],
+            # A publishable draft carries a place (Д71).
+            lat_draft="55.755800",
+            lon_draft="37.617300",
             features_draft=features,
         )
 

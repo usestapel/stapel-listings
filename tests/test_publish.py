@@ -43,8 +43,19 @@ def test_publish_promotes_lat_lon_with_geohash(draft_listing, stub_geo):
     assert draft_listing.lon == Decimal("13.404954")
 
 
-def test_publish_lat_lon_default_null_stays_null(draft_listing):
-    """No coordinates in the draft -> published lat/lon stay NULL (nullable canon)."""
+def test_publish_lat_lon_default_null_stays_null(draft_listing, settings):
+    """No coordinates in the draft -> published lat/lon stay NULL (nullable canon).
+
+    Reachable only with REQUIRE_LOCATION_ON_PUBLISH off since 0.16.0 (Д71) —
+    the storage canon is unchanged, what changed is who is allowed to publish
+    into it. A board with no geographic dimension still gets NULL columns and
+    an empty geohash rather than a zero coordinate off the coast of Africa.
+    """
+    settings.STAPEL_LISTINGS = {"REQUIRE_LOCATION_ON_PUBLISH": False}
+    draft_listing.lat_draft = None
+    draft_listing.lon_draft = None
+    draft_listing.save()
+
     publish_service.publish_listing(draft_listing)
     draft_listing.refresh_from_db()
 
