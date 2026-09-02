@@ -4,6 +4,42 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.14.0] — 2026-09-02
+
+Minor (a new outbound surface). Listings now CLAIM the CDN media they show:
+every change to the set of referenced photos is announced on the
+`stapel.cdn.ref-sync` bus topic (`stapel_core.django.cdn.ref_sync
+.sync_cdn_refs`, the same helper stapel-profiles already uses for avatars),
+so stapel-cdn's orphan sweeper (arriving in 0.19.0 there) never reaps a live
+listing's photos — and a photo dropped from a draft becomes unclaimed and is
+reaped.
+
+### What is claimed
+
+The `<type>/<hash>` strings `images` and `images_draft` store verbatim (they
+ARE the CDN ref form `apply_ref_sync` resolves — the upload bag wrote them to
+that contract). The claimed set is the **union** of both sides: an edit that
+drops a photo from the draft must not release it while the published listing
+still shows it; the ref leaves the claim only when a publish promotes the
+draft over it (or the draft change is the only place it ever lived). A
+deleted listing — soft or hard — claims nothing; `restore()` re-claims.
+
+### Where the sync lives
+
+`Listing.save()` (baseline read of the stored row before the write, one
+announce after it) and `hard_delete()` — the model layer, so EVERY writer is
+covered: the draft serializer, autosave, `publish_listing`'s promotion, soft
+delete, restore, and GDPR erasure all funnel through those two methods; no
+second serializer-shaped call site to drift. The entity key is
+`listings/listing/<pk>`.
+
+### Graceful, like the geohash stamp (0.7.1)
+
+A bus failure never blocks the listing write: the helper already degrades a
+failed publish to `ok=False` + a warning (Kafka replays once CDN catches up),
+and anything raised anyway is caught and logged at the call site — media
+bookkeeping must never fail a save or a delete.
+
 ## [0.13.3] — 2026-09-02
 
 Patch (compatible: the default is exactly the old behavior). Post-moderation

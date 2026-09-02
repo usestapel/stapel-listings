@@ -173,6 +173,16 @@ INDEXED_CONTENT_FIELDS: frozenset[str] = frozenset(
 )
 
 
+# Fields whose write can move the set of CDN media this listing claims. The
+# claimed set is the UNION of ``images`` and ``images_draft`` — a photo still
+# on the published side stays claimed while an edit drops it from the draft —
+# and it is empty once the listing is (soft- or hard-) deleted. Changes are
+# announced on the ``stapel.cdn.ref-sync`` topic (``sync_cdn_refs``) so
+# stapel-cdn's orphan sweeper never reaps a claimed photo and does reap a
+# dropped one.
+CDN_REF_FIELDS: frozenset[str] = frozenset({"images", "images_draft", "deleted_at"})
+
+
 class TransitionError(Exception):
     """Raised when a lifecycle transition is not permitted."""
 
@@ -465,6 +475,15 @@ class Listing(models.Model):
                 update_fields = list(update_fields) + ["features_search"]
                 kwargs["update_fields"] = update_fields
 
+        # CDN media claims: capture the claimed set the stored row holds
+        # BEFORE the write, announce the difference after it succeeds.
+        touches_refs = self._touches(update_fields, CDN_REF_FIELDS)
+        old_refs = (
+            self._stored_cdn_image_refs()
+            if touches_refs and not self._state.adding
+            else set()
+        )
+
         emit_updated = (
             not self._skip_updated_emit
             and not self._state.adding
@@ -473,15 +492,17 @@ class Listing(models.Model):
         )
         if not emit_updated:
             super().save(*args, **kwargs)
-            return
+        else:
+            from . import events
 
-        from . import events
+            # Same rule as transition_to/delete: the row and the event a
+            # search index reacts to commit together or not at all.
+            with mutate_and_emit():
+                super().save(*args, **kwargs)
+                events.emit_listing_updated(self)
 
-        # Same rule as transition_to/delete: the row and the event a search
-        # index reacts to commit together or not at all.
-        with mutate_and_emit():
-            super().save(*args, **kwargs)
-            events.emit_listing_updated(self)
+        if touches_refs:
+            self._sync_cdn_image_refs(self.pk, old_refs, self.cdn_image_refs())
 
     @staticmethod
     def _touches(update_fields, names: set[str] | frozenset[str]) -> bool:
@@ -526,6 +547,71 @@ class Listing(models.Model):
             if field.to_python(stored[name]) != field.to_python(getattr(self, name)):
                 return True
         return False
+
+    # -- CDN media claims ---------------------------------------------------
+
+    @staticmethod
+    def _cdn_refs_of(images, images_draft, deleted_at) -> set[str]:
+        """The CDN references a row with these values claims.
+
+        ``images`` / ``images_draft`` hold opaque ``<type>/<hash>`` strings —
+        exactly the ref form stapel-cdn's ``apply_ref_sync`` resolves — stored
+        verbatim from ``@stapel/cdn-react``'s upload bag, so the stored value
+        IS the ref: no re-derivation, only non-string/empty junk is skipped.
+        The claim is the union of both sides (a photo dropped from the draft
+        but still published stays claimed), and a deleted listing claims
+        nothing.
+        """
+        if deleted_at is not None:
+            return set()
+        return {
+            item
+            for source in (images or [], images_draft or [])
+            for item in source
+            if isinstance(item, str) and item
+        }
+
+    def cdn_image_refs(self) -> set[str]:
+        """The ``<type>/<hash>`` references this listing currently claims."""
+        return self._cdn_refs_of(self.images, self.images_draft, self.deleted_at)
+
+    def _stored_cdn_image_refs(self) -> set[str]:
+        """The claimed set as the DATABASE row stands (pre-write baseline)."""
+        stored = (
+            type(self)
+            .all_objects.filter(pk=self.pk)
+            .values("images", "images_draft", "deleted_at")
+            .first()
+        )
+        if stored is None:
+            return set()
+        return self._cdn_refs_of(
+            stored["images"], stored["images_draft"], stored["deleted_at"]
+        )
+
+    @staticmethod
+    def _sync_cdn_image_refs(entity_id, old_refs: set[str], new_refs: set[str]) -> None:
+        """Announce a claim change to stapel-cdn; never blocks the write.
+
+        Same graceful discipline as ``compute_geohash_draft`` (0.7.1): the
+        helper already degrades a failed bus publish to ``ok=False`` and a
+        warning (Kafka replays when CDN catches up); anything it raises anyway
+        is logged here, because a listing write must never fail over media
+        bookkeeping. Fired after the row write, mirroring stapel-profiles'
+        avatar sync.
+        """
+        if old_refs == new_refs:
+            return
+        try:
+            from stapel_core.django.cdn.ref_sync import sync_cdn_refs
+
+            sync_cdn_refs(
+                "listings", "listing", entity_id, sorted(old_refs), sorted(new_refs)
+            )
+        except Exception:
+            logger.warning(
+                "CDN ref sync failed for listing %s", entity_id, exc_info=True
+            )
 
     def rebuild_features_search(self) -> bool:
         """Re-derive ``features_search`` from ``features``; True if it moved.
@@ -677,7 +763,16 @@ class Listing(models.Model):
                 events.emit_listing_removed(self, reason="deleted")
 
     def hard_delete(self, using=None, keep_parents=False):
+        """Physically delete the row, releasing every CDN media claim.
+
+        Bypasses ``save()``, so it announces the release itself. A row that
+        was already soft-deleted claims nothing (``cdn_image_refs`` is empty),
+        so this is a no-op for it — the soft delete released the refs.
+        """
+        entity_id = self.pk
+        old_refs = self.cdn_image_refs()
         super().delete(using=using, keep_parents=keep_parents)
+        self._sync_cdn_image_refs(entity_id, old_refs, set())
 
     def restore(self):
         self.deleted_at = None

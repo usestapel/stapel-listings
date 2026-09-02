@@ -251,6 +251,7 @@ attributes; subclass and remount the router to swap any of them.
 | Consume (Action) | `user.merged` | `{from_user_id, into_user_id, reason}` | `schemas/consumes/user.merged.json` (owned by stapel-auth) — an anonymous guest absorbed into an existing account; favorites and listings are carried over to the survivor, colliding favorites folded to one row. A guest that owns nothing is a quiet no-op; a guest that owns rows while the survivor has no local user row raises `MergeTargetNotReady` so the outbox redelivers rather than losing the transfer |
 | Call (depends on) | `categories.features` | `{category_id}` | provided by stapel-categories |
 | Call (depends on) | `geo.geohash_encode` | `{lat, lon}` -> `{geohash}` | provided by stapel-geo; graceful when unanswered (`compute_geohash_draft()` above) — no `stapel-geo` dependency in `pyproject.toml` |
+| Bus publish (depends on) | `stapel.cdn.ref-sync` topic | `cdn.ref.sync` event: `{service: "listings", entity_type: "listing", entity_id, old_hashes, new_hashes}` — the `<type>/<hash>` strings `images`/`images_draft` store verbatim | via `stapel_core.django.cdn.ref_sync.sync_cdn_refs`, fired from `Listing.save()`/`hard_delete()` whenever the claimed union (`images` ∪ `images_draft`, empty when deleted) moves, so stapel-cdn's orphan sweeper never reaps a live listing's photos and does reap dropped ones; graceful on bus failure (the write never blocks) |
 
 ### GDPR
 
