@@ -302,3 +302,107 @@ def test_republish_of_a_paused_listing_still_goes_to_pending(draft_listing):
     draft_listing.refresh_from_db()
 
     assert draft_listing.status == ListingStatus.PENDING
+
+
+# --- MODERATION_GATE = "post": publish first, review after ---------------
+#
+# The pre gate holds FIRST publication for a verdict — correct only where a
+# moderator exists to give one. On a stand with none, every listing sits in
+# PENDING forever: invisible, unindexed, and nothing in the system will ever
+# move it. The post gate is the big-board model: the listing goes live in the
+# same flow that requests moderation, review happens on the live content, and
+# a rejecting verdict takes it down through the published -> blocked edge the
+# live-republish path already uses. Unlike AUTO_APPROVE_ON_PUBLISH this is
+# NOT a verdict: moderation_status stays PENDING, the case still opens, and a
+# moderator's answer still lands.
+
+
+def test_post_gate_first_publish_goes_live_still_awaiting_review(
+    draft_listing, settings, capture_events
+):
+    from stapel_listings.models import Listing
+
+    settings.STAPEL_LISTINGS = {"MODERATION_GATE": "post"}
+    submitted = capture_events("listing.submitted")
+    published = capture_events("listing.published")
+
+    publish_service.publish_listing(draft_listing)
+    draft_listing.refresh_from_db()
+
+    assert draft_listing.status == ListingStatus.PUBLISHED
+    # Live is not approved: the review is still owed, and only a verdict
+    # (or AUTO_APPROVE, which is a different statement) may move this axis.
+    assert draft_listing.moderation_status == ModerationStatus.PENDING
+    # Both facts announced once each: moderation gets its case, the index
+    # gets its document.
+    assert len(submitted) == 1
+    assert len(published) == 1
+    assert Listing.objects.published().filter(pk=draft_listing.pk).exists()
+
+
+def test_post_gate_approval_touches_only_the_moderation_axis(
+    draft_listing, settings, capture_events
+):
+    settings.STAPEL_LISTINGS = {"MODERATION_GATE": "post"}
+    publish_service.publish_listing(draft_listing)
+    published = capture_events("listing.published")
+    removed = capture_events("listing.removed")
+
+    draft_listing.apply_moderation("approved", note="looks fine")
+    draft_listing.refresh_from_db()
+
+    assert draft_listing.status == ListingStatus.PUBLISHED
+    assert draft_listing.moderation_status == ModerationStatus.APPROVED
+    # It was published the whole time — no lifecycle move, no index churn.
+    assert published == [] and removed == []
+
+
+def test_post_gate_rejection_takes_the_live_listing_down(
+    draft_listing, settings, capture_events
+):
+    from stapel_listings.models import Listing
+
+    settings.STAPEL_LISTINGS = {"MODERATION_GATE": "post"}
+    publish_service.publish_listing(draft_listing)
+    removed = capture_events("listing.removed")
+
+    draft_listing.apply_moderation("rejected", note="Counterfeit goods")
+    draft_listing.refresh_from_db()
+
+    assert draft_listing.status == ListingStatus.BLOCKED
+    assert draft_listing.moderation_status == ModerationStatus.REJECTED
+    assert len(removed) == 1
+    assert not Listing.objects.published().filter(pk=draft_listing.pk).exists()
+
+
+def test_explicit_pre_gate_is_the_default_behavior(draft_listing, settings):
+    settings.STAPEL_LISTINGS = {"MODERATION_GATE": "pre"}
+    publish_service.publish_listing(draft_listing)
+    draft_listing.refresh_from_db()
+
+    assert draft_listing.status == ListingStatus.PENDING
+    assert draft_listing.moderation_status == ModerationStatus.PENDING
+
+
+def test_post_gate_atomicity_a_failed_submit_emit_rolls_back_the_publish(
+    draft_listing, settings, monkeypatch
+):
+    """The go-live and the moderation request commit together or not at all.
+
+    Under the post gate a listing that went PUBLISHED without its
+    listing.submitted would be live content NOBODY will ever review — worse
+    than the pre gate's stuck-PENDING, because it is public.
+    """
+    from stapel_listings import events
+
+    settings.STAPEL_LISTINGS = {"MODERATION_GATE": "post"}
+
+    def boom(_listing):
+        raise RuntimeError("bus down")
+
+    monkeypatch.setattr(events, "emit_listing_submitted", boom)
+    with pytest.raises(RuntimeError):
+        publish_service.publish_listing(draft_listing)
+
+    draft_listing.refresh_from_db()
+    assert draft_listing.status == ListingStatus.DRAFT

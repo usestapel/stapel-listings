@@ -1026,6 +1026,9 @@
       "FeatureDao": {
         "oneOf": [
           {
+            "$ref": "#/components/schemas/RefSelectDao"
+          },
+          {
             "$ref": "#/components/schemas/IntDao"
           },
           {
@@ -1056,9 +1059,6 @@
             "$ref": "#/components/schemas/ConvertibleUnitDao"
           },
           {
-            "$ref": "#/components/schemas/RefSelectDao"
-          },
-          {
             "$ref": "#/components/schemas/RefHierarchicalSelectDao"
           },
           {
@@ -1068,6 +1068,7 @@
         "discriminator": {
           "propertyName": "type",
           "mapping": {
+            "ref_select": "#/components/schemas/RefSelectDao",
             "int": "#/components/schemas/IntDao",
             "float": "#/components/schemas/FloatDao",
             "string": "#/components/schemas/StringDao",
@@ -1078,7 +1079,6 @@
             "header": "#/components/schemas/HeaderDao",
             "hierarchical_select": "#/components/schemas/HierarchicalSelectDao",
             "convertible_unit": "#/components/schemas/ConvertibleUnitDao",
-            "ref_select": "#/components/schemas/RefSelectDao",
             "ref_hierarchical_select": "#/components/schemas/RefHierarchicalSelectDao",
             "group": "#/components/schemas/GroupDao"
           }
@@ -1086,6 +1086,9 @@
       },
       "FeatureDto": {
         "oneOf": [
+          {
+            "$ref": "#/components/schemas/RefSelectDto"
+          },
           {
             "$ref": "#/components/schemas/IntDto"
           },
@@ -1117,9 +1120,6 @@
             "$ref": "#/components/schemas/ConvertibleUnitDto"
           },
           {
-            "$ref": "#/components/schemas/RefSelectDto"
-          },
-          {
             "$ref": "#/components/schemas/RefHierarchicalSelectDto"
           },
           {
@@ -1129,6 +1129,7 @@
         "discriminator": {
           "propertyName": "type",
           "mapping": {
+            "ref_select": "#/components/schemas/RefSelectDto",
             "int": "#/components/schemas/IntDto",
             "float": "#/components/schemas/FloatDto",
             "string": "#/components/schemas/StringDto",
@@ -1139,7 +1140,6 @@
             "header": "#/components/schemas/HeaderDto",
             "hierarchical_select": "#/components/schemas/HierarchicalSelectDto",
             "convertible_unit": "#/components/schemas/ConvertibleUnitDto",
-            "ref_select": "#/components/schemas/RefSelectDto",
             "ref_hierarchical_select": "#/components/schemas/RefHierarchicalSelectDto",
             "group": "#/components/schemas/GroupDto"
           }

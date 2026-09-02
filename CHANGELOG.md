@@ -4,6 +4,48 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.13.3] — 2026-09-02
+
+Patch (compatible: the default is exactly the old behavior). Post-moderation
+becomes a policy a deployment can actually choose:
+`STAPEL_LISTINGS["MODERATION_GATE"] = "pre" | "post"`.
+
+### Pending-forever limbo on moderator-less deployments
+
+Strict pre-moderation is only a working policy where a moderator exists to
+answer. `publish` put every first publication in `pending`, emitted
+`listing.submitted`, and waited for the `moderation.completed` verdict that
+is the ONLY thing that moves a listing to `published`. On a stand with no
+moderator that verdict never comes, so every listing ever published hung
+invisible — not indexed, not in any public read, and with nothing in the
+system that would ever move it. stapel-moderation has declared a per-target
+`gate: "pre"|"post"` policy key all along (its `GATE_DEFAULT` is even
+`"post"`), but nothing consumed it: the strictest gate was hard-coded here
+regardless of what the policy said.
+
+### The `post` gate
+
+Under `MODERATION_GATE="post"` (the big-board model) the same publish flow also
+transitions the listing to `published` — inside the same `mutate_and_emit()`
+block as the promotion and the `listing.submitted` emit, so the go-live, the
+index announcement (`listing.published`, via `transition_to`) and the
+moderation request commit together or roll back together. What it is NOT:
+
+- **not a verdict** — unlike `AUTO_APPROVE_ON_PUBLISH`, nothing calls
+  `apply_moderation("approved")`. `moderation_status` stays `pending`, the
+  case still opens, and review still happens — on the live content;
+- **not a change to the takedown** — a rejecting verdict lands on the
+  `published` → `blocked` edge that live-edit re-moderation (0.5.0) already
+  uses, emitting `listing.removed`; an approving verdict touches only the
+  moderation axis (no spurious lifecycle transition, no index churn).
+
+`"pre"` stays the default and is byte-for-byte the old behavior. Values
+outside the pair are `stapel_listings.E001` at boot — a misspelling would
+silently behave as `"pre"`, which is precisely the limbo this key exists to
+end. The composite holds the two halves of the policy together:
+stapel-classified 0.8.2 fails the boot (`stapel_classified.E004`) when this
+key and the moderation registry's `gate` for the listing target disagree.
+
 ## [0.13.2] — 2026-09-02
 
 Patch. Reverts 0.13.1's floor, and corrects what 0.13.1 said.

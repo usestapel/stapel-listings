@@ -3,14 +3,43 @@
 Policy (docs/library-standard.md §3.7): E-level for configuration the
 service cannot run with; W-level for entries that degrade lazily (a broken
 *unused* dotted path must not block deploys).
-
-Example:
-
-    from django.core import checks
-
-    @checks.register(checks.Tags.compatibility)
-    def check_default_provider(app_configs, **kwargs):
-        if ...:
-            return [checks.Error("...", id="stapel_listings.E001")]
-        return []
 """
+from __future__ import annotations
+
+from django.core import checks
+
+
+@checks.register(checks.Tags.compatibility)
+def check_moderation_gate(app_configs, **kwargs):
+    """E001 — ``MODERATION_GATE`` outside {"pre", "post"} decides nothing.
+
+    An ERROR rather than a warning because the failure mode is silent and
+    directional: ``publish_listing`` tests ``== "post"``, so any misspelling
+    behaves as "pre" — the operator who believes they turned post-moderation
+    on still has every first publication stuck in PENDING, which on a
+    moderator-less stand is exactly the invisible-forever limbo the key
+    exists to end. The same wording rule as stapel_moderation.E003, which
+    guards the other half of this policy (the per-target ``gate`` in the
+    moderation registry).
+    """
+    from .conf import listings_settings
+
+    gate = listings_settings.MODERATION_GATE
+    if gate in ("pre", "post"):
+        return []
+    return [
+        checks.Error(
+            f"STAPEL_LISTINGS['MODERATION_GATE'] is {gate!r}; only 'pre' and "
+            f"'post' are meaningful. Anything else silently behaves as 'pre' "
+            f"— first publications wait in PENDING for a verdict that a "
+            f"deployment without moderators will never produce.",
+            hint="Set it to 'pre' (hold first publications for a verdict) or "
+                 "'post' (publish first, review after; a rejecting verdict "
+                 "takes the listing down), or delete the key for the 'pre' "
+                 "default.",
+            id="stapel_listings.E001",
+        )
+    ]
+
+
+__all__ = ["check_moderation_gate"]

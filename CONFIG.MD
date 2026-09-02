@@ -23,6 +23,7 @@ headless pip dependency. The category schema is resolved by *comm-by-name*
 | FEATURE_CONFIG_CACHE_TIMEOUT | env | seconds a resolved feature-config list is memoized (early-invalidated by `category.changed`). | no | 300 |
 | BASE_CURRENCY | env | base currency code `price_base` is expressed in. | no | USD |
 | PRICE_BASE_CONVERTER | env | dotted path to a `(amount, currency, base) -> Decimal` price_base converter (REPLACE). Default is identity. | no | stapel_listings.services.pricing.identity_converter |
+| MODERATION_GATE | env | which side of moderation a FIRST publication lands on: `pre` holds it in `pending` for a `moderation.completed` verdict; `post` publishes it immediately with `moderation_status` still `pending` (review still happens; a rejecting verdict takes it down). Values outside {`pre`,`post`} are `stapel_listings.E001`. | no | pre |
 | AUTO_APPROVE_ON_PUBLISH | env | when True, a published listing is approved immediately (no moderation.completed wait). | no | false |
 | REQUIRE_IMAGE_ON_PUBLISH | env | require at least one image reference to publish. | no | true |
 | MODERATION_TARGET_TYPE | env | `target_type` this module answers to in target-generic `moderation.completed` verdicts; must match the host's `STAPEL_MODERATION["TARGET_TYPES"]` key. | no | listing |
@@ -52,3 +53,25 @@ the saved favorite is the very feature the anonymous session exists for — the
 wind-down actions on a listing one already owns (`archive`, `complete`,
 `destroy`), so flipping the key closed cannot strand content a guest published
 while it was open, and every read.
+### MODERATION_GATE
+
+Strict pre-moderation (`pre`, the default) is only a working policy where a
+moderator exists to give verdicts: `publish` puts the listing in `pending`,
+`listing.submitted` goes out, and **only** a `moderation.completed` verdict
+moves it to `published`. On a deployment with no moderator every listing
+hangs in `pending` — invisible, unindexed, forever, with nothing in the
+system that will ever move it.
+
+`post` is the publish-first model of the big classified boards: the same publish flow
+also transitions the listing to `published` — live and indexed at once,
+`listing.published` emitted — while `moderation_status` stays `pending` and
+`listing.submitted` still opens the case. Review happens on the live
+content, and a rejecting verdict removes it from the public surface through
+the `published` → `blocked` takedown edge (emitting `listing.removed`).
+Unlike `AUTO_APPROVE_ON_PUBLISH`, nothing is approved: the verdict is still
+owed, merely after the fact instead of before it.
+
+The other half of this policy lives in the host's moderation registry
+(`STAPEL_MODERATION["TARGET_TYPES"][<type>]["gate"]`); the two must agree,
+and in the classified composite `stapel_classified.E004` fails the boot when
+they do not.

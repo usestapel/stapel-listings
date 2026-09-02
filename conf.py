@@ -31,6 +31,28 @@ listings_settings = AppSettings(
         # stapel-currencies points this at a wrapper over ``currencies.convert``.
         "PRICE_BASE_CONVERTER": "stapel_listings.services.pricing.identity_converter",
         # --- Publish / moderation policy ---
+        # Which side of moderation a FIRST publication lands on.
+        #
+        # "pre" (default): draft -> PENDING, and nothing is public until a
+        # moderation.completed verdict arrives — the strict queue. Correct
+        # only where a moderator exists to answer: on a stand with none,
+        # every listing sits in PENDING forever and nothing will ever move
+        # it.
+        #
+        # "post": the same flow also transitions the listing to PUBLISHED —
+        # live at once, indexed at once — while moderation_status stays
+        # PENDING and listing.submitted is still emitted, so the case still
+        # opens and review still happens; a rejecting verdict takes the
+        # listing down through the PUBLISHED -> BLOCKED edge. This is a
+        # POLICY, not a verdict — unlike AUTO_APPROVE_ON_PUBLISH nothing is
+        # approved here, the review is merely owed after the fact instead of
+        # before it.
+        #
+        # Must agree with the gate the host's moderation policy declares for
+        # this target type (STAPEL_MODERATION["TARGET_TYPES"][...]["gate"]);
+        # a composite check (stapel_classified.E004) holds the two together.
+        # Values outside {"pre", "post"} are stapel_listings.E001.
+        "MODERATION_GATE": "pre",
         # When True, a published listing is approved immediately instead of
         # waiting for a moderation.completed event — for minimal deployments
         # with no stapel-moderation module installed.

@@ -103,9 +103,14 @@ def publish_listing(listing) -> None:
     Raises ``django.core.exceptions.ValidationError`` when the draft is invalid
     or (per policy) an image is missing.
 
-    **First publication** (any non-indexed status) is the pre-moderation path
-    it has always been: lifecycle -> PENDING, moderation -> PENDING, nothing
-    public until a verdict arrives.
+    **First publication** (any non-indexed status) follows the
+    ``MODERATION_GATE`` policy. Under ``"pre"`` (default) it is the strict
+    path it has always been: lifecycle -> PENDING, moderation -> PENDING,
+    nothing public until a verdict arrives. Under ``"post"`` the listing
+    goes PUBLISHED in the same flow — live and indexed immediately — with
+    ``moderation_status`` still PENDING and ``listing.submitted`` still
+    emitted, so review happens on the live content and a rejecting verdict
+    takes it down (PUBLISHED -> BLOCKED).
 
     **Re-publishing a LIVE listing** — an owner editing something already
     published — is post-moderation and rides the moderation axis alone: the
@@ -176,6 +181,18 @@ def publish_listing(listing) -> None:
         events.emit_listing_submitted(listing)
         if listings_settings.AUTO_APPROVE_ON_PUBLISH:
             listing.apply_moderation("approved", note="auto-approved (no moderation module)")
+        elif not was_indexed and listings_settings.MODERATION_GATE == "post":
+            # Post-moderation gate: the FIRST publication goes live in the
+            # same transaction that requested review. Deliberately NOT
+            # ``apply_moderation("approved")`` — nothing has been approved;
+            # ``moderation_status`` stays PENDING and the listing.submitted
+            # above still opens the case, so a verdict is still owed and a
+            # rejecting one lands on the PUBLISHED -> BLOCKED takedown edge
+            # exactly as it does for a re-moderated live edit. transition_to
+            # emits the listing.published a search index needs. A live
+            # listing (``was_indexed``) never reaches this branch: the
+            # re-publish path above already kept it PUBLISHED.
+            listing.transition_to(ListingStatus.PUBLISHED)
 
     logger.info(
         "listing %s submitted for moderation (status %s)", listing.pk, listing.status

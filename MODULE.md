@@ -147,7 +147,8 @@
   `listing.submitted`, answers `listings.moderation_content` and consumes
   `moderation.completed`; it only applies a verdict, it does not decide one.
   (`AUTO_APPROVE_ON_PUBLISH` is a minimal-deployment escape hatch, not a
-  moderation policy.) The verdict topic is **target-generic** — one queue
+  moderation policy; `MODERATION_GATE="post"` IS one — publish first,
+  review after, verdict still owed.) The verdict topic is **target-generic** — one queue
   moderates listings, reviews, profiles and chat messages — so a verdict
   addresses its target as `{target_type, target_key}` and this module applies
   only the ones whose `target_type` is its `MODERATION_TARGET_TYPE`.
@@ -207,6 +208,7 @@ of the same name -> environment variable -> default. Read lazily at call time.
 | `FEATURE_CONFIG_CACHE_TIMEOUT` | `300` | Seconds a resolved feature-config list is memoized. |
 | `BASE_CURRENCY` | `"USD"` | Currency code `price_base` is expressed in. |
 | `PRICE_BASE_CONVERTER` | `stapel_listings.services.pricing.identity_converter` | Dotted path `(amount, currency, base) -> Decimal` (REPLACE — single strategy). Default is identity; wire to a currencies backend. |
+| `MODERATION_GATE` | `"pre"` | Which side of moderation a FIRST publication lands on: `pre` waits in `pending` for a verdict; `post` publishes immediately with `moderation_status` still `pending` — review happens live, a rejecting verdict takes it down (`published` → `blocked`). Invalid values are `stapel_listings.E001`; must agree with the host's `STAPEL_MODERATION` gate for this target (`stapel_classified.E004`). |
 | `AUTO_APPROVE_ON_PUBLISH` | `False` | Approve+publish immediately instead of waiting for `moderation.completed` (deployments with no moderation module). |
 | `REQUIRE_IMAGE_ON_PUBLISH` | `True` | Whether ≥1 image is required to publish. |
 | `MODERATION_TARGET_TYPE` | `"listing"` | The `target_type` this module answers to in target-generic `moderation.completed` verdicts (match the host's `STAPEL_MODERATION["TARGET_TYPES"]` key). |
