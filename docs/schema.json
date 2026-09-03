@@ -1883,6 +1883,7 @@
           },
           "category_id": {
             "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
             "maxLength": 64
           },
           "title": {
@@ -2195,6 +2196,7 @@
           },
           "category_id": {
             "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
             "maxLength": 64
           },
           "currency": {
@@ -2740,6 +2742,7 @@
           },
           "category_id": {
             "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
             "maxLength": 64
           },
           "currency": {

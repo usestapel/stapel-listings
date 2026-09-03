@@ -30,6 +30,17 @@ slug and the engine's message. The exit code is non-zero only when the run
 repaired NOTHING it was asked to repair — an invalid field that was worked
 around is a report, not a failure, which is the whole point.
 
+**It builds a MISSING projection as well as refreshing a stale one.** Until
+0.19.0 the population was ``exclude(features=[])`` — rows that already had a
+projection — so the pass could refresh a snapshot and could never take a first
+one. A listing carrying a good draft and no projection was not merely
+unrepaired: it was never examined, so no run ever named it. Fourteen listings
+on one live stand sat with empty characteristics through every repair run.
+The population is keyed on the DRAFT now, the summary counts ``built`` apart
+from ``refreshed``, and every row in scope is accounted for — rows with
+neither a draft nor a projection are reported as a count rather than passed
+over in silence.
+
 It refreshes a derived projection; it is NOT a re-publication. Lifecycle
 status, moderation status, expiry and timestamps are untouched and no
 ``listing.submitted`` is emitted. ``listing.updated`` IS emitted (by
@@ -102,8 +113,11 @@ class Command(BaseCommand):
         self.stdout.write(
             f"listings_reproject_features [{scope}]"
             f"{' (DRY RUN — nothing written)' if dry_run else ''}: "
-            f"{result['examined']} examined, {verb} {result['changed']}, "
-            f"{result['unchanged']} already current, {result['skipped']} skipped."
+            f"{result['examined']} examined, {verb} {result['changed']} "
+            f"(built {result['built']}, refreshed {result['refreshed']}), "
+            f"{result['unchanged']} already current, {result['skipped']} skipped; "
+            f"{result['no_attributes']} with no attributes at all "
+            f"(neither a draft nor a projection — outside this pass)."
         )
 
         for reason, count in result["skipped_by_reason"].items():
@@ -129,8 +143,9 @@ class Command(BaseCommand):
         if result["examined"] == 0:
             self.stdout.write(
                 self.style.WARNING(
-                    "No listing carries projections in this scope — nothing to "
-                    "re-project. Check the --category ids if that is a surprise."
+                    "No listing in this scope carries a draft or a projection — "
+                    "nothing to re-project. Check the --category ids if that is "
+                    "a surprise."
                 )
             )
 

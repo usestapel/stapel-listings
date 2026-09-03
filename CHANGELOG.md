@@ -4,6 +4,68 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.19.0] — 2026-09-03
+
+### Fixed
+
+- **`category_id` can only hold an ID.** Three drafts on one live stand (243,
+  244, 245) carry `category_id = "32/149/163"` — a search PATH in the opaque
+  category id column. A slash-joined ancestry is what `stapel-search` publishes
+  for its `?category=` filter and what the storefront puts in the URL; it is
+  the right value *there*. In this column it is a different kind of thing
+  wearing the same type, and nothing could tell: the field was a bare
+  `CharField` with no validators, `ListingDraftSerializer` had no
+  `validate_category_id`, and the categories seam is consulted only at PUBLISH
+  — so a draft carrying a path was written, stored and served without one
+  reader ever asking whether the id was an id.
+
+  `validate_category_id` is declared **on the model field**, not in the
+  serializer. DRF inherits a model field's validators into
+  `ListingDraftSerializer` automatically, the admin form runs them, and so does
+  any `full_clean()` — and the Django admin, where `category_id` is editable
+  and not read-only, was one of the two writers that could not be ruled out for
+  the three stand rows. A serializer-only check would have left that door open.
+
+  The pattern is deliberately narrow (`[A-Za-z0-9][A-Za-z0-9_-]*`): int-like
+  ids and UUIDs pass, anything with a separator does not. A separator that
+  turns out to be legitimate somewhere fails loudly and is a one-line change; a
+  path that gets in fails silently and costs a repair run. **If a surface needs
+  a path, it needs its own field.**
+
+  Migration `0008_alter_listing_category_id` — validators only, no column
+  change. Existing rows are NOT rewritten: a stored path stays until it is
+  repaired, and `full_clean()` is where it now fails.
+
+  Breaking for any client that was sending a non-`[A-Za-z0-9_-]` category id.
+  Note for the pair: `stapel-react`'s `listings-react` demo and test fixtures
+  still assert that `category_id: "tools/power"` round-trips — that assertion
+  is now false against a real server (see the follow-up note in the wave
+  report).
+
+- **`listings_reproject_features` can now BUILD a missing projection, not only
+  refresh a stale one.** The population was `exclude(features=[])` — rows that
+  already HAVE projections — so the pass was keyed on its own output. A listing
+  carrying a perfectly good `features_draft` and no projection was not merely
+  left unrepaired: it was never examined, so no run ever named it in any
+  report. Measured on one live stand as **14 listings with empty
+  characteristics that survived every repair run**. The population is keyed on
+  the INPUT now (`HAS_DRAFT`), and `changed` is split into `built` and
+  `refreshed` so the two kinds of work are countable apart.
+
+  Rows carrying a projection and NO draft stay in the population and stay
+  reported as `no_draft`: a snapshot with no source is damage, and narrowing to
+  `HAS_DRAFT` alone would have traded one silence for another.
+
+### Added
+
+- **`no_attributes` — the third state, counted instead of passed over.** Rows
+  in scope with neither a draft nor a projection are reported as a number (one
+  aggregate, not a walk), so `examined + no_attributes` is every listing the
+  run was responsible for. That invariant is the mechanism, not decoration:
+  the original defect survived because rows outside the population produced no
+  line in any report, and a population that silently narrows again now shows up
+  as a total that stops adding up.
+
 ## [0.17.1] — 2026-09-03
 
 Patch. Cap only: `stapel-attributes` admits 0.9.

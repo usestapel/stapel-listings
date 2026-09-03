@@ -25,6 +25,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import models, transaction
 from django.utils import timezone
 
@@ -144,6 +145,44 @@ LISTING_TRANSITIONS: dict[str, set[str]] = {
 # Statuses in which a listing is part of the public/search index. Entering the
 # set emits ``listing.published``; leaving it emits ``listing.removed``.
 INDEXED_STATUSES: frozenset[str] = frozenset({ListingStatus.PUBLISHED})
+
+#: A category id is an opaque TOKEN — an int-like string (stapel-categories'
+#: ``AutoField``) or a UUID on a deployment keyed that way. It is never a
+#: PATH.
+#:
+#: ``stapel-search`` publishes a slash-joined ancestry for its ``?category=``
+#: filter (``suggest.py``: ``"category": "/".join(path_ids)``) and the storefront
+#: puts it in the URL. That is the right value in that field. Dropped into
+#: ``Listing.category_id`` it is a different kind of thing wearing the same
+#: type, and nothing here could tell: the column was a bare ``CharField`` with
+#: no validators, the draft serializer had no ``validate_category_id``, and the
+#: categories seam is only consulted at PUBLISH — so a draft carrying a path
+#: was written, stored and served without one reader ever asking. Three drafts
+#: on one live stand (243, 244, 245) hold ``"32/149/163"`` because of it.
+#:
+#: The rule is declared HERE, on the field, and not in the serializer, because
+#: the serializer is one door of three: DRF inherits a model field's validators
+#: into ``ListingDraftSerializer`` automatically, the admin form runs them, and
+#: so does any ``full_clean()``. A serializer-only check would have left the
+#: Django admin — where ``category_id`` is editable and not read-only — able to
+#: type a path straight in.
+#:
+#: Deliberately narrow: alphanumerics, ``_`` and ``-``, starting on an
+#: alphanumeric. A separator that turns out to be legitimate somewhere fails
+#: loudly and is a one-line change; a path that gets in fails silently and
+#: costs a repair run. If a surface ever needs a path, it needs its OWN field.
+CATEGORY_ID_PATTERN = r"\A[A-Za-z0-9][A-Za-z0-9_-]*\Z"
+
+validate_category_id = RegexValidator(
+    regex=CATEGORY_ID_PATTERN,
+    message=(
+        "A category id is an opaque id, not a path. Got a value containing a "
+        "separator — a slash-joined category PATH belongs in the search "
+        "?category= filter, not in category_id."
+    ),
+    code="invalid_category_id",
+)
+
 
 # Fields that are part of the document an indexer holds. A save that writes any
 # of them on a listing that IS in an indexed status emits ``listing.updated``
@@ -285,9 +324,12 @@ class Listing(models.Model):
         related_name="listings",
     )
     # Opaque category reference — NEVER a FK to stapel-categories. May hold an
-    # int-like string or a UUID string; validated via the categories.features
-    # comm Function, not a DB constraint.
-    category_id = models.CharField(max_length=64, db_index=True)
+    # int-like string or a UUID string; EXISTENCE is validated via the
+    # categories.features comm Function, not a DB constraint. SHAPE is
+    # validated here — see ``validate_category_id``.
+    category_id = models.CharField(
+        max_length=64, db_index=True, validators=[validate_category_id]
+    )
 
     title = models.CharField(max_length=255, blank=True, default="")
     description = models.TextField(blank=True, default="")

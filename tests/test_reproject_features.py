@@ -137,14 +137,22 @@ class TestLabelRepair:
         assert second["changed"] == 0
         assert second["unchanged"] == 1
 
-    def test_a_listing_with_no_projections_is_not_examined(self, draft_listing):
-        """A never-published draft has nothing to re-project — it is outside
-        the population, not a skip."""
+    def test_a_listing_with_no_projections_is_built_not_passed_over(
+        self, draft_listing
+    ):
+        """This assertion used to read ``examined == 0``, and that was the
+        defect: a never-published draft was called "outside the population"
+        when it is precisely the row that needs a projection TAKEN. Keying the
+        population on the output made a missing projection unbuildable and, worse,
+        unreportable."""
         assert draft_listing.features in (None, [])
 
         result = reproject_listings()
 
-        assert result["examined"] == 0
+        draft_listing.refresh_from_db()
+        assert result["examined"] == 1
+        assert result["built"] == 1
+        assert _badge(draft_listing)["labels"] == ["cond.used"]
 
 
 class TestDryRun:
@@ -611,3 +619,186 @@ class TestCommand:
 
         live_listing.refresh_from_db()
         assert _badge(live_listing)["labels"] == ["cond.used"]
+
+
+class TestMissingProjectionIsBuilt:
+    """The population is «has a draft», not «already has a projection».
+
+    The measured failure: 14 listings on one live stand sat with empty
+    characteristics through every repair run. ``_base_queryset`` selected
+    ``exclude(features=[])`` — rows that ALREADY have projections — so the
+    pass could refresh a stale snapshot and could never build a missing one.
+    A listing carrying a perfectly good draft and no projection was not merely
+    unrepaired, it was not even examined, and so was never reported either.
+    """
+
+    def test_a_draft_with_no_projection_is_built(self, draft_listing, stub_categories):
+        """Never published, so the four columns are empty. It must be built."""
+        assert not draft_listing.features
+        assert draft_listing.features_draft
+
+        result = reproject_listings()
+
+        draft_listing.refresh_from_db()
+        assert _badge(draft_listing)["labels"] == ["cond.used"]
+        assert [dao["slug"] for dao in draft_listing.features] == [
+            "mileage",
+            "condition",
+        ]
+        assert result["examined"] == 1
+        assert result["changed"] == 1
+        assert result["skipped"] == 0
+
+    def test_built_and_refreshed_are_counted_apart(
+        self, draft_listing, live_listing, stub_categories
+    ):
+        """One number for «this listing had nothing» and one for «this one was
+        stale» — a run that builds is doing different work from a run that
+        refreshes, and the summary has to be able to say which."""
+        _as_pre_070(live_listing)
+        missing = Listing.objects.create(
+            owner=live_listing.owner,
+            category_id="7",
+            title_draft="Third car",
+            description_draft="Never published, so no projection was ever taken.",
+            images_draft=["product/ghi789"],
+            lat_draft="55.755800",
+            lon_draft="37.617300",
+            features_draft=_draft(),
+        )
+
+        result = reproject_listings()
+
+        missing.refresh_from_db()
+        assert _badge(missing)["labels"] == ["cond.new"]
+        assert result["built"] == 1  # `missing` — never published
+        assert result["refreshed"] == 1  # live_listing's stale snapshot
+        assert result["changed"] == result["built"] + result["refreshed"] == 2
+
+    def test_a_draft_only_listing_emits_no_index_event(
+        self, draft_listing, stub_categories
+    ):
+        """Building a DRAFT's projection is not a publication: nothing that is
+        not in an indexed status may announce itself to a search index."""
+        result = reproject_listings()
+
+        assert result["changed"] == 1
+        assert result["events_emitted"] == 0
+
+    def test_building_moves_nothing_but_the_four_columns(
+        self, draft_listing, stub_categories
+    ):
+        before = Listing.all_objects.filter(pk=draft_listing.pk).values(
+            "status", "moderation_status", "published_at", "expires_at", "updated_at"
+        )[0]
+
+        reproject_listings()
+
+        after = Listing.all_objects.filter(pk=draft_listing.pk).values(
+            "status", "moderation_status", "published_at", "expires_at", "updated_at"
+        )[0]
+        assert after == before
+
+    def test_a_second_run_over_a_built_row_changes_nothing(
+        self, draft_listing, stub_categories
+    ):
+        assert reproject_listings()["changed"] == 1
+        second = reproject_listings()
+        assert second["examined"] == 1
+        assert second["changed"] == 0
+        assert second["unchanged"] == 1
+
+
+class TestNoAttributesIsReportedNotSilent:
+    """«Has neither a draft nor a projection» is a third state, and it gets a
+    number.
+
+    Silence is how the original defect survived every repair run: rows outside
+    the population produced no line in any report, so nobody could see that
+    the pass did not apply to them. Every row in scope is now accounted for —
+    ``examined + no_attributes`` is the whole scope — which is the property
+    that makes a future population bug visible instead of invisible.
+    """
+
+    def test_a_row_with_neither_is_counted(self, user, db):
+        Listing.objects.create(
+            owner=user,
+            category_id="7",
+            title_draft="No attributes at all",
+            description_draft="No draft, no projection.",
+            features_draft={},
+        )
+
+        result = reproject_listings()
+
+        assert result["examined"] == 0
+        assert result["no_attributes"] == 1
+
+    def test_the_scope_adds_up(self, draft_listing, live_listing, user, stub_categories):
+        """examined + no_attributes == every listing in scope."""
+        Listing.objects.create(
+            owner=user,
+            category_id="7",
+            title_draft="Empty",
+            description_draft="Neither a draft nor a projection.",
+            features_draft={},
+        )
+
+        result = reproject_listings()
+
+        assert result["examined"] + result["no_attributes"] == (
+            Listing.objects.count()
+        )
+
+    def test_no_attributes_respects_the_category_filter(
+        self, user, stub_categories, db
+    ):
+        Listing.objects.create(
+            owner=user,
+            category_id="7",
+            title_draft="Empty in 7",
+            description_draft="Neither a draft nor a projection.",
+            features_draft={},
+        )
+        Listing.objects.create(
+            owner=user,
+            category_id="8",
+            title_draft="Empty in 8",
+            description_draft="Neither a draft nor a projection.",
+            features_draft={},
+        )
+
+        assert reproject_listings(category_ids=["8"])["no_attributes"] == 1
+
+    def test_projections_without_a_draft_are_still_examined_and_reported(
+        self, live_listing, stub_categories
+    ):
+        """The regression guard for the fix itself: keying the population on
+        «has a draft» must not drop the rows that carry a projection and no
+        draft. Those are damage — a snapshot with no source — and they were
+        already reported as ``no_draft``. They stay reported."""
+        Listing.all_objects.filter(pk=live_listing.pk).update(features_draft={})
+
+        result = reproject_listings()
+
+        assert result["examined"] == 1
+        assert result["skipped_by_reason"]["no_draft"] == 1
+        assert result["no_attributes"] == 0
+
+    def test_command_prints_the_build_split_and_the_untouched_rows(
+        self, draft_listing, user, stub_categories, capsys
+    ):
+        Listing.objects.create(
+            owner=user,
+            category_id="7",
+            title_draft="Empty",
+            description_draft="Neither a draft nor a projection.",
+            features_draft={},
+        )
+
+        call_command("listings_reproject_features")
+
+        out = capsys.readouterr().out
+        assert "built 1" in out
+        assert "refreshed 0" in out
+        assert "1 with no attributes at all" in out

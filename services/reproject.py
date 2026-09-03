@@ -8,6 +8,14 @@ here: a card renders its badges and a detail page renders its attribute table
 without ever fetching the category, which is the only reason those columns
 exist at all.
 
+It BUILDS a projection that is missing and REFRESHES one that is stale, and
+the summary counts the two apart. Building is not an afterthought: the pass
+used to select ``exclude(features=[])`` — rows that already had a projection —
+which meant a listing with a good draft and no projection was not merely
+unrepaired but never examined, and so never reported. Fourteen listings on the
+live stand sat with empty characteristics through every repair run for that
+reason. The population is keyed on the DRAFT now; see ``_base_queryset``.
+
 The cost of a snapshot is that it is exactly as fresh as the last publish, and
 until now there was no way to refresh one. Two things make that bite:
 
@@ -41,6 +49,8 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Iterable
+
+from django.db.models import Q
 
 from stapel_attributes import validate_dto_structured
 from stapel_attributes.results import ValidationStatus
@@ -95,8 +105,16 @@ def _new_result() -> dict:
     return {
         "examined": 0,
         "changed": 0,
+        # ``changed`` split by what the change WAS. A run that builds is doing
+        # different work from a run that refreshes, and a summary that cannot
+        # tell them apart cannot show that building works at all.
+        "built": 0,
+        "refreshed": 0,
         "unchanged": 0,
         "skipped": 0,
+        # Rows in scope this pass does not apply to: neither a draft nor a
+        # projection. Counted, never silent — see ``_count_no_attributes``.
+        "no_attributes": 0,
         "skipped_by_reason": {reason: 0 for reason in SKIP_REASONS},
         "skipped_ids": {reason: [] for reason in SKIP_REASONS},
         "skipped_ids_truncated": False,
@@ -177,18 +195,68 @@ class _ConfigResolver:
         return configs
 
 
-def _base_queryset(category_ids: Iterable[str] | None):
-    """Rows that HAVE projections — the population a re-projection is about.
+#: A row whose ``features_draft`` holds something — the SOURCE a projection is
+#: derived from, and therefore the thing that decides whether this pass applies.
+HAS_DRAFT = Q(features_draft__isnull=False) & ~Q(features_draft={})
+
+#: A row whose ``features`` holds something — a projection that already exists
+#: and could be stale, or could be a snapshot whose draft has since gone.
+HAS_PROJECTION = Q(features__isnull=False) & ~Q(features=[])
+
+
+def _scoped(category_ids: Iterable[str] | None):
+    """Every listing this run is responsible for, before any state filter.
 
     Soft-deleted rows are excluded (``Listing.objects``, not ``all_objects``):
     a deleted listing renders nowhere, already announced its ``listing.removed``
     to the index, and touching it here would announce an update for a document
     that is supposed to be gone.
     """
-    qs = Listing.objects.exclude(features__isnull=True).exclude(features=[])
+    qs = Listing.objects.all()
     if category_ids:
         qs = qs.filter(category_id__in=[str(c) for c in category_ids])
-    return qs.order_by("pk")
+    return qs
+
+
+def _base_queryset(category_ids: Iterable[str] | None):
+    """Rows that have a draft to project FROM, or a projection to answer FOR.
+
+    This used to be ``exclude(features=[])`` — rows that already HAVE a
+    projection — and that was the defect. Keyed on the OUTPUT, the pass could
+    refresh a stale projection and could never build a missing one: a listing
+    carrying a perfectly good draft and no projection was not merely
+    unrepaired, it was never examined, so no report ever named it. Fourteen
+    listings on one live stand sat with empty characteristics through every
+    repair run for exactly that reason.
+
+    The population is keyed on the INPUT instead: ``HAS_DRAFT``. A draft is
+    what ``build_projections_partial`` reads, so a row with one is a row this
+    pass can answer for — whether the answer is a fresh build or a refresh.
+
+    ``HAS_PROJECTION`` is unioned in rather than dropped, because
+    projection-without-draft is not an absence, it is damage: a snapshot with
+    no source. Those rows are examined and skipped as ``no_draft``, loudly, the
+    way they always were. Narrowing the population to ``HAS_DRAFT`` alone would
+    have traded one silence for another.
+
+    What is left out — neither a draft nor a projection — is counted rather
+    than ignored; see ``_count_no_attributes``.
+    """
+    return _scoped(category_ids).filter(HAS_DRAFT | HAS_PROJECTION).order_by("pk")
+
+
+def _count_no_attributes(category_ids: Iterable[str] | None) -> int:
+    """Rows in scope with neither a draft nor a projection.
+
+    One aggregate, not a walk: there is nothing to derive and nothing to
+    erase, so the pass genuinely does not apply to them. But it does have to
+    SAY so. Silence about the rows outside the population is what let the
+    original defect survive every repair run, so the summary accounts for the
+    whole scope — ``examined + no_attributes`` is every listing the run was
+    responsible for — and a population that starts skipping rows again shows
+    up as a number that stops adding up.
+    """
+    return _scoped(category_ids).exclude(HAS_DRAFT | HAS_PROJECTION).count()
 
 
 def reproject_listings(
@@ -217,18 +285,25 @@ def reproject_listings(
 
     ``listing.submitted`` is NOT emitted: this is not a re-publication.
 
-    Result keys: ``examined``, ``changed``, ``unchanged``, ``skipped``,
-    ``skipped_by_reason``, ``skipped_ids`` (a bounded sample; see
-    ``SKIPPED_ID_SAMPLE``), ``skipped_ids_truncated``, ``events_emitted``,
+    Result keys: ``examined``, ``changed`` (split into ``built`` and
+    ``refreshed``), ``unchanged``, ``skipped``, ``skipped_by_reason``,
+    ``skipped_ids`` (a bounded sample; see ``SKIPPED_ID_SAMPLE``),
+    ``skipped_ids_truncated``, ``no_attributes``, ``events_emitted``,
     ``dry_run``.
+
+    ``examined + no_attributes`` is every listing in scope. That invariant is
+    the point: the defect this pass was built around survived because rows
+    outside the population produced no line in any report.
     """
     result = _new_result()
     result["dry_run"] = bool(dry_run)
+    result["no_attributes"] = _count_no_attributes(category_ids)
     resolver = _ConfigResolver()
 
     for listing in _base_queryset(category_ids).iterator(chunk_size=batch_size):
         result["examined"] += 1
         features_draft = listing.features_draft or {}
+        had_projection = bool(listing.features)
 
         if not features_draft:
             _record_skip(
@@ -288,6 +363,7 @@ def reproject_listings(
             continue
 
         result["changed"] += 1
+        result["refreshed" if had_projection else "built"] += 1
         if failures:
             result["repaired_with_invalid_fields"] += 1
         if listing.status in INDEXED_STATUSES:
