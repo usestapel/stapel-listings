@@ -36,7 +36,13 @@ from .errors import (
     ERR_409_INVALID_TRANSITION,
     ERR_409_LISTING_CANNOT_DELETE_ACTIVE,
 )
-from .models import Favorite, Listing, ListingStatus, TransitionError
+from .models import (
+    OWNER_TRANSITIONS,
+    Favorite,
+    Listing,
+    ListingStatus,
+    TransitionError,
+)
 from .serializers import (
     DeleteResponseSerializer,
     FavoriteToggleResponseSerializer,
@@ -47,6 +53,7 @@ from .serializers import (
     ListingDraftSerializer,
     ListingPresenceSerializer,
     ListingStatusSerializer,
+    ListingTransitionRequestSerializer,
     MyCountersResponseSerializer,
     MyListingCardSerializer,
     PublishResponseSerializer,
@@ -464,21 +471,63 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         dto = PublishResponse(published=True, listing_id=listing.pk, status=listing.status)
         return StapelResponse(PublishResponseSerializer(dto))
 
+    @extend_schema(
+        request=ListingTransitionRequestSerializer,
+        responses={
+            200: ListingActionResponseSerializer,
+            400: None,
+            409: None,
+        },
+    )
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    def transition(self, request, pk=None):  # noqa: R007
+        """Move the listing to ``to``, if that is a move its OWNER may make.
+
+        The seller's way forward, as one route instead of one endpoint per
+        edge. ``archive`` and ``complete`` were the only two the API ever
+        offered, and both of them are exits — so a listing that reached
+        ARCHIVED, PAUSED, EXPIRED, SOLD, REJECTED or BLOCKED had no call left
+        that would move it, and the cabinet correctly showed its owner
+        nothing but «удалить».
+
+        Which moves exist is ``models.OWNER_TRANSITIONS``, and it is the same
+        list ``available_transitions`` puts on the card — the point of routing
+        every edge through one allowlist is that the set a client is offered
+        and the set the server accepts are one object, not two that agree
+        today.
+        """
+        refusal = anonymous_write_refusal(request)
+        if refusal is not None:
+            return refusal
+        serializer = ListingTransitionRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return self._transition(
+            request, pk, serializer.validated_data["to"], owner_gate=True
+        )
+
     @extend_schema(request=None, responses={200: ListingActionResponseSerializer})
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def archive(self, request, pk=None):  # noqa: R007
-        return self._transition(request, pk, ListingStatus.ARCHIVED)
+        return self._transition(request, pk, ListingStatus.ARCHIVED, owner_gate=True)
 
     @extend_schema(request=None, responses={200: ListingActionResponseSerializer})
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def complete(self, request, pk=None):  # noqa: R007
         """Mark a listing sold."""
-        return self._transition(request, pk, ListingStatus.SOLD)
+        return self._transition(request, pk, ListingStatus.SOLD, owner_gate=True)
 
-    def _transition(self, request, pk, new_status):
+    def _transition(self, request, pk, new_status, *, owner_gate=False):
         listing, error = self._get_own(request, pk)
         if error:
             return error
+        if owner_gate and new_status not in OWNER_TRANSITIONS.get(listing.status, ()):
+            # Refused HERE rather than by ``transition_to``, and the
+            # difference matters: the FSM would happily take PENDING ->
+            # PUBLISHED, which is moderation's decision and not the seller's.
+            # One 409, whether the edge is impossible or merely not theirs.
+            return StapelErrorResponse(
+                409, ERR_409_INVALID_TRANSITION, {"from_status": listing.status}
+            )
         try:
             listing.transition_to(new_status)
         except TransitionError:

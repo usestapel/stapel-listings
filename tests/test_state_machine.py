@@ -86,7 +86,16 @@ def test_failing_emit_rolls_back_transition(user, monkeypatch):
     back — never committed-but-unannounced (no published-but-unindexed row)."""
     from stapel_listings import events
 
-    listing = Listing.objects.create(owner=user, category_id="7", status=ListingStatus.PENDING)
+    # moderation_status is spelled out rather than inherited from the field
+    # default: a listing awaiting a verdict is what this test is about, and
+    # the default is now `not_submitted` (a draft nobody has submitted does
+    # not claim to be in a queue).
+    listing = Listing.objects.create(
+        owner=user,
+        category_id="7",
+        status=ListingStatus.PENDING,
+        moderation_status=ModerationStatus.PENDING,
+    )
 
     def boom(_listing):
         raise RuntimeError("bus down")
@@ -104,7 +113,16 @@ def test_failing_emit_rolls_back_moderation_approval(user, monkeypatch):
     the lifecycle transition (one verdict, one transaction)."""
     from stapel_listings import events
 
-    listing = Listing.objects.create(owner=user, category_id="7", status=ListingStatus.PENDING)
+    # moderation_status is spelled out rather than inherited from the field
+    # default: a listing awaiting a verdict is what this test is about, and
+    # the default is now `not_submitted` (a draft nobody has submitted does
+    # not claim to be in a queue).
+    listing = Listing.objects.create(
+        owner=user,
+        category_id="7",
+        status=ListingStatus.PENDING,
+        moderation_status=ModerationStatus.PENDING,
+    )
 
     def boom(_listing):
         raise RuntimeError("bus down")

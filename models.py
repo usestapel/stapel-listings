@@ -88,8 +88,25 @@ class ListingStatus(models.TextChoices):
 
 
 class ModerationStatus(models.TextChoices):
-    """Content-moderation state machine (independent of the lifecycle)."""
+    """Content-moderation state machine (independent of the lifecycle).
 
+    ``NOT_SUBMITTED`` is the default, and it exists because ``PENDING`` was.
+    ``pending`` is a claim about a QUEUE — someone is waiting on a decision —
+    and it was this field's default, so every draft ever created announced
+    itself as awaiting moderation from the moment the row existed. A live
+    stand carried 167 drafts saying so with not one moderation case behind
+    any of them; a cabinet that renders this field verbatim told each of
+    those sellers their empty draft was under review, and offered them
+    nothing to do about it.
+
+    The distinction has to live in the data, not in a presenter, because
+    every reader of this field asks the same question and would otherwise
+    each have to re-derive "...unless it was never published" from a second
+    column. ``publish_listing`` sets ``PENDING`` unconditionally, so the
+    moment anything IS submitted the word is earned.
+    """
+
+    NOT_SUBMITTED = "not_submitted", "Not submitted for review"
     PENDING = "pending", "Pending Review"
     APPROVED = "approved", "Approved"
     REJECTED = "rejected", "Rejected"
@@ -141,6 +158,59 @@ LISTING_TRANSITIONS: dict[str, set[str]] = {
     ListingStatus.REJECTED: {ListingStatus.DRAFT, ListingStatus.ARCHIVED},
     ListingStatus.ARCHIVED: {ListingStatus.DRAFT},
 }
+
+# The seller's half of the machine above: the edges an OWNER may drive from
+# their own cabinet, keyed the same way.
+#
+# It is written as a subset of ``LISTING_TRANSITIONS`` (and a test asserts
+# that it is one) rather than as a second table, because the two would drift
+# in the one direction that hurts: a card advertising a move the route then
+# refuses with a 409.
+#
+# The gap this closes was the whole of the owner's report. The API exposed
+# ``archive`` (-> ARCHIVED) and ``complete`` (-> SOLD) and nothing else, so
+# every state a seller could put a listing INTO was a state they could not
+# get it out of, and ``DELETE`` was the only call left that still answered.
+# Forty listings sat in exactly that position on one live stand.
+#
+# What is deliberately NOT here is as load-bearing as what is:
+#
+# * ``PENDING -> PUBLISHED`` and ``BLOCKED -> PUBLISHED`` belong to
+#   moderation. They are in ``LISTING_TRANSITIONS`` because
+#   ``apply_moderation`` drives them; putting them here would be a
+#   self-service publish gate.
+# * ``PUBLISHED -> BLOCKED`` is a takedown, which is not a thing one does to
+#   oneself.
+#
+# EXPIRED -> PENDING is the renewal edge: it re-enters moderation rather than
+# going straight back to the shop window, because a listing that has been
+# sitting for a TTL is content nobody has looked at recently.
+OWNER_TRANSITIONS: dict[str, set[str]] = {
+    ListingStatus.DRAFT: {ListingStatus.PENDING, ListingStatus.ARCHIVED},
+    ListingStatus.PENDING: {ListingStatus.DRAFT, ListingStatus.ARCHIVED},
+    ListingStatus.PUBLISHED: {
+        ListingStatus.PAUSED,
+        ListingStatus.SOLD,
+        ListingStatus.ARCHIVED,
+    },
+    ListingStatus.PAUSED: {ListingStatus.PUBLISHED, ListingStatus.ARCHIVED},
+    ListingStatus.EXPIRED: {ListingStatus.PENDING, ListingStatus.ARCHIVED},
+    ListingStatus.SOLD: {ListingStatus.PUBLISHED, ListingStatus.ARCHIVED},
+    ListingStatus.REJECTED: {ListingStatus.DRAFT, ListingStatus.ARCHIVED},
+    ListingStatus.BLOCKED: {ListingStatus.DRAFT, ListingStatus.ARCHIVED},
+    ListingStatus.ARCHIVED: {ListingStatus.DRAFT},
+}
+
+
+def owner_transitions_for(status: str) -> list[str]:
+    """The moves this listing's OWNER may make from *status*, sorted.
+
+    The single answer to "what can I do with this row", read by the route
+    that accepts a move and by the serializer that advertises one — so a
+    storefront never has to re-derive it and can never derive it differently.
+    """
+    return sorted(OWNER_TRANSITIONS.get(status, set()))
+
 
 # Statuses in which a listing is part of the public/search index. Entering the
 # set emits ``listing.published``; leaving it emits ``listing.removed``.
@@ -389,7 +459,7 @@ class Listing(models.Model):
     moderation_status = models.CharField(
         max_length=20,
         choices=ModerationStatus.choices,
-        default=ModerationStatus.PENDING,
+        default=ModerationStatus.NOT_SUBMITTED,
     )
     moderation_note = models.TextField(blank=True, default="")
 

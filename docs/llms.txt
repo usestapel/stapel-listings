@@ -1,8 +1,8 @@
-# stapel-listings 0.19.0
+# stapel-listings 0.20.0
 
 Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle including the moderation takedown state 'blocked', an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, first-class favorites, and the two pull seams its consumers read it through — listings.search_documents / listings.search_export for an indexer and listings.moderation_content for a moderation queue.
 
-Contract: axes 3 · surface 7 · extension points 6 · operations 18 · error codes 68.
+Contract: axes 3 · surface 8 · extension points 6 · operations 19 · error codes 68.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -33,6 +33,9 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 ### predicate
 - is_valid — stapel_listings.services.publish.is_valid
   Strict all-clear over a ValidationBatchResult: requires .valid AND every individual result at OK status. Use this rather than reading .valid alone before an automated action (e.g. an auto-approve or bulk-publish pipeline) — a batch can carry .valid=True with a non-OK entry that a human-facing form tolerates but an unattended pipeline should not wave through.
+### factory
+- owner_transitions_for — stapel_listings.models.owner_transitions_for
+  The lifecycle moves a listing's OWNER may make from a given status — the seller's subset of the state machine. Read it wherever a surface has to answer 'what can I do with this row' so that the moves offered and the moves accepted are one list rather than two that agree today.
 
 ## Extension points — what a product replaces, fork-free
 - AUTH_USER_MODEL [swappable_model]
@@ -53,7 +56,7 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - stapel-categories (optional) — comm-only dependency: the categories.features Function provides the category feature schema for value validation; no direct Python import (MODULE.md boundaries: 'this module never imports it')
 - stapel-core (required) — comm bus (mutate_and_emit/emit/function/call), GDPR provider registry, AUTH_USER_MODEL base (pyproject.toml dependency; apps.py:18, models.py:31, functions.py:20, events.py)
 
-## HTTP operations (18) — call by operationId, never by a typed path
+## HTTP operations (19) — call by operationId, never by a typed path
 Paths are relative to `/listings/api/v1/listings/`.
 ### listings
 - POST /{id}/archive/ — listings_api_v1_listings_archive_create
@@ -71,6 +74,7 @@ Paths are relative to `/listings/api/v1/listings/`.
 - GET /{id}/ — listings_api_v1_listings_retrieve
 - POST /{id}/save-draft/ — listings_api_v1_listings_save_draft_create
 - GET /{id}/status/ — listings_api_v1_listings_status_retrieve
+- POST /{id}/transition/ — listings_api_v1_listings_transition_create
 - POST /{id}/unfavorite/ — listings_api_v1_listings_unfavorite_create
 - PUT /{id}/ — listings_api_v1_listings_update
 - GET /{id}/validate-draft/ — listings_api_v1_listings_validate_draft_retrieve

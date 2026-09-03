@@ -10,6 +10,7 @@ import decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from drf_spectacular.extensions import OpenApiSerializerFieldExtension
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.fields import DecimalField
 
@@ -410,10 +411,34 @@ class MyListingCardSerializer(ListingCardSerializer):
     images_draft = serializers.ListField(
         child=serializers.CharField(), read_only=True, allow_null=True
     )
+    available_transitions = serializers.SerializerMethodField()
+
+    @extend_schema_field(
+        {"type": "array", "items": {"type": "string", "enum": ListingStatus.values}}
+    )
+    def get_available_transitions(self, obj) -> list:
+        """The moves this seller may make from here — the third axis.
+
+        ``status`` says where the listing is and ``moderation_status`` says
+        what is being waited on; neither answers *what can I do about it*, and
+        a cabinet that has to work that out re-implements a state machine it
+        cannot see. It got it wrong in the direction that matters: for a
+        listing in ARCHIVED, REJECTED, PAUSED, EXPIRED, SOLD or BLOCKED, the
+        API's answer for a long time was genuinely nothing but ``DELETE``, and
+        the UI showed exactly that.
+
+        Read from ``models.OWNER_TRANSITIONS``, which the transition route
+        also validates against, so this is a report of the server's rule
+        rather than a second opinion about it.
+        """
+        from .models import owner_transitions_for
+
+        return owner_transitions_for(obj.status)
 
     class Meta(ListingCardSerializer.Meta):
         fields = ListingCardSerializer.Meta.fields + [
             "moderation_status",
+            "available_transitions",
             "title_draft",
             "price_draft",
             "images_draft",
@@ -583,6 +608,22 @@ class PublishResponseSerializer(StapelDataclassSerializer):
 class ListingActionResponseSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = ListingActionResponse
+
+
+class ListingTransitionRequestSerializer(serializers.Serializer):
+    """The body of ``POST listings/{id}/transition/``: where to move it.
+
+    A ``ChoiceField`` over the whole lifecycle rather than over the moves this
+    particular listing has, because the two refusals are different sentences
+    and a client should be able to tell them apart: a status that does not
+    exist is a 400 (the caller is confused about the vocabulary), a status
+    that exists but is not this listing's to reach is a 409 with
+    ``from_status`` (the caller is confused about the row). Narrowing the
+    field to the per-row set would collapse both into 400 and lose the
+    ``from_status`` that tells a storefront what to re-render.
+    """
+
+    to = serializers.ChoiceField(choices=ListingStatus.choices)
 
 
 class DeleteResponseSerializer(StapelDataclassSerializer):

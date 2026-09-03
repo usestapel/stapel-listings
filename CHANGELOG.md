@@ -4,6 +4,62 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.20.0] — 2026-09-03
+
+### Fixed — «нельзя поменять им статус, только удалить»
+
+The owner's sentence about his own board, and it was true of the HTTP surface
+rather than of any one row. `LISTING_TRANSITIONS` describes a lifecycle with
+a way out of every state — ARCHIVED back to DRAFT, PAUSED to PUBLISHED,
+EXPIRED renewed, SOLD relisted, REJECTED and BLOCKED reworked. The owner API
+exposed **two** of those edges, `archive` and `complete`, and both are exits.
+So every status a seller could put a listing INTO was a status they could not
+get it out of, and `DELETE` was the only call left that still answered. One
+live stand held 40 listings in exactly that position.
+
+- `models.OWNER_TRANSITIONS` — the seller's half of the state machine,
+  declared as a subset of the machine it belongs to (a test asserts it is
+  one) rather than as a second table, because the pair would drift in the one
+  direction that hurts: a card advertising a move the route then 409s on.
+- `POST listings/{id}/transition/ {"to": ...}` — one route for every edge a
+  seller owns, validated against that allowlist. `archive` and `complete`
+  keep their URLs and now go through the same gate.
+- `available_transitions` on the owner's card. `status` says where the
+  listing is and `moderation_status` says what is being waited on; neither
+  answers *what can I do about it*, so a cabinet had to re-derive a state
+  machine it could not see. It is now reported by the server that owns it —
+  the same list the route accepts, not a second opinion about it.
+
+What is deliberately absent is load-bearing: `PENDING -> PUBLISHED` and
+`BLOCKED -> PUBLISHED` are moderation's decisions and stay out of the
+seller's half, so this is a way forward and not a self-service publish gate.
+
+### Fixed — a draft nobody submitted no longer claims to be under review
+
+`moderation_status` defaulted to `pending`, so every draft announced itself
+as awaiting a moderation decision from the instant the row existed. A live
+stand held 167 of them with not one moderation case behind any of them: the
+cabinet was reading the column correctly and the column was saying the wrong
+thing.
+
+`ModerationStatus.NOT_SUBMITTED` is the new default. The distinction lives in
+the data rather than in a presenter because every reader asks the same
+question and would each otherwise re-derive "...unless it was never
+published" from a second column. `publish_listing` sets `PENDING`
+unconditionally, so the word is earned the moment anything is submitted.
+
+Migration `0009` carries the existing rows, and its three predicates are each
+load-bearing: `status='draft'` (any other status has been through publish),
+`published_at IS NULL` (a restored draft HAS been submitted before), and
+`moderation_status='pending'` (a real verdict is somebody's decision).
+Reversible exactly — `not_submitted` is a value no earlier code could write.
+
+### Upgrading
+
+Consumers that compare `moderation_status` against `"pending"` to mean "this
+listing has never been submitted" must read `"not_submitted"` instead;
+consumers that meant "a decision is owed" are unaffected and now correct.
+
 ## [0.19.0] — 2026-09-03
 
 ### Fixed

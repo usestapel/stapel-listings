@@ -526,6 +526,69 @@
         }
       }
     },
+    "/listings/api/v1/listings/{id}/transition/": {
+      "post": {
+        "operationId": "listings_api_v1_listings_transition_create",
+        "description": "Move the listing to ``to``, if that is a move its OWNER may make.\n\nThe seller's way forward, as one route instead of one endpoint per\nedge. ``archive`` and ``complete`` were the only two the API ever\noffered, and both of them are exits — so a listing that reached\nARCHIVED, PAUSED, EXPIRED, SOLD, REJECTED or BLOCKED had no call left\nthat would move it, and the cabinet correctly showed its owner\nnothing but «удалить».\n\nWhich moves exist is ``models.OWNER_TRANSITIONS``, and it is the same\nlist ``available_transitions`` puts on the card — the point of routing\nevery edge through one allowlist is that the set a client is offered\nand the set the server accepts are one object, not two that agree\ntoday.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingTransitionRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingTransitionRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingActionResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "description": "No response body"
+          },
+          "409": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
     "/listings/api/v1/listings/{id}/unfavorite/": {
       "post": {
         "operationId": "listings_api_v1_listings_unfavorite_create",
@@ -814,6 +877,20 @@
   },
   "components": {
     "schemas": {
+      "AvailableTransitionsEnum": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "pending",
+          "published",
+          "paused",
+          "expired",
+          "sold",
+          "rejected",
+          "blocked",
+          "archived"
+        ]
+      },
       "BoolDao": {
         "type": "object",
         "description": "Serializer for boolean feature DAO.",
@@ -2379,15 +2456,28 @@
           "status"
         ]
       },
+      "ListingTransitionRequest": {
+        "type": "object",
+        "description": "The body of ``POST listings/{id}/transition/``: where to move it.\n\nA ``ChoiceField`` over the whole lifecycle rather than over the moves this\nparticular listing has, because the two refusals are different sentences\nand a client should be able to tell them apart: a status that does not\nexist is a 400 (the caller is confused about the vocabulary), a status\nthat exists but is not this listing's to reach is a 409 with\n``from_status`` (the caller is confused about the row). Narrowing the\nfield to the per-row set would collapse both into 400 and lose the\n``from_status`` that tells a storefront what to re-render.",
+        "properties": {
+          "to": {
+            "$ref": "#/components/schemas/ToEnum"
+          }
+        },
+        "required": [
+          "to"
+        ]
+      },
       "ModerationStatusEnum": {
         "enum": [
+          "not_submitted",
           "pending",
           "approved",
           "rejected",
           "needs_review"
         ],
         "type": "string",
-        "description": "* `pending` - Pending Review\n* `approved` - Approved\n* `rejected` - Rejected\n* `needs_review` - Needs Manual Review"
+        "description": "* `not_submitted` - Not submitted for review\n* `pending` - Pending Review\n* `approved` - Approved\n* `rejected` - Rejected\n* `needs_review` - Needs Manual Review"
       },
       "MyCountersResponse": {
         "type": "object",
@@ -2607,6 +2697,13 @@
           "moderation_status": {
             "$ref": "#/components/schemas/ModerationStatusEnum"
           },
+          "available_transitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvailableTransitionsEnum"
+            },
+            "readOnly": true
+          },
           "title_draft": {
             "type": "string",
             "maxLength": 255
@@ -2637,6 +2734,7 @@
           }
         },
         "required": [
+          "available_transitions",
           "created_at",
           "features_badges",
           "features_title",
@@ -3175,6 +3273,21 @@
         ],
         "type": "string",
         "description": "* `l` - l\n* `m` - m"
+      },
+      "ToEnum": {
+        "enum": [
+          "draft",
+          "pending",
+          "published",
+          "paused",
+          "expired",
+          "sold",
+          "rejected",
+          "blocked",
+          "archived"
+        ],
+        "type": "string",
+        "description": "* `draft` - Draft\n* `pending` - Pending Moderation\n* `published` - Published\n* `paused` - Paused\n* `expired` - Expired\n* `sold` - Sold\n* `rejected` - Rejected\n* `blocked` - Blocked (moderation takedown)\n* `archived` - Archived"
       },
       "Type104Enum": {
         "enum": [

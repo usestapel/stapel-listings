@@ -111,7 +111,10 @@ def test_verdict_for_another_target_type_is_ignored(user):
     from stapel_core.comm import emit
 
     listing = Listing.objects.create(
-        owner=user, category_id="7", status=ListingStatus.PENDING
+        owner=user,
+        category_id="7",
+        status=ListingStatus.PENDING,
+        moderation_status=ModerationStatus.PENDING,
     )
     emit(
         "moderation.completed",
