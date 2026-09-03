@@ -82,6 +82,24 @@ listings_settings = AppSettings(
         # client-supplied label is then published verbatim, which is what
         # every version before 0.16.0 did.
         "GEO_REVERSE_FUNCTION": "geo.reverse_geocode",
+        # Decimal places a coordinate keeps on a PUBLIC read — the width of
+        # the area a stranger is handed instead of the seller's pin. Two
+        # places is ~1.1km, the same statement stapel-search's card already
+        # makes (its CARD_COORD_PRECISION), so the two public surfaces of one
+        # listing disclose the same thing.
+        #
+        # This is a privacy control, and the only one on this axis: the
+        # published `geohash` is blanked rather than truncated, because two
+        # independently-derived areas around one true point intersect to
+        # something smaller than either. Raising this number republishes the
+        # pin; ``tests/test_public_read.py`` fails if it goes above a
+        # kilometre-wide cell.
+        #
+        # The exact point is untouched everywhere it is legitimate: the
+        # owner's own read, staff, the service transport, and the search feed
+        # whose server-side `distance_km` stays computed from the true
+        # coordinates.
+        "PUBLIC_COORD_PRECISION": 2,
         # Ids one /engagement call may ask about. A page of cards, not a
         # crawl: the endpoint is AllowAny (view_count is public), so the cap
         # is what keeps it from being a cheap way to enumerate the board.

@@ -1908,6 +1908,12 @@
             "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
             "nullable": true
           },
+          "geo_precision_km": {
+            "type": "number",
+            "format": "double",
+            "description": "How wide the area `lat`/`lon` describe, in kilometres. On a PUBLIC read this is ~1.113 (the pair is rounded to two decimals and `geohash` comes back empty): draw a CIRCLE, never a marker — the listing is somewhere in it, and for a private seller the true point is a home address. `0` means the exact point, which only the listing's own owner, staff and the service transport get. Proximity itself is unaffected: `distance_km` on a search hit is computed server-side from the true coordinates.",
+            "readOnly": true
+          },
           "countable": {
             "type": "boolean"
           },
@@ -1939,6 +1945,7 @@
         "required": [
           "features_badges",
           "features_title",
+          "geo_precision_km",
           "id",
           "images",
           "is_favorited",
@@ -2021,6 +2028,12 @@
             "format": "decimal",
             "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
             "nullable": true
+          },
+          "geo_precision_km": {
+            "type": "number",
+            "format": "double",
+            "description": "How wide the area `lat`/`lon` describe, in kilometres. On a PUBLIC read this is ~1.113 (the pair is rounded to two decimals and `geohash` comes back empty): draw a CIRCLE, never a marker — the listing is somewhere in it, and for a private seller the true point is a home address. `0` means the exact point, which only the listing's own owner, staff and the service transport get. Proximity itself is unaffected: `distance_km` on a search hit is computed server-side from the true coordinates.",
+            "readOnly": true
           },
           "features": {
             "type": "array",
@@ -2254,6 +2267,7 @@
           "features_badges",
           "features_search",
           "features_title",
+          "geo_precision_km",
           "id",
           "images",
           "is_favorited",
@@ -2667,6 +2681,12 @@
             "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
             "nullable": true
           },
+          "geo_precision_km": {
+            "type": "number",
+            "format": "double",
+            "description": "How wide the area `lat`/`lon` describe, in kilometres. On a PUBLIC read this is ~1.113 (the pair is rounded to two decimals and `geohash` comes back empty): draw a CIRCLE, never a marker — the listing is somewhere in it, and for a private seller the true point is a home address. `0` means the exact point, which only the listing's own owner, staff and the service transport get. Proximity itself is unaffected: `distance_km` on a search hit is computed server-side from the true coordinates.",
+            "readOnly": true
+          },
           "countable": {
             "type": "boolean"
           },
@@ -2738,6 +2758,7 @@
           "created_at",
           "features_badges",
           "features_title",
+          "geo_precision_km",
           "id",
           "images",
           "images_draft",

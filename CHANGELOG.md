@@ -4,6 +4,55 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.21.0] — 2026-09-03
+
+### Fixed — the public listing card published the seller's front door
+
+`ListingCardSerializer` and `ListingDetailSerializer` shipped, to a reader with
+no credentials at all, `geohash` at precision 8 (a cell roughly 38m x 19m) AND
+`lat`/`lon` at the column's full six decimal places (~11cm). For a private
+person selling a sofa from home that is not "roughly where the sofa is" — it is
+their address, printed beside their phone number on the same page, on a surface
+whose whole design goal (0.20.x `test_public_read.py`) is that strangers and
+crawlers read it without a session. It was live on a stand.
+
+The public statement is now an **area**, and it is deliberately the same
+statement the neighbouring search card already makes:
+
+- `lat`/`lon` rounded to `PUBLIC_COORD_PRECISION` decimals — **2**, ~1.1km,
+  the same width as stapel-search's `CARD_COORD_PRECISION`, so the two public
+  surfaces of one listing disclose the same thing rather than one undoing the
+  other.
+- `geo_precision_km` on both payloads, so a reader knows what it is holding and
+  draws a circle instead of a marker. `0` means an exact point.
+- `geohash` **blanked, not truncated**. A truncated prefix is a second,
+  differently-aligned area around the same true point, and the intersection of
+  two areas is smaller than either of them: a prefix beside a rounded pair, for
+  a listing sitting near a cell boundary, still pins it to a sliver tens of
+  metres wide. One area, one encoding, nothing to intersect. `""` is a value the
+  column already holds and every client already handles, so the public key set
+  does not move.
+
+**Nothing that legitimately needs the point lost it.** `FeatureVisibilityMixin`
+already resolved anonymous/owner/staff for the VIN-and-IMEI axis; that one
+resolver now gates coordinates too and the class is `AudienceRedactionMixin`
+(the old name stays as an alias). So the seller reading their own listing, staff,
+and the service transport still get the exact pin — which the composer needs,
+because `fromDetail` in stapel-react's listings-react loads `lat`/`lon`/`geohash`
+off this very read and would otherwise move the listing a kilometre on every
+save. `services.search_feed` is untouched: the index keeps the true coordinates
+and `distance_km` stays a server-side scalar computed from them, so proximity and
+the two-band geo work are exactly as accurate as before. Coarsening the payload
+costs a reader no accuracy — only the ability to locate the thing being sold.
+
+- `PUBLIC_COORD_PRECISION` (default 2) — the one knob, documented as a privacy
+  control in `CONFIG.MD`.
+- `tests/test_public_read.py` — the anonymous payload's **exact key set**, frozen
+  for both endpoints in the shape of stapel-categories' `external_id` contract,
+  plus the precision of what those keys carry, plus a mixin gate: a serializer
+  that lists a coordinate column without `AudienceRedactionMixin` fails a test
+  that says why. The next leak will not be called `lat`.
+
 ## [0.20.0] — 2026-09-03
 
 ### Fixed — «нельзя поменять им статус, только удалить»

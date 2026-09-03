@@ -116,27 +116,115 @@ class ListingFeaturesOutputFieldExtension(OpenApiSerializerFieldExtension):
 # --- Who may read a stored feature value ----------------------------------
 
 
-class FeatureVisibilityMixin:
-    """Redacts non-public feature values for the person actually asking.
+class AudienceRedactionMixin:
+    """Redacts what the person actually asking may not read.
 
-    Some attributes identify a specific physical unit instead of describing it:
-    a VIN, an IMEI, a serial number. The catalogue marks them
-    ``visibility: "owner"`` (or ``"staff"``) and stapel-attributes stamps that
-    onto every stored DAO, so this mixin needs no category schema — the value
-    says for itself who may read it.
+    Two column families come through here, and they share one audience
+    resolver on purpose — a second "who is this?" predicate is a second place
+    to get it wrong.
 
-    **It is applied to every serializer in this module that emits a feature
-    column, and ``tests/test_feature_visibility.py`` fails if a new one is
-    added without it.** That gate is the point: the leak this fixes existed
-    because ``features`` was a plain ``JSONField``, so each serializer that
-    listed the field inherited the disclosure for free and nothing anywhere
-    said "wait".
+    **Feature values.** Some attributes identify a specific physical unit
+    instead of describing it: a VIN, an IMEI, a serial number. See
+    :meth:`_redact_features`.
 
-    It fails closed. No request in the serializer context — a
-    ``many=True`` instantiation, a comm caller, a management command rendering
-    a payload — resolves to ``anonymous`` and redacts, because the only safe
-    answer to "who is this?" when nobody said is "a stranger".
+    **Coordinates.** ``lat``/``lon``/``geohash`` are, for a private person
+    selling from home, their front door — printed next to their phone number
+    on the same page. See :meth:`_coarsen_geo`.
+
+    It fails closed. No request in the serializer context — a ``many=True``
+    instantiation, a comm caller, a management command rendering a payload —
+    resolves to ``anonymous`` and redacts, because the only safe answer to
+    "who is this?" when nobody said is "a stranger".
     """
+
+    # --- coordinates -------------------------------------------------------
+
+    #: Columns that carry the seller's literal point. A serializer listing any
+    #: of them must inherit this mixin;
+    #: ``tests/test_public_read.py::TestEveryCoordinateColumnIsGated`` fails if
+    #: a new one is added without it.
+    PRECISE_GEO_FIELDS = ("lat", "lon", "geohash")
+
+    #: Kilometres per degree of latitude — the same constant stapel-search's
+    #: ``coarse_coordinates`` uses, so both public cards report the same width
+    #: for the same rounding.
+    KM_PER_DEGREE = 111.32
+
+    def public_coord_precision(self) -> int:
+        from .conf import listings_settings
+
+        return int(listings_settings.PUBLIC_COORD_PRECISION)
+
+    def public_geo_precision_km(self, audience: str) -> float:
+        """How wide the area in this payload is. ``0`` means an exact point.
+
+        Present for every audience and always answered, so a client never has
+        to infer precision from how many digits happen to be printed — the
+        same sentence stapel-search's card makes with ``geo_precision_km``.
+        """
+        if audience != visibility.ANONYMOUS:
+            return 0.0
+        return round(self.KM_PER_DEGREE * (10.0 ** -self.public_coord_precision()), 3)
+
+    def _coarsen_geo(self, data, audience: str) -> None:
+        """Replace the pin with the neighbourhood, in place, for a stranger.
+
+        ``lat``/``lon`` are rounded to ``PUBLIC_COORD_PRECISION`` (~1.1km at
+        the default 2) and stay strings, so the wire type does not move.
+
+        ``geohash`` is BLANKED, not truncated. A truncated prefix is a second,
+        differently-aligned area around the same true point, and the
+        intersection of two areas is smaller than either of them: a prefix
+        beside a rounded pair, for a listing whose point sits near a cell
+        boundary, still pins it to a sliver tens of metres wide. One area, one
+        encoding, nothing to intersect. ``""`` is a value the column already
+        holds (``blank=True, default=""``) and every client already handles,
+        so the public key set does not move either.
+        """
+        if audience != visibility.ANONYMOUS:
+            return
+        places = self.public_coord_precision()
+        step = decimal.Decimal(1).scaleb(-places)
+        for field in ("lat", "lon"):
+            raw = data.get(field)
+            if raw in (None, ""):
+                continue
+            rounded = decimal.Decimal(str(raw)).quantize(step)
+            data[field] = type(raw)(rounded) if isinstance(raw, str) else rounded
+        if "geohash" in data:
+            data["geohash"] = ""
+
+    @extend_schema_field({
+        "type": "number",
+        "format": "double",
+        "description": (
+            "How wide the area `lat`/`lon` describe, in kilometres. On a "
+            "PUBLIC read this is ~1.113 (the pair is rounded to two decimals "
+            "and `geohash` comes back empty): draw a CIRCLE, never a marker — "
+            "the listing is somewhere in it, and for a private seller the "
+            "true point is a home address. `0` means the exact point, which "
+            "only the listing's own owner, staff and the service transport "
+            "get. Proximity itself is unaffected: `distance_km` on a search "
+            "hit is computed server-side from the true coordinates."
+        ),
+    })
+    def get_geo_precision_km(self, instance) -> float:
+        return self.public_geo_precision_km(self.resolve_audience(instance))
+
+    # --- feature values ----------------------------------------------------
+    #
+    # The catalogue marks a unit-identifying attribute ``visibility: "owner"``
+    # (or ``"staff"``) and stapel-attributes stamps that onto every stored
+    # DAO, so this mixin needs no category schema — the value says for itself
+    # who may read it.
+    #
+    # It is applied to every serializer in this module that emits a feature
+    # column, and ``tests/test_feature_visibility.py`` fails if a new one is
+    # added without it. That gate is the point: the leak it fixed existed
+    # because ``features`` was a plain ``JSONField``, so each serializer that
+    # listed the field inherited the disclosure for free and nothing anywhere
+    # said "wait". The coordinate gate below it exists for exactly the same
+    # reason, one column family later.
 
     #: Columns carrying ``List[FeatureDao]``. ``features_search`` is absent on
     #: purpose: it is a ``{slug: [value]}`` map with no DAO to read a stamp
@@ -145,7 +233,7 @@ class FeatureVisibilityMixin:
     #: by two bus payloads.
     FEATURE_DAO_FIELDS = ("features", "features_title", "features_badges")
 
-    def resolve_feature_audience(self, instance) -> str:
+    def resolve_audience(self, instance) -> str:
         """``anonymous`` / ``owner`` / ``staff`` for this request and row.
 
         Mirrors ``views._may_see_full_status``: a fleet service (X-API-KEY) and
@@ -170,9 +258,10 @@ class FeatureVisibilityMixin:
             return visibility.AUDIENCE_OWNER
         return visibility.ANONYMOUS
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        audience = self.resolve_feature_audience(instance)
+    #: Kept under its old name for anyone who overrode it before 0.21.0.
+    resolve_feature_audience = resolve_audience
+
+    def _redact_features(self, data, audience: str) -> None:
         for field in self.FEATURE_DAO_FIELDS:
             rows = data.get(field)
             if rows:
@@ -183,7 +272,17 @@ class FeatureVisibilityMixin:
                 # at all, so this is a no-op on them unless the row predates
                 # the axis and has not been re-projected yet.
                 data[field] = visibility.redact_daos(rows, audience)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        audience = self.resolve_audience(instance)
+        self._redact_features(data, audience)
+        self._coarsen_geo(data, audience)
         return data
+
+
+#: The mixin was named for the only column family it gated before 0.21.0.
+FeatureVisibilityMixin = AudienceRedactionMixin
 
 
 # --- Coordinates ----------------------------------------------------------
@@ -342,8 +441,14 @@ class ListingDraftSerializer(serializers.ModelSerializer):
 # --- Read -----------------------------------------------------------------
 
 
-class ListingCardSerializer(FeatureVisibilityMixin, serializers.ModelSerializer):
+class ListingCardSerializer(AudienceRedactionMixin, serializers.ModelSerializer):
     """Compact card projection for lists."""
+
+    # How wide the area `lat`/`lon` describe. `0` for the owner and staff, who
+    # get the exact point; ~1.1km for everybody else. See
+    # AudienceRedactionMixin._coarsen_geo — the card is read by strangers, and
+    # a marker drawn on a coarsened pair is a lie about a real address.
+    geo_precision_km = serializers.SerializerMethodField()
 
     # Published twin of `images_draft` — same shape (opaque CDN refs,
     # `<type>/<hash>`, models.py "Opaque list of CDN image references"), but
@@ -378,6 +483,7 @@ class ListingCardSerializer(FeatureVisibilityMixin, serializers.ModelSerializer)
             "geohash",
             "lat",
             "lon",
+            "geo_precision_km",
             "countable",
             "stock_quantity",
             "status",
@@ -447,8 +553,11 @@ class MyListingCardSerializer(ListingCardSerializer):
         ]
 
 
-class ListingDetailSerializer(FeatureVisibilityMixin, serializers.ModelSerializer):
+class ListingDetailSerializer(AudienceRedactionMixin, serializers.ModelSerializer):
     """Full listing detail."""
+
+    # See ListingCardSerializer.geo_precision_km — same field, same reason.
+    geo_precision_km = serializers.SerializerMethodField()
 
     # See ListingCardSerializer.images — same fix, same reason.
     images = serializers.ListField(
@@ -490,6 +599,7 @@ class ListingDetailSerializer(FeatureVisibilityMixin, serializers.ModelSerialize
             "geohash",
             "lat",
             "lon",
+            "geo_precision_km",
             "features",
             "features_title",
             "features_badges",
