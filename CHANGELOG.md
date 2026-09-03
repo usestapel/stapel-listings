@@ -4,6 +4,23 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.17.1] — 2026-09-03
+
+Patch. Cap only: `stapel-attributes` admits 0.9.
+
+stapel-attributes 0.9.0 changes one rule semantic — a VALUE predicate (`in` /
+`not_in`) no longer matches a controller that reads EMPTY, so a
+`require when X not_in […]` rule stops firing before anyone has answered `X`.
+Two UX walkers had hit that wall on an imported catalogue: a field starred and
+refusing "Next" while its own help line said it was needed only *if* another
+field said so, with that field untouched.
+
+This module EVALUATES rules — the publish gate reads `RuleState.required`
+through `services/features.py` — so the new semantic reaches it directly: a
+draft that used to be refused over a field whose stated precondition had not
+happened now publishes. That is the release's whole point. The suite is green
+against 0.9.0 with no edit, so this is a cap-only patch.
+
 ## [0.17.0] — 2026-09-03
 
 ### Added
