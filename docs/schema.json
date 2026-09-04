@@ -367,6 +367,43 @@
         }
       }
     },
+    "/listings/api/v1/listings/{id}/draft/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_draft_retrieve",
+        "description": "Read back the draft twins — the reopen half of ``save-draft``.\n\nEvery user-editable field on this module is a ``*_draft`` column\n(``title_draft``, ``description_draft``, ``images_draft``,\n``features_draft``, the location trio, ...) and until now the only\ncall that ever returned one was the write itself: ``create``,\n``update`` and ``save-draft`` echo the bag back, and no READ did. So a\ncomposer reopening a listing by id had exactly one source, the detail\nread, which serves the PUBLISHED fields — empty on everything that has\nnever been published. The seller pressed «продолжить», got a blank\nform, and their text and photos were sitting in the row the whole\ntime.\n\nDeliberately a separate route rather than draft columns bolted onto\nthe detail read: the detail read is the PUBLIC one (a stranger and a\ncrawler read it without a session), and a shape whose key set depends\non who is asking is the shape a redaction bug hides in. Here the\nanswer is structural — ``_get_own`` is the module's one ownership\ngate, 403 for someone else's listing, 404 for one that is absent or\nsoft-deleted — so no draft field can reach a non-owner by omission.\n\nThe payload is ``ListingDraftSerializer``, byte for byte what\n``save-draft`` returns, so a client reopens with the mapper it already\nhas for the write's response instead of a second one.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingDraft"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
     "/listings/api/v1/listings/{id}/favorite/": {
       "post": {
         "operationId": "listings_api_v1_listings_favorite_create",
@@ -529,7 +566,7 @@
     "/listings/api/v1/listings/{id}/transition/": {
       "post": {
         "operationId": "listings_api_v1_listings_transition_create",
-        "description": "Move the listing to ``to``, if that is a move its OWNER may make.\n\nThe seller's way forward, as one route instead of one endpoint per\nedge. ``archive`` and ``complete`` were the only two the API ever\noffered, and both of them are exits — so a listing that reached\nARCHIVED, PAUSED, EXPIRED, SOLD, REJECTED or BLOCKED had no call left\nthat would move it, and the cabinet correctly showed its owner\nnothing but «удалить».\n\nWhich moves exist is ``models.OWNER_TRANSITIONS``, and it is the same\nlist ``available_transitions`` puts on the card — the point of routing\nevery edge through one allowlist is that the set a client is offered\nand the set the server accepts are one object, not two that agree\ntoday.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "Move the listing to ``to``, if that is a move its OWNER may make.\n\nThe seller's way forward, as one route instead of one endpoint per\nedge. ``archive`` and ``complete`` were the only two the API ever\noffered, and both of them are exits — so a listing that reached\nARCHIVED, PAUSED, EXPIRED, SOLD, REJECTED or BLOCKED had no call left\nthat would move it, and the cabinet correctly showed its owner\nnothing but «удалить».\n\nWhich moves exist is ``models.OWNER_TRANSITIONS``, and it is the same\nlist ``available_transitions`` puts on the card — the point of routing\nevery edge through one allowlist is that the set a client is offered\nand the set the server accepts are one object, not two that agree\ntoday.\n\nOne edge is not a lifecycle hop: ARCHIVED -> PUBLISHED is\n«опубликовать снова», and it runs the publish service (validate,\npromote, re-submit for review — see ``RESTORE_EDGES``). So it can\nanswer 400 when the draft is not publishable, and the ``status`` it\nreturns is where the deployment's moderation policy put the listing,\nwhich under the default pre-moderation gate is ``pending`` and not the\n``published`` that was asked for. Read the status from the response,\nnever from the request.\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
             "in": "path",

@@ -42,6 +42,13 @@
       "kind": "gate_function",
       "intent": "The one function that promotes a validated draft, atomically writing every promoted field and emitting listing.submitted (or auto-approving under AUTO_APPROVE_ON_PUBLISH) in one mutate_and_emit() block. A first publication goes to PENDING; re-publishing a listing that is already PUBLISHED keeps it published and moves only moderation_status to PENDING (post-moderation — the edit is live at once, a rejecting verdict takes it down through the published→blocked edge). Reach for this instead of hand-rolling the draft-to-published field promotion when building a bulk-publish tool, an import job or any second entry point — a promotion that skips this can leave a listing PENDING with no moderation request ever sent."
     },
+    "restore_listing": {
+      "kind": "gate_function",
+      "intent": "Bring an ARCHIVED listing back on sale: the seller's «опубликовать снова», and a publication rather than a lifecycle hop — the draft is re-validated, promoted and re-submitted for review, so the row lands where the deployment's moderation policy lands a publication (PENDING under the default pre-gate, PUBLISHED under MODERATION_GATE=\"post\" or AUTO_APPROVE_ON_PUBLISH). Reach for this from any surface that un-archives a listing, and never for Listing.transition_to(PUBLISHED): ARCHIVED is reachable from BLOCKED, so a bare FSM hop is a takedown-laundering route back into the index around the gate that keeps blocked→published out of the owner's half of the machine.",
+      "instead_of": [
+        "stapel_listings.models.Listing.transition_to"
+      ]
+    },
     "validate_countable_stock": {
       "kind": "gate_function",
       "intent": "Enforce the countable/stock_quantity invariant (a physical good needs a non-negative quantity, a service must carry none) on any write path that bypasses ListingDraftSerializer and Listing.clean() — a bulk operation, a custom admin action, a data migration. Call it first for a clean ValidationError instead of letting the DB's listing_stock_invariant_chk constraint reject the write as an opaque IntegrityError; it is deliberately NOT wired into Listing.save() itself (see the docstring), so nothing enforces it there for you."

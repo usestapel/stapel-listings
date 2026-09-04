@@ -4,6 +4,61 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.21.1] — 2026-09-04
+
+### Added — «опубликовать снова» on an archived listing (Д193)
+
+A seller could file a listing away and then only take it back to DRAFT, which
+means walking the whole composer again to sell the same thing twice. The
+cabinet offered «Опубликовать снова» on a `sold` row and nothing on an
+`archived` one, because that is exactly what the server advertised.
+
+`ARCHIVED -> PUBLISHED` is now an owner edge, so it appears in the row's
+`available_transitions` and the cabinet grows the button with **no client
+change** — the button set has been derived from that field since 0.20.0.
+
+It is not a lifecycle hop. `POST listings/{id}/transition/ {"to":
+"published"}` from ARCHIVED runs the new
+`services.publish.restore_listing()`, which is `publish_listing()` under a
+name that says why:
+
+- **re-moderation** — `listing.submitted` is emitted and `moderation_status`
+  goes back to PENDING, so a fleet whose moderation is wired to publish
+  reviews a restored listing exactly as it reviews a fresh one;
+- **where it lands is policy's answer, not the route's** — PENDING under the
+  default `MODERATION_GATE="pre"`, PUBLISHED under `"post"` or
+  `AUTO_APPROVE_ON_PUBLISH`. The response carries the status the listing is
+  actually in, which is not necessarily the one that was asked for;
+- **no takedown laundering** — ARCHIVED is reachable from BLOCKED, so a bare
+  `transition_to(PUBLISHED)` would have handed every taken-down listing a
+  two-press route back into the index, around the gate that deliberately
+  keeps `BLOCKED -> PUBLISHED` out of `OWNER_TRANSITIONS`;
+- **the content is current** — draft twins are promoted, projections rebuilt
+  and the TTL restarted, so a listing does not come back from six months in
+  the archive already expired. An unpublishable draft is refused with the
+  composer's own 400 rather than going back on sale blank.
+
+### Added — `GET listings/{id}/draft/`, the read half of `save-draft`
+
+Every user-editable field is a `*_draft` twin, and until now the only calls
+that returned one were the WRITES (`create`, `update`, `save-draft` echo the
+bag back). A composer reopening a listing by id therefore had one source, the
+detail read, which serves the PUBLISHED fields — empty on anything never
+published. The seller reopened a draft and got a blank form while their text
+and photos sat in the row.
+
+**The read that carries the draft twins is `GET
+/listings/api/v1/listings/{id}/draft/`**, owner-only through `_get_own` (403
+for someone else's, 404 for absent or soft-deleted), returning
+`ListingDraftSerializer` — byte for byte what `save-draft` returns, so a
+client reopens with the mapper it already has for the write's response.
+
+Deliberately a separate route rather than draft columns on the detail read:
+the detail read is the public one, and a shape whose key set depends on who
+is asking is where a redaction bug hides. The public card and detail carry no
+`*_draft` field, asserted over their whole key set; the owner's `my/listings`
+card keeps exactly the three twins it had.
+
 ## [0.21.0] — 2026-09-03
 
 ### Fixed — the public listing card published the seller's front door

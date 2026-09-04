@@ -88,6 +88,20 @@ def parse_status_filter(raw_values):
     return wanted
 
 
+#: Owner edges that are a PUBLICATION rather than a lifecycle hop: they run
+#: ``services.publish.restore_listing`` instead of ``transition_to``. Declared
+#: as a set of ``(from, to)`` pairs so the answer to "is this a restore?" has
+#: one home — the route asks it, and a test asserts every pair is an edge
+#: ``OWNER_TRANSITIONS`` actually offers.
+RESTORE_EDGES: frozenset[tuple[str, str]] = frozenset(
+    {(ListingStatus.ARCHIVED, ListingStatus.PUBLISHED)}
+)
+
+
+def _is_restore(from_status: str, to_status: str) -> bool:
+    return (from_status, to_status) in RESTORE_EDGES
+
+
 def anonymous_write_refusal(request):
     """The 403 a GUEST gets on an authorship write, or ``None`` to let it through.
 
@@ -416,6 +430,40 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         )
         return self.get_paginated_response(serializer.data)
 
+    @extend_schema(responses={200: ListingDraftSerializer})
+    @action(detail=True, methods=["get"], url_path="draft",
+            permission_classes=[IsAuthenticated])
+    def draft(self, request, pk=None):  # noqa: R007
+        """Read back the draft twins — the reopen half of ``save-draft``.
+
+        Every user-editable field on this module is a ``*_draft`` column
+        (``title_draft``, ``description_draft``, ``images_draft``,
+        ``features_draft``, the location trio, ...) and until now the only
+        call that ever returned one was the write itself: ``create``,
+        ``update`` and ``save-draft`` echo the bag back, and no READ did. So a
+        composer reopening a listing by id had exactly one source, the detail
+        read, which serves the PUBLISHED fields — empty on everything that has
+        never been published. The seller pressed «продолжить», got a blank
+        form, and their text and photos were sitting in the row the whole
+        time.
+
+        Deliberately a separate route rather than draft columns bolted onto
+        the detail read: the detail read is the PUBLIC one (a stranger and a
+        crawler read it without a session), and a shape whose key set depends
+        on who is asking is the shape a redaction bug hides in. Here the
+        answer is structural — ``_get_own`` is the module's one ownership
+        gate, 403 for someone else's listing, 404 for one that is absent or
+        soft-deleted — so no draft field can reach a non-owner by omission.
+
+        The payload is ``ListingDraftSerializer``, byte for byte what
+        ``save-draft`` returns, so a client reopens with the mapper it already
+        has for the write's response instead of a second one.
+        """
+        listing, error = self._get_own(request, pk)
+        if error:
+            return error
+        return StapelResponse(self.draft_serializer_class(listing).data)
+
     @extend_schema(request=None, responses={200: ListingDraftSerializer})
     @action(detail=True, methods=["post"], url_path="save-draft",
             permission_classes=[IsAuthenticated])
@@ -495,6 +543,15 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         every edge through one allowlist is that the set a client is offered
         and the set the server accepts are one object, not two that agree
         today.
+
+        One edge is not a lifecycle hop: ARCHIVED -> PUBLISHED is
+        «опубликовать снова», and it runs the publish service (validate,
+        promote, re-submit for review — see ``RESTORE_EDGES``). So it can
+        answer 400 when the draft is not publishable, and the ``status`` it
+        returns is where the deployment's moderation policy put the listing,
+        which under the default pre-moderation gate is ``pending`` and not the
+        ``published`` that was asked for. Read the status from the response,
+        never from the request.
         """
         refusal = anonymous_write_refusal(request)
         if refusal is not None:
@@ -528,6 +585,21 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
             return StapelErrorResponse(
                 409, ERR_409_INVALID_TRANSITION, {"from_status": listing.status}
             )
+        if owner_gate and _is_restore(listing.status, new_status):
+            # «Опубликовать снова» on an archived row (Д193). A restore is a
+            # publication — validated, promoted, re-submitted for review — so
+            # it goes through the publish service and not through the FSM. Two
+            # consequences the caller sees: the draft can be refused with the
+            # composer's own 400, and the status that comes back is where the
+            # fleet's moderation policy put the listing (PENDING under the
+            # default pre-gate), not the one that was asked for.
+            try:
+                publish_service.restore_listing(listing)
+            except DjangoValidationError:
+                return StapelErrorResponse(400, ERR_400_PUBLISH_VALIDATION_FAILED)
+            listing.refresh_from_db()
+            dto = ListingActionResponse(success=True, status=listing.status)
+            return StapelResponse(ListingActionResponseSerializer(dto))
         try:
             listing.transition_to(new_status)
         except TransitionError:

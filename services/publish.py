@@ -280,6 +280,38 @@ def publish_listing(listing) -> None:
     )
 
 
+def restore_listing(listing) -> None:
+    """Bring an ARCHIVED listing back on sale — «опубликовать снова» (Д193).
+
+    Raises ``django.core.exceptions.ValidationError`` on an invalid draft, for
+    the same reasons and with the same message ``publish_listing`` does: this
+    IS a publication, and the seller pressing one button in the cabinet gets
+    the composer's refusal rather than a listing that goes back to the window
+    with no photo on it.
+
+    Deliberately not ``listing.transition_to(PUBLISHED)``. Three things follow
+    from restoring through the publish path instead:
+
+    * **Re-moderation.** ``listing.submitted`` is emitted and
+      ``moderation_status`` goes back to PENDING, so a fleet whose moderation
+      is wired to publish reviews the restored content exactly as it reviews a
+      fresh one. Where the lifecycle lands is that policy's answer, not this
+      function's: PENDING under the default ``MODERATION_GATE="pre"``,
+      PUBLISHED under ``"post"`` or ``AUTO_APPROVE_ON_PUBLISH``.
+    * **No takedown laundering.** ARCHIVED is reachable from BLOCKED, so a
+      bare FSM hop to PUBLISHED would hand every taken-down listing a
+      two-press route back into the index, around the gate that keeps
+      BLOCKED -> PUBLISHED out of ``OWNER_TRANSITIONS`` entirely.
+    * **The content is current.** Draft twins are promoted, projections are
+      rebuilt and the TTL is restarted, so a listing that spent six months
+      archived does not come back with an expiry date in the past.
+
+    The caller reports ``listing.status`` after this returns; it is not
+    necessarily the status that was asked for.
+    """
+    publish_listing(listing)
+
+
 def is_valid(result: ValidationBatchResult) -> bool:
     """Convenience: whether every result entry is OK."""
     return result.valid and all(

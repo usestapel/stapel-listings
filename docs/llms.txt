@@ -1,8 +1,8 @@
-# stapel-listings 0.21.0
+# stapel-listings 0.21.1
 
 Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle including the moderation takedown state 'blocked', an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, first-class favorites, and the two pull seams its consumers read it through — listings.search_documents / listings.search_export for an indexer and listings.moderation_content for a moderation queue.
 
-Contract: axes 3 · surface 8 · extension points 6 · operations 19 · error codes 68.
+Contract: axes 3 · surface 9 · extension points 6 · operations 20 · error codes 68.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -26,6 +26,9 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
   Advance the feature-config cache's revision pointer for one category. The built-in category.changed subscription (actions.py) already calls this on every event; reach for it directly only when replaying/reconciling category revisions outside that subscription (a backfill job, a custom event pipeline).
 - publish_listing — stapel_listings.services.publish.publish_listing
   The one function that promotes a validated draft, atomically writing every promoted field and emitting listing.submitted (or auto-approving under AUTO_APPROVE_ON_PUBLISH) in one mutate_and_emit() block. A first publication goes to PENDING; re-publishing a listing that is already PUBLISHED keeps it published and moves only moderation_status to PENDING (post-moderation — the edit is live at once, a rejecting verdict takes it down through the published→blocked edge). Reach for this instead of hand-rolling the draft-to-published field promotion when building a bulk-publish tool, an import job or any second entry point — a promotion that skips this can leave a listing PENDING with no moderation request ever sent.
+- restore_listing — stapel_listings.services.publish.restore_listing
+  instead of: stapel_listings.models.Listing.transition_to
+  Bring an ARCHIVED listing back on sale: the seller's «опубликовать снова», and a publication rather than a lifecycle hop — the draft is re-validated, promoted and re-submitted for review, so the row lands where the deployment's moderation policy lands a publication (PENDING under the default pre-gate, PUBLISHED under MODERATION_GATE="post" or AUTO_APPROVE_ON_PUBLISH). Reach for this from any surface that un-archives a listing, and never for Listing.transition_to(PUBLISHED): ARCHIVED is reachable from BLOCKED, so a bare FSM hop is a takedown-laundering route back into the index around the gate that keeps blocked→published out of the owner's half of the machine.
 - validate_countable_stock — stapel_listings.models.validate_countable_stock
   Enforce the countable/stock_quantity invariant (a physical good needs a non-negative quantity, a service must carry none) on any write path that bypasses ListingDraftSerializer and Listing.clean() — a bulk operation, a custom admin action, a data migration. Call it first for a clean ValidationError instead of letting the DB's listing_stock_invariant_chk constraint reject the write as an opaque IntegrityError; it is deliberately NOT wired into Listing.save() itself (see the docstring), so nothing enforces it there for you.
 - validate_draft — stapel_listings.services.publish.validate_draft
@@ -56,13 +59,14 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - stapel-categories (optional) — comm-only dependency: the categories.features Function provides the category feature schema for value validation; no direct Python import (MODULE.md boundaries: 'this module never imports it')
 - stapel-core (required) — comm bus (mutate_and_emit/emit/function/call), GDPR provider registry, AUTH_USER_MODEL base (pyproject.toml dependency; apps.py:18, models.py:31, functions.py:20, events.py)
 
-## HTTP operations (19) — call by operationId, never by a typed path
+## HTTP operations (20) — call by operationId, never by a typed path
 Paths are relative to `/listings/api/v1/listings/`.
 ### listings
 - POST /{id}/archive/ — listings_api_v1_listings_archive_create
 - POST /{id}/complete/ — listings_api_v1_listings_complete_create
 - POST / — listings_api_v1_listings_create
 - DELETE /{id}/ — listings_api_v1_listings_destroy
+- GET /{id}/draft/ — listings_api_v1_listings_draft_retrieve
 - GET /engagement/ — listings_api_v1_listings_engagement_retrieve
 - POST /{id}/favorite/ — listings_api_v1_listings_favorite_create
 - GET / — listings_api_v1_listings_list

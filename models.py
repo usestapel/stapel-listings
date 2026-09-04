@@ -156,7 +156,17 @@ LISTING_TRANSITIONS: dict[str, set[str]] = {
     },
     ListingStatus.SOLD: {ListingStatus.ARCHIVED, ListingStatus.PUBLISHED},
     ListingStatus.REJECTED: {ListingStatus.DRAFT, ListingStatus.ARCHIVED},
-    ListingStatus.ARCHIVED: {ListingStatus.DRAFT},
+    # Restoring an archived listing is a PUBLICATION, not an unpause: it goes
+    # through ``services.publish.restore_listing`` and therefore lands on
+    # whichever status a fresh publish lands on — PENDING under the default
+    # pre-moderation gate, PUBLISHED under ``MODERATION_GATE="post"`` or
+    # ``AUTO_APPROVE_ON_PUBLISH``. Both edges are named here because both are
+    # really driven.
+    ListingStatus.ARCHIVED: {
+        ListingStatus.DRAFT,
+        ListingStatus.PENDING,
+        ListingStatus.PUBLISHED,
+    },
 }
 
 # The seller's half of the machine above: the edges an OWNER may drive from
@@ -185,6 +195,18 @@ LISTING_TRANSITIONS: dict[str, set[str]] = {
 # EXPIRED -> PENDING is the renewal edge: it re-enters moderation rather than
 # going straight back to the shop window, because a listing that has been
 # sitting for a TTL is content nobody has looked at recently.
+#
+# ARCHIVED -> PUBLISHED is «опубликовать снова» (Д193): a seller who filed a
+# listing away could only take it back to DRAFT and walk the whole composer
+# again. It is routed through ``services.publish.restore_listing`` rather than
+# through a bare ``transition_to``, and that is the load-bearing part —
+# ARCHIVED is reachable from EVERY other status, BLOCKED and REJECTED
+# included, so an edge that put the row straight back in the window would be a
+# takedown-laundering path (block -> archive -> publish) around the very gate
+# that keeps BLOCKED -> PUBLISHED out of this table. Going through the publish
+# service means a restore is validated, promoted and re-submitted for review
+# exactly like a first publication, and lands where the fleet's moderation
+# policy says a publication lands.
 OWNER_TRANSITIONS: dict[str, set[str]] = {
     ListingStatus.DRAFT: {ListingStatus.PENDING, ListingStatus.ARCHIVED},
     ListingStatus.PENDING: {ListingStatus.DRAFT, ListingStatus.ARCHIVED},
@@ -198,7 +220,7 @@ OWNER_TRANSITIONS: dict[str, set[str]] = {
     ListingStatus.SOLD: {ListingStatus.PUBLISHED, ListingStatus.ARCHIVED},
     ListingStatus.REJECTED: {ListingStatus.DRAFT, ListingStatus.ARCHIVED},
     ListingStatus.BLOCKED: {ListingStatus.DRAFT, ListingStatus.ARCHIVED},
-    ListingStatus.ARCHIVED: {ListingStatus.DRAFT},
+    ListingStatus.ARCHIVED: {ListingStatus.DRAFT, ListingStatus.PUBLISHED},
 }
 
 
