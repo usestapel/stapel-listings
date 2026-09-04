@@ -69,6 +69,14 @@
   stapel-attributes 0.7.0 plain `select` carries the same pair, which is why
   the floor on that dependency moved with the cap: on 0.6 a stored `select`
   had only its option values and every card printed the storage slug.
+- **The card badge contract** (0.21.3): the two card projections additionally
+  carry `label` / `unit` / `name` / `presentation` per element, added on the
+  way out. A card renders one element by branching on `presentation` alone —
+  `value` («Кирпичный»), `value_unit` («42 м²»), `name_value` («Этаж 3») or
+  `name` (a true boolean); a false boolean is absent. The rule lives once, in
+  `services/features.py`, because the alternative was every client inventing
+  per feature whether a value stands alone — which is how a live apartment card
+  came to read «Кирпичный · 3 · 9». See the CHANGELOG entry for the full rule.
 - **The projections are a write-time snapshot, and a snapshot can be
   refreshed.** `publish_listing` builds all four through
   `services.features.build_projections` — the single definition of what they

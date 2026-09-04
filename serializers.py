@@ -35,6 +35,7 @@ from .dto import (
 )
 from .errors import ERR_400_DRAFT_META_TOO_LARGE
 from .models import Favorite, Listing, ListingStatus, validate_countable_stock
+from .services.features import PRESENTATIONS, decorate_card_elements
 
 
 # --- Polymorphic feature fields ------------------------------------------
@@ -112,6 +113,77 @@ class ListingFeaturesOutputFieldExtension(OpenApiSerializerFieldExtension):
                 "oneOf": [
                     {"$ref": "#/components/schemas/FeatureDao"},
                     self.REDACTED_SCHEMA,
+                ]
+            },
+        }
+
+
+class ListingCardFeaturesOutputField(ListingFeaturesOutputField):
+    """``features_title`` / ``features_badges`` — the DAO plus the card contract.
+
+    A card draws these two columns as one short summary line, and a bare DAO
+    left it guessing: a live apartment card read «Кирпичный · 3 · 9». The
+    stored column is untouched; the contract
+    (:func:`services.features.decorate_card_elements` — the rule lives there,
+    once) is derived per element on the way out, which is why it applies to
+    every listing already in the database without a re-projection pass.
+
+    ``features`` deliberately does NOT go through here: the detail table
+    already prints a name next to every value, and the column is also the
+    owner's and moderation's view of the raw stored DAO.
+    """
+
+    def to_representation(self, value):
+        rows = super().to_representation(value)
+        if rows is None:
+            return None
+        return decorate_card_elements(rows)
+
+
+class ListingCardFeaturesOutputFieldExtension(OpenApiSerializerFieldExtension):
+    target_class = ListingCardFeaturesOutputField
+
+    #: The keys the card contract ADDS to a stored `FeatureDao`. Nothing is
+    #: renamed and nothing is dropped, so a client written against the
+    #: pre-0.21.3 shape keeps reading `value` / `labels` as before.
+    CARD_ELEMENT_SCHEMA = {
+        "type": "object",
+        "title": "CardFeatureElement",
+        "description": (
+            "What a card needs to render one element of the summary line "
+            "unambiguously, with no category schema in hand. `presentation` "
+            "is decided server-side so every client draws the same line: "
+            "`value` — the caption alone («Кирпичный»); `value_unit` — "
+            "caption then unit («42 м²»); `name_value` — feature name then "
+            "caption («Этаж 3»); `name` — the feature name alone, a true "
+            "boolean. A false boolean is absent from the list entirely. "
+            "`label`, `unit` and `name` are translation keys or literals "
+            "exactly as the catalogue wrote them — this module never "
+            "translates."
+        ),
+        "required": ["label", "name", "presentation"],
+        "properties": {
+            "label": {"type": "string"},
+            "unit": {"type": "string"},
+            "name": {"type": "string"},
+            "presentation": {"enum": list(PRESENTATIONS)},
+        },
+    }
+
+    def map_serializer_field(self, auto_schema, direction):
+        dao_proxy = get_feature_dao_proxy_serializer()
+        auto_schema.resolve_serializer(dao_proxy, direction)
+        return {
+            "type": "array",
+            "items": {
+                "oneOf": [
+                    {
+                        "allOf": [
+                            {"$ref": "#/components/schemas/FeatureDao"},
+                            self.CARD_ELEMENT_SCHEMA,
+                        ]
+                    },
+                    ListingFeaturesOutputFieldExtension.REDACTED_SCHEMA,
                 ]
             },
         }
@@ -497,8 +569,8 @@ class ListingCardSerializer(AudienceRedactionMixin, serializers.ModelSerializer)
     images = serializers.ListField(
         child=serializers.CharField(), read_only=True, allow_null=True
     )
-    features_title = ListingFeaturesOutputField(read_only=True)
-    features_badges = ListingFeaturesOutputField(read_only=True)
+    features_title = ListingCardFeaturesOutputField(read_only=True)
+    features_badges = ListingCardFeaturesOutputField(read_only=True)
     is_favorited = serializers.BooleanField(read_only=True, allow_null=True)
     # Three-state on purpose (models.py ``with_viewed``): true / false /
     # null-for-anonymous. A storefront greys out a card on `true`; `null`
@@ -602,8 +674,8 @@ class ListingDetailSerializer(AudienceRedactionMixin, serializers.ModelSerialize
         child=serializers.CharField(), read_only=True, allow_null=True
     )
     features = ListingFeaturesOutputField(read_only=True)
-    features_title = ListingFeaturesOutputField(read_only=True)
-    features_badges = ListingFeaturesOutputField(read_only=True)
+    features_title = ListingCardFeaturesOutputField(read_only=True)
+    features_badges = ListingCardFeaturesOutputField(read_only=True)
     # NOT typed further on purpose (A1 delta note, docs/readme.md): this is a
     # flattened per-category search index (mileage_int, condition_select,
     # ... — one dynamic key per feature slug, keyed and shaped by whatever

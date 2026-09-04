@@ -34,10 +34,15 @@ for the value never to enter them.
 need the value. It is redacted per viewer on the way out, in
 ``serializers.FeatureVisibilityMixin`` — the one read path that knows who is
 asking.
+
+The two card projections additionally carry the **card badge contract** on the
+way out (:func:`decorate_card_elements`) — the per-element ``label`` / ``unit``
+/ ``name`` / ``presentation`` a card needs to draw an unambiguous line without
+a category schema in hand.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from stapel_attributes import (
     coerce_feature_defs,
@@ -310,3 +315,220 @@ def _extract_search_values(dao: Dict[str, Any]) -> List[Any]:
     if value is None or value == "":
         return []
     return list(value) if isinstance(value, list) else [value]
+
+
+# --- The card badge contract ---------------------------------------------
+#
+# A card draws ``features_title`` / ``features_badges`` as one short summary
+# line. Until 0.21.3 an element carried the DAO and nothing else, so the only
+# obvious thing to print was its value — and a live apartment card read
+# «Кирпичный · 3 · 9»: three answers with the questions missing. Nothing on the
+# element said that 3 was a floor, that 9 was the building's height, or that
+# neither was a count of anything.
+#
+# So every element of the two card projections now also carries, on the way
+# out, what a card needs to be unambiguous WITHOUT fetching a category schema:
+#
+#   ``value``        unchanged — the stored value (term CODES for a select);
+#   ``label``        the caption for that value: the write-time label snapshot
+#                    for a select, the number for a number, the true caption
+#                    for a boolean. Translation key or literal, exactly as the
+#                    catalogue wrote it — this module never translates;
+#   ``unit``         the feature's unit when it has one («м²», «эт.»);
+#   ``name``         the feature's own caption («Этаж»);
+#   ``presentation`` which of four shapes to render.
+#
+# ONE rule decides ``presentation``, server-side, so every client draws the
+# same line:
+#
+#   PRESENTATION_VALUE       «Кирпичный»  caption is not a number
+#   PRESENTATION_VALUE_UNIT  «42 м²»      caption is a number, unit known
+#   PRESENTATION_NAME_VALUE  «Этаж 3»     caption is a number, no unit
+#   PRESENTATION_NAME        «Балкон»     a true boolean — the name IS the fact
+#
+# A false boolean is dropped from the line: «Балкон: нет» is noise on a card,
+# and it is the one element the contract removes rather than annotates.
+#
+# "Is a number" is decided on the CAPTION, not on the stored type, and that is
+# the whole trick. On a real catalogue ``floor`` and ``floors`` are
+# vocabulary-backed — stored ``ref_select`` with ``labels: ["3"]`` — so a
+# type-driven rule would file them under "dictionary value, print it alone"
+# and reproduce the exact bug this contract exists to fix. A caption of several
+# joined labels is never numeric, whatever its parts look like.
+
+#: Render the caption alone.
+PRESENTATION_VALUE = "value"
+#: Render the caption followed by the unit.
+PRESENTATION_VALUE_UNIT = "value_unit"
+#: Render the feature name followed by the caption.
+PRESENTATION_NAME_VALUE = "name_value"
+#: Render the feature name alone.
+PRESENTATION_NAME = "name"
+
+#: Every presentation this module emits — a client that branches on the field
+#: has this as its closed set, and an unknown value means it is older than the
+#: server.
+PRESENTATIONS: Tuple[str, ...] = (
+    PRESENTATION_VALUE,
+    PRESENTATION_VALUE_UNIT,
+    PRESENTATION_NAME_VALUE,
+    PRESENTATION_NAME,
+)
+
+#: Keys the contract ADDS to a stored DAO. Nothing is renamed and nothing is
+#: dropped, so a client written against the pre-0.21.3 shape keeps working.
+CARD_ELEMENT_KEYS: Tuple[str, ...] = ("label", "unit", "name", "presentation")
+
+
+def decorate_card_elements(
+    daos: List[Dict[str, Any]] | None,
+) -> List[Dict[str, Any]]:
+    """A card projection with the card badge contract on every element.
+
+    Applied on the way OUT rather than at build time on purpose: the contract
+    is derived wholly from the stored DAO, so deriving it at the wire edge
+    fixes every listing already in the database at once — no re-projection
+    pass, no migration, and no fourth copy of the projection to keep in step.
+    Elements that render to nothing (a header, a redacted stub, a blank value,
+    a false boolean) are dropped.
+    """
+    out: List[Dict[str, Any]] = []
+    for dao in daos or []:
+        if not isinstance(dao, dict):
+            continue
+        element = decorate_card_element(dao)
+        if element is not None:
+            out.append(element)
+    return out
+
+
+def decorate_card_element(dao: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """One card element, or ``None`` when it has nothing to say.
+
+    See this section's header comment for the rule.
+    """
+    if dao.get("type") == "header" or dao.get("redacted"):
+        return None
+
+    name = str(dao.get("name") or dao.get("slug") or "")
+
+    if dao.get("type") == "bool":
+        if not dao.get("value"):
+            return None
+        caption = dao.get("trueLabel") or name
+        return {
+            **dao,
+            "name": name,
+            "label": str(caption),
+            "presentation": PRESENTATION_NAME,
+        }
+
+    label, single = _card_caption(dao)
+    if not label:
+        return None
+
+    unit = _card_unit(dao)
+    if single and _is_numeric_caption(label):
+        presentation = PRESENTATION_VALUE_UNIT if unit else PRESENTATION_NAME_VALUE
+    else:
+        presentation = PRESENTATION_VALUE
+
+    element = {**dao, "name": name, "label": label, "presentation": presentation}
+    if unit:
+        element["unit"] = unit
+    return element
+
+
+def _card_caption(dao: Dict[str, Any]) -> Tuple[str, bool]:
+    """``(caption, is a single value)`` for a non-boolean DAO.
+
+    The second half exists so a multi-select never takes the numeric branch:
+    two labels joined can parse as a number («1, 2») and mean nothing of the
+    kind.
+    """
+    if dao.get("type") == "convertible_unit":
+        return _convertible_caption(dao), True
+
+    labels = dao.get("labels")
+    if isinstance(labels, list):
+        parts = [str(item) for item in labels if item not in (None, "")]
+        if parts:
+            return ", ".join(parts), len(parts) == 1
+
+    # hex_color keeps its caption under ``label`` already; the contract reuses
+    # it rather than printing a #RRGGBB at a person.
+    existing = dao.get("label")
+    if isinstance(existing, str) and existing:
+        return existing, True
+
+    value = dao.get("value")
+    if isinstance(value, list):
+        parts = [str(item) for item in value if item not in (None, "")]
+        return ", ".join(parts), len(parts) == 1
+    if value is None or value == "":
+        return "", True
+    if isinstance(value, float):
+        return _trim_float(value), True
+    return str(value), True
+
+
+def _card_unit(dao: Dict[str, Any]) -> Optional[str]:
+    """The feature's unit, translation key or literal as the catalogue wrote it.
+
+    ``postfix`` is where a unit actually lives on an int / float / string
+    feature (stapel-attributes stamps it onto the DAO from the config, so no
+    schema fetch is needed here). ``postfix1000`` is deliberately NOT consulted:
+    it is a typographic abbreviation of the VALUE («150 тыс. км» for 150000 км),
+    and swapping it in would mean also rescaling ``label``, i.e. the card and
+    the detail table would print different magnitudes for one stored number.
+    """
+    if dao.get("type") == "convertible_unit":
+        code = dao.get("unit_m") or dao.get("unit_i")
+        return f"feature.unit.{code}.name" if code else None
+    postfix = dao.get("postfix")
+    return str(postfix) if postfix else None
+
+
+def _convertible_caption(dao: Dict[str, Any]) -> str:
+    """The stored base-unit number rendered in the unit ``_card_unit`` reports.
+
+    Mirrors ``ConvertibleUnitFeatureType.format_value``: the DAO's ``value`` is
+    always in the family's base unit, so a caption paired with ``unit_m`` has
+    to be converted or the card prints metres labelled kilometres.
+    """
+    value = dao.get("value")
+    if value is None:
+        return ""
+    code = dao.get("unit_m") or dao.get("unit_i")
+    unit_type = dao.get("unitType")
+    if code and unit_type:
+        try:
+            from stapel_attributes.types.convertible_unit import convert_from_base
+
+            value = convert_from_base(value, code, unit_type)
+        except Exception:  # unknown family/unit — print the stored number
+            pass
+    return _trim_float(value) if isinstance(value, float) else str(value)
+
+
+def _trim_float(value: float) -> str:
+    """``42.0`` -> ``"42"``, ``42.50`` -> ``"42.5"``."""
+    text = f"{value:.6f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def _is_numeric_caption(caption: str) -> bool:
+    """Whether this caption reads as a bare number to a person.
+
+    Tolerant of the thin/space thousands separator and of a decimal comma,
+    because a write-time label snapshot is whatever the catalogue's language
+    produced.
+    """
+    text = caption.strip().replace(" ", "").replace(" ", "")
+    if not text or text.count(",") + text.count(".") > 1:
+        return False
+    try:
+        float(text.replace(",", "."))
+    except ValueError:
+        return False
+    return True

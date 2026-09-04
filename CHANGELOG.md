@@ -4,6 +4,83 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.21.3] — 2026-09-04
+
+### Added — the Card badge contract, so a card stops printing «Кирпичный · 3 · 9»
+
+A live apartment card summarised itself as **«Кирпичный · 3 · 9»**: three
+answers with the questions missing. Nothing was wrong with the data — the
+stored DAOs said «Тип дома: Кирпичный», «Этаж: 3», «Этажей в доме: 9» — and
+nothing was wrong with the client either. `features_title` /
+`features_badges` handed it a list of DAOs and the only obvious thing to print
+was each one's value, so every client had to invent, per feature, whether that
+value stands alone, needs a unit, or needs its question. Three clients, three
+inventions.
+
+The decision is now the server's, made once, in
+`services/features.py`. **Every element of `features_title` and
+`features_badges` carries four more keys on the wire** — nothing is renamed,
+nothing stored is dropped, so a client reading `value` / `labels` as before
+keeps working:
+
+| key | what it is |
+| --- | --- |
+| `value` | unchanged — the stored value (term **codes** for a select) |
+| `label` | the caption for that value: the write-time label snapshot for a select, the number for a number, the true-caption for a boolean |
+| `unit` | the feature's unit when it has one — «м²», «эт.» |
+| `name` | the feature's own caption — «Этаж» |
+| `presentation` | which of four shapes to render |
+
+**The rule — implement it verbatim.** `presentation` is one of exactly four
+values, and a client renders the element by branching on it and nothing else:
+
+| `presentation` | render | example |
+| --- | --- | --- |
+| `value` | the caption alone | «Кирпичный» |
+| `value_unit` | caption, space, unit | «42 м²» |
+| `name_value` | name, space, caption | «Этаж 3» |
+| `name` | the name alone | «Балкон» |
+
+and the server decides between them by:
+
+- a **boolean** that is true → `name` — the feature's name IS the fact. A
+  boolean that is **false is absent from the list entirely**: «Лоджия: нет» is
+  noise on a card. This is the one element the contract removes rather than
+  annotates, and the only behaviour change on the wire.
+- otherwise, is the **caption** a bare number? Not the stored type — the
+  **caption**. On a real catalogue `floor`, `floors` and `year` are
+  vocabulary-backed, i.e. stored `ref_select` with `labels: ["3"]`, so a rule
+  reading the type would file them under "dictionary value, print it alone"
+  and reproduce the exact line this contract exists to delete. A caption made
+  of several joined labels («1, 2») is never a number, whatever its parts
+  look like.
+  - numeric **with** a unit → `value_unit`;
+  - numeric **without** one → `name_value`;
+  - not numeric → `value`.
+
+`label`, `unit` and `name` are translation keys **or** literals, exactly as the
+catalogue wrote them — this module does not translate, and a client resolves
+them the way it already resolves `name` today. `unit` is **absent**, not null,
+when the feature has none. The unit is read from the DAO's own `postfix`
+(stapel-attributes stamps it there from the config, so no schema fetch), or,
+for a `convertible_unit`, as the `feature.unit.<code>.name` key with the
+stored base-unit value converted to that unit. `postfix1000` is deliberately
+ignored: it abbreviates the *value* («150 тыс. км» for 150000), and honouring
+it would make the card and the detail table print different magnitudes for one
+stored number. Headers, blank values and redacted stubs never reach a card.
+
+Derived **on the way out** (`ListingCardFeaturesOutputField`), not at build
+time: the contract is a pure function of the stored DAO, so every listing
+already in the database gained it the moment this shipped — no re-projection
+pass, no migration, and no fourth copy of the projection to keep in step.
+`features` (the detail table) is deliberately NOT decorated: it already prints
+a name beside every value, and it is also the owner's and moderation's view of
+the raw stored DAO.
+
+A gap this exposes rather than fixes lives in the catalogue, not here: a
+category whose `floor` carries no `postfix` renders «Этаж 3» — correct and
+unambiguous — and turns into «3 эт.» by itself the day the schema sets one.
+
 ## [0.21.2] — 2026-09-04
 
 ### Added — `draft_meta`, an opaque owner-only sidecar on the draft twin
