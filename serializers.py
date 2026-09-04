@@ -7,6 +7,7 @@ types. The draft-write serializer replaces the legacy catalog's ~150-line hand-r
 per-field validation in the ``save-draft`` view with declarative DRF fields.
 """
 import decimal
+import json
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from drf_spectacular.extensions import OpenApiSerializerFieldExtension
@@ -20,9 +21,11 @@ from stapel_attributes import (
     get_feature_dto_serializer_class,
 )
 from stapel_attributes import visibility
+from stapel_core.django.api.errors import StapelValidationError
 from stapel_core.django.api.permissions import IsServiceRequest
 from stapel_core.django.api.serializers import StapelDataclassSerializer
 
+from .conf import listings_settings
 from .dto import (
     DeleteResponse,
     FavoriteToggleResponse,
@@ -30,6 +33,7 @@ from .dto import (
     MyCountersResponse,
     PublishResponse,
 )
+from .errors import ERR_400_DRAFT_META_TOO_LARGE
 from .models import Favorite, Listing, ListingStatus, validate_countable_stock
 
 
@@ -373,6 +377,7 @@ class ListingDraftSerializer(serializers.ModelSerializer):
             "lat_draft",
             "lon_draft",
             "features_draft",
+            "draft_meta",
             "auto_republish",
             "countable",
             "stock_quantity",
@@ -408,6 +413,15 @@ class ListingDraftSerializer(serializers.ModelSerializer):
                 unique.append(item)
         return unique
 
+    def validate_draft_meta(self, value):
+        # Opaque to this module — the one shape check is "an object", not
+        # a list/string/number a composer could not have meant.
+        if value is not None and not isinstance(value, dict):
+            raise serializers.ValidationError(  # noqa: R002
+                "draft_meta must be a JSON object."
+            )
+        return value
+
     def validate(self, attrs):
         # Cross-field: countable/stock_quantity may arrive independently (or
         # not at all, e.g. on a partial save-draft PATCH), so fall back to the
@@ -435,6 +449,30 @@ class ListingDraftSerializer(serializers.ModelSerializer):
                 "stock_quantity": exc.messages
             }
             raise serializers.ValidationError(detail) from exc  # noqa: R002
+
+        # draft_meta: SHALLOW merge, not replace. The composer's tenant is
+        # per-field provenance (`{"title": "seller", "price": "ai"}`) built up
+        # over several save-draft calls as the seller edits one field at a
+        # time; a whole-object replace would drop every key a previous call
+        # set that this one does not mention. Only top-level keys merge — a
+        # nested value under a repeated key is replaced whole, same as any
+        # dict.update(). Sending `null` clears it outright (there is nothing
+        # to merge a "no object at all" into).
+        if "draft_meta" in attrs:
+            incoming = attrs["draft_meta"]
+            if incoming is None:
+                merged = None
+            else:
+                existing = (self.instance.draft_meta if self.instance else None) or {}
+                merged = {**existing, **incoming}
+                size = len(json.dumps(merged, ensure_ascii=False).encode("utf-8"))
+                max_bytes = listings_settings.DRAFT_META_MAX_BYTES
+                if size > max_bytes:
+                    raise StapelValidationError(
+                        ERR_400_DRAFT_META_TOO_LARGE,
+                        params={"max_bytes": max_bytes},
+                    )
+            attrs["draft_meta"] = merged
         return attrs
 
 

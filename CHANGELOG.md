@@ -4,6 +4,47 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.21.2] — 2026-09-04
+
+### Added — `draft_meta`, an opaque owner-only sidecar on the draft twin
+
+0.21.1 gave the composer a way to reopen a listing and get its content back;
+it did not give it anywhere to keep facts ABOUT that content. The storefront
+composer's first tenant is per-field provenance — `{"title": "seller",
+"description": "ai"}`, so an edited field can be marked back to "seller"
+once a person touches AI-drafted copy — and this module has no opinion on
+what the keys mean. `draft_meta` is a JSON object this module stores and
+returns unread, the same posture `features_search` takes toward its own
+per-slug keys, applied here to whatever the composer wants to keep.
+
+- **Where it shows up**: written by `save-draft` (merged into the existing
+  object, see below) and echoed back in its response; read back by owner's
+  `GET …/draft/`, byte for byte the same value. Absent from every public and
+  semi-public shape — the detail read, the card, the search-facing card, and
+  the owner's own `my/listings` row — asserted over the whole key set the
+  same way the `*_draft` twins already are (`tests/test_draft_readback.py`).
+- **Merge, not replace**: a second `save-draft` call MERGES its `draft_meta`
+  into what is already stored, one key at a time — `dict.update()` at the
+  top level, not JSON-merge-patch — because the composer's calling pattern
+  is one `save-draft` per edited field, and a whole-object replace would
+  silently drop every provenance tag a previous call set. Sending
+  `draft_meta: null` clears it outright. A composer that wants to drop one
+  key sends the whole reduced object; there is no per-key delete verb.
+- **Capped at `DRAFT_META_MAX_BYTES`** (default 16 KiB of UTF-8 JSON),
+  checked against the value that would actually be STORED — after the merge,
+  not just the incoming payload — so the cap cannot be walked past for free
+  by spreading a large object across several small calls. Over the cap is a
+  400 with `error.400.listing_draft_meta_too_large`, and nothing is written.
+- **Kept on publish, not cleared**: unlike the `*_draft` twins,
+  `draft_meta` has no published sibling and `publish_listing` /
+  `restore_listing` do not touch it — a listing archived and reopened
+  («Опубликовать снова», 0.21.1) keeps its provenance tags across the trip,
+  which is the only shape a composer reopening a used-to-be-published
+  listing can use.
+
+Migration is additive: `blank=True, null=True, default=dict` on a new
+column, no backfill — every existing row already satisfies the default.
+
 ## [0.21.1] — 2026-09-04
 
 ### Added — «опубликовать снова» on an archived listing (Д193)

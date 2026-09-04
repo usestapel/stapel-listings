@@ -117,8 +117,15 @@ def test_no_public_read_carries_a_draft_field(
     hides. Here the public shapes simply do not have the columns — asserted
     over the whole key set, so a draft twin added to a public serializer
     later trips this rather than shipping.
+
+    ``draft_meta`` (0.21.2) is checked by name rather than by the
+    ``_draft`` suffix the loop below uses: it does not end in ``_draft``, so
+    it is exactly the kind of field this test's own pattern would miss.
     """
     from stapel_listings.services import publish as publish_service
+
+    draft_listing.draft_meta = {"title": "seller"}
+    draft_listing.save(update_fields=["draft_meta"])
 
     settings.STAPEL_LISTINGS = {"AUTO_APPROVE_ON_PUBLISH": True}
     publish_service.publish_listing(draft_listing)
@@ -127,6 +134,7 @@ def test_no_public_read_carries_a_draft_field(
     detail = api_client.get(_detail_url(draft_listing))
     assert detail.status_code == 200, detail.content
     assert [k for k in detail.data if k.endswith("_draft")] == []
+    assert "draft_meta" not in detail.data
 
     listed = api_client.get("/listings/listings/")
     assert listed.status_code == 200, listed.content
@@ -134,6 +142,7 @@ def test_no_public_read_carries_a_draft_field(
         row for row in listed.data["items"] if row["id"] == draft_listing.pk
     )
     assert [k for k in card if k.endswith("_draft")] == []
+    assert "draft_meta" not in card
 
 
 def test_the_owners_own_card_still_carries_only_its_three_twins(
@@ -165,3 +174,144 @@ def test_a_listing_in_any_status_is_readable_by_its_owner(auth_client, user):
         resp = auth_client.get(_draft_url(listing))
         assert resp.status_code == 200, (status, resp.content)
         assert resp.data["title_draft"] == "x"
+
+
+# ── draft_meta: the composer's opaque per-field provenance sidecar (0.21.2) ──
+
+
+def test_draft_meta_is_written_and_read_back(auth_client, draft_listing):
+    written = auth_client.post(
+        f"/listings/listings/{draft_listing.pk}/save-draft/",
+        {"draft_meta": {"title": "seller", "description": "ai"}},
+        format="json",
+    )
+    assert written.status_code == 200, written.content
+    assert written.data["draft_meta"] == {"title": "seller", "description": "ai"}
+
+    read = auth_client.get(_draft_url(draft_listing))
+    assert read.status_code == 200, read.content
+    assert read.data["draft_meta"] == {"title": "seller", "description": "ai"}
+
+
+def test_draft_meta_merges_shallowly_per_key(auth_client, draft_listing):
+    """A second save-draft ADDS/overwrites keys, it does not replace the bag.
+
+    The composer calls save-draft once per edited field, so a whole-object
+    replace would drop every provenance tag set by an earlier call that this
+    one does not mention.
+    """
+    first = auth_client.post(
+        f"/listings/listings/{draft_listing.pk}/save-draft/",
+        {"draft_meta": {"title": "seller"}},
+        format="json",
+    )
+    assert first.status_code == 200, first.content
+
+    second = auth_client.post(
+        f"/listings/listings/{draft_listing.pk}/save-draft/",
+        {"draft_meta": {"price": "ai"}},
+        format="json",
+    )
+    assert second.status_code == 200, second.content
+    # Both keys present: "price" was added, "title" survived untouched.
+    assert second.data["draft_meta"] == {"title": "seller", "price": "ai"}
+
+    # A repeated key overwrites just that key, not the whole bag.
+    third = auth_client.post(
+        f"/listings/listings/{draft_listing.pk}/save-draft/",
+        {"draft_meta": {"title": "ai"}},
+        format="json",
+    )
+    assert third.status_code == 200, third.content
+    assert third.data["draft_meta"] == {"title": "ai", "price": "ai"}
+
+
+def test_draft_meta_null_clears_it(auth_client, draft_listing):
+    auth_client.post(
+        f"/listings/listings/{draft_listing.pk}/save-draft/",
+        {"draft_meta": {"title": "seller"}},
+        format="json",
+    )
+    cleared = auth_client.post(
+        f"/listings/listings/{draft_listing.pk}/save-draft/",
+        {"draft_meta": None},
+        format="json",
+    )
+    assert cleared.status_code == 200, cleared.content
+    assert cleared.data["draft_meta"] is None
+
+
+def test_draft_meta_over_the_cap_is_refused(auth_client, draft_listing):
+    from stapel_listings.errors import ERR_400_DRAFT_META_TOO_LARGE
+
+    oversized = {"title": "x" * 20_000}
+    resp = auth_client.post(
+        f"/listings/listings/{draft_listing.pk}/save-draft/",
+        {"draft_meta": oversized},
+        format="json",
+    )
+    assert resp.status_code == 400, resp.content
+    assert ERR_400_DRAFT_META_TOO_LARGE.encode() in resp.content
+
+    # And nothing was written.
+    draft_listing.refresh_from_db()
+    assert not draft_listing.draft_meta
+
+
+def test_draft_meta_cap_applies_to_the_merged_result(auth_client, draft_listing):
+    """Two calls that each fit alone must still be capped once merged.
+
+    Otherwise a client could grow ``draft_meta`` past the cap for free by
+    spreading it across several save-draft calls instead of one.
+    """
+    from stapel_listings.errors import ERR_400_DRAFT_META_TOO_LARGE
+
+    first = auth_client.post(
+        f"/listings/listings/{draft_listing.pk}/save-draft/",
+        {"draft_meta": {"a": "x" * 10_000}},
+        format="json",
+    )
+    assert first.status_code == 200, first.content
+
+    second = auth_client.post(
+        f"/listings/listings/{draft_listing.pk}/save-draft/",
+        {"draft_meta": {"b": "x" * 10_000}},
+        format="json",
+    )
+    assert second.status_code == 400, second.content
+    assert ERR_400_DRAFT_META_TOO_LARGE.encode() in second.content
+
+    draft_listing.refresh_from_db()
+    assert draft_listing.draft_meta == {"a": "x" * 10_000}
+
+
+def test_draft_meta_rejects_a_non_object(auth_client, draft_listing):
+    resp = auth_client.post(
+        f"/listings/listings/{draft_listing.pk}/save-draft/",
+        {"draft_meta": ["not", "an", "object"]},
+        format="json",
+    )
+    assert resp.status_code == 400, resp.content
+
+
+def test_draft_meta_survives_publish(
+    auth_client, draft_listing, stub_categories, stub_geo, settings
+):
+    """Kept, not cleared: a reopened listing's composer wants the provenance.
+
+    Unlike the ``*_draft`` twins ``publish_listing`` promotes,
+    ``draft_meta`` has no published sibling — it is not lifecycle content,
+    it is metadata about how the draft content was produced.
+    """
+    from stapel_listings.services import publish as publish_service
+
+    draft_listing.draft_meta = {"title": "seller", "description": "ai"}
+    draft_listing.save(update_fields=["draft_meta"])
+
+    settings.STAPEL_LISTINGS = {"AUTO_APPROVE_ON_PUBLISH": True}
+    publish_service.publish_listing(draft_listing)
+    draft_listing.refresh_from_db()
+
+    assert draft_listing.draft_meta == {"title": "seller", "description": "ai"}
+    resp = auth_client.get(_draft_url(draft_listing))
+    assert resp.data["draft_meta"] == {"title": "seller", "description": "ai"}

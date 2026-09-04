@@ -512,6 +512,17 @@ class Listing(models.Model):
     lat_draft = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     lon_draft = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
+    # Opaque, owner-only metadata about the draft — NOT a `*_draft` twin: it
+    # carries no listing content, has no published sibling, and is never
+    # promoted or cleared by publish_listing/restore_listing (0.21.2). The
+    # storefront composer's first tenant is per-field provenance
+    # (`{"title": "seller", "description": "ai"}`), but this module never
+    # reads or interprets a key — it stores whatever JSON object the client
+    # sends and hands the same object back to the owner. Size-capped at write
+    # time (see ListingDraftSerializer) so it stays a small sidecar, not an
+    # alternate payload channel.
+    draft_meta = models.JSONField(blank=True, null=True, default=dict)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

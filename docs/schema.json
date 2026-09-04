@@ -2385,6 +2385,9 @@
             },
             "nullable": true
           },
+          "draft_meta": {
+            "nullable": true
+          },
           "auto_republish": {
             "type": "boolean"
           },
@@ -2957,6 +2960,9 @@
             "additionalProperties": {
               "$ref": "#/components/schemas/FeatureDto"
             },
+            "nullable": true
+          },
+          "draft_meta": {
             "nullable": true
           },
           "auto_republish": {

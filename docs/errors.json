@@ -300,6 +300,16 @@
     "owner": "stapel_core"
   },
   {
+    "code": "error.400.listing_draft_meta_too_large",
+    "status": 400,
+    "params": [
+      "max_bytes"
+    ],
+    "remediation": "fix_input",
+    "en": "draft_meta is too large ({max_bytes} bytes max)",
+    "owner": "stapel_listings"
+  },
+  {
     "code": "error.400.listing_feature_not_allowed",
     "status": 400,
     "params": [

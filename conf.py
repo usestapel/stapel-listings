@@ -147,6 +147,17 @@ listings_settings = AppSettings(
         # in both positions — the favorite is the very feature the anonymous
         # session exists for.
         "ALLOW_ANONYMOUS_WRITES": False,
+        # --- draft_meta -----------------------------------------------------
+        # Max size, in bytes of its UTF-8 JSON serialization, of the
+        # `draft_meta` sidecar (0.21.2). It is opaque to this module (the
+        # storefront composer's per-field provenance is the first tenant) so
+        # there is no per-key limit to enforce — only a ceiling on the whole
+        # object, checked against the value that would actually be STORED
+        # (after the shallow merge — see ListingDraftSerializer.validate),
+        # so accumulating keys across several save-draft calls is capped the
+        # same as one large call. 16 KiB is generous for a per-field tag map
+        # and small enough that this never becomes a second content channel.
+        "DRAFT_META_MAX_BYTES": 16 * 1024,
     },
     import_strings=("PRICE_BASE_CONVERTER",),
 )

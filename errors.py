@@ -49,6 +49,12 @@ ERR_400_ZERO_PRICE_NOT_ALLOWED = "error.400.listing_zero_price_not_allowed"
 # why. The predicate is coordinates, not the label: the label is a string a
 # client sends, and only the coordinates reach the geographic surfaces.
 ERR_400_LOCATION_REQUIRED = "error.400.listing_location_required"
+# The `draft_meta` sidecar (0.21.2), serialized, over
+# DRAFT_META_MAX_BYTES — checked against the value that would actually be
+# stored (after the shallow merge with what is already on the row), so a
+# caller sees this the moment the STORED object would cross the cap rather
+# than only on a single oversized call.
+ERR_400_DRAFT_META_TOO_LARGE = "error.400.listing_draft_meta_too_large"
 
 STAPEL_LISTINGS_ERRORS = {
     ERR_404_LISTING_NOT_FOUND: "Listing not found",
@@ -71,6 +77,7 @@ STAPEL_LISTINGS_ERRORS = {
         "A price of 0 is not allowed in this category. "
         "Leave the price empty for \"price not stated\"."
     ),
+    ERR_400_DRAFT_META_TOO_LARGE: "draft_meta is too large ({max_bytes} bytes max)",
 }
 
 register_service_errors(STAPEL_LISTINGS_ERRORS)
