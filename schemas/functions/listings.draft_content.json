@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "listings.draft_content",
+  "description": "Owner-scoped read of one listing's DRAFT twins, for a service that works on a draft it was not handed in a request body (a composer's analysis job addressed by draft id). Draft twin first, published column only as a fallback - the opposite order to listings.moderation_content, because screening judges what is live while a composer works on what the seller is writing. Answers {listing_id, owner_id, category_id, title, description, images, features, language, is_empty}; `features` is the seller's features_draft slug->value map with no published fallback (the published column is a display projection, a different shape). Raises LookupError both for an unknown listing and for one owned by somebody else, so the call is not an existence oracle over other people's drafts.",
+  "type": "object",
+  "required": ["listing_id", "owner_id"],
+  "properties": {
+    "listing_id": {
+      "type": ["string", "integer"],
+      "description": "Primary key of the listing whose draft is being read."
+    },
+    "owner_id": {
+      "type": "string",
+      "description": "The asking principal. Must equal the listing's owner; a mismatch is a LookupError, worded exactly as an unknown listing."
+    }
+  },
+  "additionalProperties": false
+}

@@ -368,6 +368,13 @@ def test_the_raw_feature_columns_are_read_only_where_they_should_be():
             # Resolves the category SCHEMA over comm; handles FeatureDefs, not
             # stored values — it never sees a listing row.
             "services/category_schema.py",
+            # `listings.draft_content` answers ``features_draft`` — the
+            # seller's own unredacted draft values — and only ever to their
+            # OWNER: the payload's owner_id is checked against the row and a
+            # mismatch raises LookupError. Same exemption, and the same
+            # reason, as ListingDraftSerializer's below: the reader is the
+            # person who typed the value. It emits no published projection.
+            "functions.py",
             # The test harness's own settings module and stub schema provider.
             "conftest.py",
             "_codegen_settings.py",

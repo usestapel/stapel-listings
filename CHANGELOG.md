@@ -4,6 +4,45 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.21.5] — 2026-09-04
+
+### Added — `listings.draft_content`: the owner-scoped read a composer needs
+
+A service that ANALYSES a draft — recognises the photographs, drafts the
+text, fills the characteristics — is addressed by the draft id alone. It has
+no request body to read the content out of (the composer sends none: the
+photos are already uploaded and the row is the truth), it must not read this
+module's database, and the only read it could reach was the PUBLIC detail
+one, which serves the published columns — empty on everything that has never
+been published.
+
+So it analysed nothing. Measured on a live stand: the analysis job hashed two
+empty strings, ran every stage over an empty subject, and its screening stage
+reported the listing as having no content — while `images_draft` held both
+photographs and `title_draft` the seller's own title, the whole time.
+
+`call("listings.draft_content", {"listing_id": ..., "owner_id": ...})` answers
+`{listing_id, owner_id, category_id, title, description, images, features,
+language, is_empty}`:
+
+* **Draft twin first, published column as the fallback** — the opposite order
+  to `listings.moderation_content`, deliberately: screening judges what is
+  LIVE, while a composer works on what the seller is writing, so an edit in
+  progress is what it must see.
+* **`features` is `features_draft`** (the seller's slug→value map) with no
+  published fallback: the published `features` column is a display
+  projection, a different shape, and answering one where the caller expects
+  the other is worse than answering nothing.
+* **Owner-scoped by payload.** A mismatched `owner_id` raises `LookupError`
+  worded exactly as an unknown listing, so the call is not an existence
+  oracle over other people's drafts.
+* **`is_empty`** is this module's own answer to "is there anything here to
+  work on", so callers do not each reimplement it and disagree about
+  whitespace.
+
+Additive: one new Function and its contract file, no model, migration or
+endpoint change.
+
 ## [0.21.4] — 2026-09-04
 
 ### Fixed — a draft may exist before the category does
