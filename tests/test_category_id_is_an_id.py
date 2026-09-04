@@ -55,8 +55,11 @@ INVALID_IDS = [
     "163/",
     "tools/power",  # what the composer pair's own fixtures still assert
     "163 164",
-    "",
 ]
+
+# NOT invalid since 0.21.4: the empty string is how a client clears the field,
+# and "no category yet" is a legal state for a draft. It is normalised to NULL
+# on the way in so the column has one spelling of it.
 
 
 class TestTheWritePathRefusesAPath:
@@ -78,6 +81,18 @@ class TestTheWritePathRefusesAPath:
         )
         assert resp.status_code == 201, resp.content
         assert Listing.objects.get(pk=resp.data["id"]).category_id == category_id
+
+    @pytest.mark.parametrize("category_id", ["", None])
+    def test_create_accepts_no_category_at_all(self, auth_client, category_id):
+        """0.21.4: the composer opens the row on the first photo, before the
+        category step. Both spellings of "none" land as NULL."""
+        resp = auth_client.post(
+            "/listings/listings/", {"category_id": category_id}, format="json"
+        )
+
+        assert resp.status_code == 201, resp.content
+        assert resp.data["category_id"] is None
+        assert Listing.objects.get(pk=resp.data["id"]).category_id is None
 
     def test_save_draft_refuses_a_path(self, auth_client, user):
         """The PATCH door too, not only create: the three stand rows are

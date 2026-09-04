@@ -34,7 +34,13 @@ from .dto import (
     PublishResponse,
 )
 from .errors import ERR_400_DRAFT_META_TOO_LARGE
-from .models import Favorite, Listing, ListingStatus, validate_countable_stock
+from .models import (
+    Favorite,
+    Listing,
+    ListingStatus,
+    validate_category_id as category_id_validator,
+    validate_countable_stock,
+)
 from .services.features import PRESENTATIONS, decorate_card_elements
 
 
@@ -424,6 +430,21 @@ class ListingDraftSerializer(serializers.ModelSerializer):
     replaces the source view's hand-rolled per-field checks.
     """
 
+    # Declared, not inherited from the model field, so the contract states it:
+    # a draft may exist with NO category and the owner's read answers
+    # ``"category_id": null`` — an explicit "not chosen yet", never an omitted
+    # key a client has to guess about. The composer opens the row on the first
+    # photo (the analysis job is addressed by the draft id), and the category
+    # arrives on a later save-draft. ``allow_blank`` accepts a cleared field
+    # from a client that sends "" for empty; it is normalised to NULL below so
+    # the column has one spelling of "no category".
+    category_id = serializers.CharField(
+        max_length=64,
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        validators=[category_id_validator],
+    )
     features_draft = ListingFeaturesInputField(required=False, allow_null=True)
     images_draft = serializers.ListField(
         child=serializers.CharField(), required=False, allow_empty=True
@@ -469,6 +490,12 @@ class ListingDraftSerializer(serializers.ModelSerializer):
             # Function — a client sends coordinates, not a geohash.
             "geohash_draft",
         ]
+
+    def validate_category_id(self, value):
+        # One spelling of "no category" in the column: a client that clears the
+        # field with "" and one that sends null both store NULL, so no reader
+        # has to treat the empty string as a third state.
+        return value or None
 
     def validate_price_draft(self, value):
         if value is not None and value < 0:

@@ -4,6 +4,68 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.21.4] — 2026-09-04
+
+### Fixed — a draft may exist before the category does
+
+A composer analyses the seller's **first photo**, and the analysis job is
+addressed by the **draft id** — so the row has to exist before anything about
+the item is known, several steps before the category is chosen. It could not
+be created. `Listing.category_id` was `NOT NULL`, `ListingDraftSerializer`
+inherited that as a required field, and the create call was refused. No draft
+id came back, the job never started, and the composer hung on the first step.
+The storefront was hotfixed to invent a placeholder category; this release
+removes the thing it was working around.
+
+**`category_id` is nullable now** (migration `0011`, `AlterField` to
+`null=True` — expand-only: widening a column to accept NULL adds no
+constraint, rewrites no row, and an older writer keeps working against it
+unchanged). `save-draft` accepts a missing category, the owner's draft read
+answers `"category_id": null` — an explicit "not chosen yet", never an omitted
+key a client has to guess about — and `""` from a client that clears the field
+is normalised to NULL so the column has one spelling of "no category".
+`features` / `features_draft` are simply empty: with no category there is no
+schema, so there is nothing to fill in yet.
+
+**The `NOT NULL` moves to where it was actually load-bearing.** It never
+protected the draft; it protected everything downstream of publish. So the
+guarantee is kept at the service level, behind one predicate
+(`models.has_category`) at the two doors a row uses to leave the draft track:
+
+- `Listing.transition_to` refuses any status outside `CATEGORYLESS_STATUSES`
+  (`draft`, `archived`) without a category — nothing category-less reaches
+  moderation or the index, whatever route it took;
+- `services.publish.publish_listing` — which assigns `PENDING` itself, past
+  the FSM — raises the same refusal, so a storefront that skipped
+  `validate-draft` cannot publish one anyway. The view maps it to the existing
+  **`error.400.publish_validation_failed`**; no new error code.
+
+`archived` is in that set deliberately: 0.20.0's "the seller always has a way
+forward" has to keep working on a draft that never got as far as a category,
+or the relaxation traps the row it just made possible.
+
+`validate-draft` reports it the way the location gate already does — a
+structured `FeatureValidationResult` under the slug `category_id`, carrying
+that same `publish_validation_failed` code, so the composer renders it under a
+named control and both doors say one word. With no category the feature-value
+and unknown-slug checks are skipped (there is no schema to be unknown against)
+while the price, location and description checks still run, so the seller gets
+the whole list at once.
+
+Three readers that assumed a category got a guard rather than a crash:
+`events._base_payload` (`str(category_id or "")`, so no payload can ever carry
+the string `"None"` past its schema), `_zero_price_result`, and the
+re-projection pass, which now counts a category-less row under the existing
+`category_unresolved` skip reason instead of handing NULL to the categories
+seam. Search indexing needed no change and is pinned by test: a draft is not
+in `INDEXED_STATUSES`, so no `listing.*` event is emitted for it at all, and
+the document it would export carries `category_id: ""` with a `draft` status.
+
+**Why a patch and not a minor.** The wire change is a relaxation in both
+directions: a write field became optional, and a read field became nullable
+for a row that *could not previously exist*. No response that was possible
+before 0.21.4 changes shape.
+
 ## [0.21.3] — 2026-09-04
 
 ### Added — the Card badge contract, so a card stops printing «Кирпичный · 3 · 9»

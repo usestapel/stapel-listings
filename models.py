@@ -276,6 +276,28 @@ validate_category_id = RegexValidator(
 )
 
 
+#: The statuses a listing may hold with NO category (``category_id`` NULL).
+#:
+#: The column is nullable so the composer can open the draft row on the first
+#: photo, before the category step. That is the whole of the relaxation: a
+#: category-less row is a DRAFT, or an ARCHIVED draft the seller put away —
+#: 0.20.0's "the seller always has a way forward" must keep working on a row
+#: that never got as far as a category. Every other status still carries one,
+#: and that is enforced at the two doors a row uses to leave DRAFT:
+#: ``Listing.transition_to`` and ``services.publish.publish_listing`` (which
+#: assigns PENDING itself). One predicate — ``has_category`` — behind both, so
+#: the structured refusal the composer renders and the write path's refusal
+#: cannot drift apart.
+CATEGORYLESS_STATUSES: frozenset[str] = frozenset(
+    {ListingStatus.DRAFT, ListingStatus.ARCHIVED}
+)
+
+
+def has_category(listing) -> bool:
+    """Whether *listing* carries a category. NULL and ``""`` both mean no."""
+    return bool(listing.category_id)
+
+
 # Fields that are part of the document an indexer holds. A save that writes any
 # of them on a listing that IS in an indexed status emits ``listing.updated``
 # (``Listing.save``) — the event exists so a search index can re-pull, and it
@@ -419,8 +441,20 @@ class Listing(models.Model):
     # int-like string or a UUID string; EXISTENCE is validated via the
     # categories.features comm Function, not a DB constraint. SHAPE is
     # validated here — see ``validate_category_id``.
+    #
+    # NULL while the seller has not chosen one yet. A composer opens the draft
+    # row on the FIRST PHOTO — before any category is known — because the
+    # photo analysis job is addressed by the draft id and cannot start without
+    # one. A NOT NULL column made that row uncreatable, so the whole first
+    # step had nowhere to persist. The category becomes mandatory at PUBLISH
+    # (``services.publish``), not at CREATE — see ``CATEGORYLESS_STATUSES``.
     category_id = models.CharField(
-        max_length=64, db_index=True, validators=[validate_category_id]
+        max_length=64,
+        db_index=True,
+        blank=True,
+        null=True,
+        default=None,
+        validators=[validate_category_id],
     )
 
     title = models.CharField(max_length=255, blank=True, default="")
@@ -895,6 +929,14 @@ class Listing(models.Model):
         if not self.can_transition_to(new_status):
             raise TransitionError(
                 f"cannot move listing {self.pk} from {self.status} to {new_status}"
+            )
+        # The NOT NULL the column no longer carries, kept where it is actually
+        # needed: a row may be category-less only while it is a draft (or an
+        # archived one). Nothing reaches moderation or the index without a
+        # category, whatever route it took to get here.
+        if new_status not in CATEGORYLESS_STATUSES and not has_category(self):
+            raise TransitionError(
+                f"cannot move listing {self.pk} to {new_status} without a category"
             )
         from . import events
 

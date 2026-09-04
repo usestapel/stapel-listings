@@ -1,8 +1,8 @@
-# stapel-listings 0.21.3
+# stapel-listings 0.21.4
 
 Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle including the moderation takedown state 'blocked', an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, first-class favorites, and the two pull seams its consumers read it through — listings.search_documents / listings.search_export for an indexer and listings.moderation_content for a moderation queue.
 
-Contract: axes 3 · surface 9 · extension points 6 · operations 20 · error codes 69.
+Contract: axes 3 · surface 10 · extension points 6 · operations 20 · error codes 69.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -34,6 +34,8 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - validate_draft — stapel_listings.services.publish.validate_draft
   Structured, machine-readable validation of a listing's draft (category-schema feature values + description length), including the M-7 unknown-slug check that keeps validate-draft and publish agreeing. Call this from any alternate publish UI or workflow that needs a preview validation state instead of re-assembling stapel-attributes' validators and the description-bounds check by hand — it is exactly what the validate-draft and publish views delegate to.
 ### predicate
+- has_category — stapel_listings.models.has_category
+  Whether a listing carries a category at all. category_id is NULL on a draft the composer opened before the category step (the analysis job is addressed by the draft id, so the row has to exist first), so any code that reads category_id — a projection pass, an event payload, a second publish entry point — must ask this before treating it as an id. Use it rather than a bare truth test so NULL and the empty string keep meaning the same thing everywhere, and pair it with CATEGORYLESS_STATUSES when the question is whether a row is allowed to be in that state.
 - is_valid — stapel_listings.services.publish.is_valid
   Strict all-clear over a ValidationBatchResult: requires .valid AND every individual result at OK status. Use this rather than reading .valid alone before an automated action (e.g. an auto-approve or bulk-publish pipeline) — a batch can carry .valid=True with a non-OK entry that a human-facing form tolerates but an unattended pipeline should not wave through.
 ### factory

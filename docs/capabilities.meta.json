@@ -22,6 +22,10 @@
         "stapel_core.comm.call(\"categories.features\", ...)"
       ]
     },
+    "has_category": {
+      "kind": "predicate",
+      "intent": "Whether a listing carries a category at all. category_id is NULL on a draft the composer opened before the category step (the analysis job is addressed by the draft id, so the row has to exist first), so any code that reads category_id — a projection pass, an event payload, a second publish entry point — must ask this before treating it as an id. Use it rather than a bare truth test so NULL and the empty string keep meaning the same thing everywhere, and pair it with CATEGORYLESS_STATUSES when the question is whether a row is allowed to be in that state."
+    },
     "invalidate": {
       "kind": "gate_function",
       "intent": "Hard reset of the feature-config cache for one category — drops the revision pointer so the next read refetches from categories.features. The tool to reach for from a management shell or an ops runbook when a category.changed event was lost or delayed and validate/publish are visibly serving a stale schema, instead of waiting out FEATURE_CONFIG_CACHE_TIMEOUT."

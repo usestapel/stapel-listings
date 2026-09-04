@@ -1,6 +1,6 @@
 {
   "module": "stapel-listings",
-  "version": "0.21.3",
+  "version": "0.21.4",
   "provides": "Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle including the moderation takedown state 'blocked', an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, first-class favorites, and the two pull seams its consumers read it through — listings.search_documents / listings.search_export for an indexer and listings.moderation_content for a moderation queue.",
   "axes": [
     {
@@ -82,6 +82,12 @@
     }
   ],
   "surface": [
+    {
+      "name": "has_category",
+      "kind": "predicate",
+      "path": "stapel_listings.models.has_category",
+      "intent": "Whether a listing carries a category at all. category_id is NULL on a draft the composer opened before the category step (the analysis job is addressed by the draft id, so the row has to exist first), so any code that reads category_id — a projection pass, an event payload, a second publish entry point — must ask this before treating it as an id. Use it rather than a bare truth test so NULL and the empty string keep meaning the same thing everywhere, and pair it with CATEGORYLESS_STATUSES when the question is whether a row is allowed to be in that state."
+    },
     {
       "name": "owner_transitions_for",
       "kind": "factory",

@@ -19,10 +19,15 @@ from __future__ import annotations
 
 
 def _base_payload(listing) -> dict:
+    # ``category_id`` is nullable on a draft (0.21.4). Every event here fires
+    # from an indexed status or from publish, both of which require one, so
+    # the fallback is unreachable in practice — it is here so that a payload
+    # can never carry the string "None" past the schema if a consumer ever
+    # emits from somewhere else.
     return {
         "listing_id": listing.pk,
         "owner_id": str(listing.owner_id),
-        "category_id": str(listing.category_id),
+        "category_id": str(listing.category_id or ""),
         "status": listing.status,
     }
 
@@ -36,7 +41,7 @@ def emit_listing_submitted(listing) -> None:
         {
             "listing_id": listing.pk,
             "owner_id": str(listing.owner_id),
-            "category_id": str(listing.category_id),
+            "category_id": str(listing.category_id or ""),
             "title": listing.title_draft or listing.title or "",
             "description": listing.description or listing.description_draft or "",
             "language": listing.language or "",

@@ -89,8 +89,7 @@
                 "$ref": "#/components/schemas/ListingDraft"
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -182,8 +181,7 @@
                 "$ref": "#/components/schemas/ListingDraft"
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -2069,9 +2067,18 @@
             "format": "uuid"
           },
           "category_id": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
-            "maxLength": 64
+            "nullable": true,
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                "maxLength": 64
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
           },
           "title": {
             "type": "string",
@@ -2430,7 +2437,6 @@
           }
         },
         "required": [
-          "category_id",
           "created_at",
           "features",
           "features_badges",
@@ -2455,9 +2461,18 @@
             "readOnly": true
           },
           "category_id": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
-            "maxLength": 64
+            "nullable": true,
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                "maxLength": 64
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
           },
           "currency": {
             "type": "string",
@@ -2561,7 +2576,6 @@
           }
         },
         "required": [
-          "category_id",
           "created_at",
           "geohash_draft",
           "id",
@@ -3098,9 +3112,18 @@
             "readOnly": true
           },
           "category_id": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
-            "maxLength": 64
+            "nullable": true,
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                "maxLength": 64
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
           },
           "currency": {
             "type": "string",
@@ -3352,6 +3375,14 @@
             "nullable": true
           },
           "level": {
+            "type": "string",
+            "nullable": true
+          },
+          "prefix": {
+            "type": "string",
+            "nullable": true
+          },
+          "postfix": {
             "type": "string",
             "nullable": true
           }

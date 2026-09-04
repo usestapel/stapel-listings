@@ -29,8 +29,8 @@ from stapel_attributes.results import (
 from stapel_attributes import validate_dto_structured
 
 from ..conf import listings_settings
-from ..errors import ERR_400_FEATURE_NOT_ALLOWED
-from ..models import INDEXED_STATUSES, ListingStatus, ModerationStatus
+from ..errors import ERR_400_FEATURE_NOT_ALLOWED, ERR_400_PUBLISH_VALIDATION_FAILED
+from ..models import INDEXED_STATUSES, ListingStatus, ModerationStatus, has_category
 from . import category_schema
 from .features import build_projections
 from .location import resolve_place_label
@@ -84,13 +84,13 @@ def _zero_price_result(listing):
     if listing.price_draft is None or listing.price_draft != 0:
         return None
     allowed = {str(cid) for cid in listings_settings.FREE_PRICE_CATEGORY_IDS or ()}
-    if str(listing.category_id) in allowed:
+    if str(listing.category_id or "") in allowed:
         return None
     return FeatureValidationResult(
         slug="price",
         status=ValidationStatus.VALIDATION_FAILED,
         localizable_error=ERR_400_ZERO_PRICE_NOT_ALLOWED,
-        params={"category_id": str(listing.category_id)},
+        params={"category_id": str(listing.category_id or "")},
         message="A price of 0 is not allowed in this category; "
                 "leave the price empty for 'price not stated'",
     )
@@ -123,6 +123,32 @@ def _missing_location_result(listing):
     )
 
 
+def _missing_category_result(listing):
+    """A structured failure for a draft with no category, or ``None``.
+
+    ``category_id`` is nullable since 0.21.4 so the composer can open the row
+    on the first photo, before the category step. Publishing is where it stops
+    being optional, and the refusal is shaped like the location one: a
+    structured result under a named control, on the same channel the composer
+    already renders, rather than a second error shape for one field.
+
+    The slug is ``category_id`` — the field's own name, not a category feature
+    — and the localizable error is the EXISTING
+    ``ERR_400_PUBLISH_VALIDATION_FAILED``: a caller that goes straight to
+    ``publish_listing`` past ``validate-draft`` gets that same code back from
+    the view, so both doors say the same word.
+    """
+    if has_category(listing):
+        return None
+    return FeatureValidationResult(
+        slug="category_id",
+        status=ValidationStatus.VALIDATION_FAILED,
+        localizable_error=ERR_400_PUBLISH_VALIDATION_FAILED,
+        params={},
+        message="Choose a category before publishing",
+    )
+
+
 def validate_draft(listing) -> ValidationBatchResult:
     """Structured validation of a listing's draft against its category schema.
 
@@ -131,13 +157,22 @@ def validate_draft(listing) -> ValidationBatchResult:
     return machine-readable results. Unknown feature slugs are flagged (M-7) so
     this agrees with ``publish_listing``.
     """
-    configs = category_schema.get_feature_configs(listing.category_id)
+    # No category -> no schema to validate values against, and no way to tell
+    # a genuinely unknown slug from one this category would have declared. The
+    # category itself is then the failure; the free-text/price/location checks
+    # below still run, so the composer gets the whole list at once.
+    category_error = _missing_category_result(listing)
+    configs = (
+        [] if category_error is not None
+        else category_schema.get_feature_configs(listing.category_id)
+    )
     result = validate_dto_structured(configs, listing.features_draft or {})
 
-    unknown = _unknown_slug_results(configs, listing.features_draft or {})
-    if unknown:
-        result.results.extend(unknown)
-        result.valid = False
+    if category_error is None:
+        unknown = _unknown_slug_results(configs, listing.features_draft or {})
+        if unknown:
+            result.results.extend(unknown)
+            result.valid = False
 
     price_error = _zero_price_result(listing)
     if price_error is not None:
@@ -156,6 +191,10 @@ def validate_draft(listing) -> ValidationBatchResult:
     )
     if desc_error is not None:
         result.results.insert(0, desc_error)
+        result.valid = False
+
+    if category_error is not None:
+        result.results.insert(0, category_error)
         result.valid = False
     return result
 
@@ -192,6 +231,12 @@ def publish_listing(listing) -> None:
     nothing — one detector, no second call site that could disagree with it.
     """
     was_indexed = listing.status in INDEXED_STATUSES
+    # Same side of the door as the location and image checks: a storefront
+    # that skipped validate-draft must not be able to publish a category-less
+    # draft anyway. The view maps this to ERR_400_PUBLISH_VALIDATION_FAILED,
+    # the code the structured result above also carries.
+    if _missing_category_result(listing) is not None:
+        raise ValidationError("A category is required to publish a listing.")
     configs = category_schema.get_feature_configs(listing.category_id)
     features_draft = listing.features_draft or {}
 

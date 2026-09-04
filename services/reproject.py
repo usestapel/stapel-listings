@@ -312,6 +312,17 @@ def reproject_listings(
             )
             continue
 
+        if not listing.category_id:
+            # A category-less draft (0.21.4) has no schema to project against.
+            # Same bucket as an unresolvable category: counted and named, never
+            # silently walked past, and never sent to the categories seam as a
+            # NULL id.
+            _record_skip(
+                result, listing.pk, "category_unresolved",
+                "listing has no category yet",
+            )
+            continue
+
         try:
             configs = resolver.get(listing.category_id)
         except LookupError as exc:
