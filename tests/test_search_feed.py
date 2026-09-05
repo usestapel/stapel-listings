@@ -56,6 +56,36 @@ def test_search_documents_round_trip(draft_listing):
     assert json.loads(json.dumps(doc)) == doc
 
 
+def test_search_document_carries_badge_flagged_features(draft_listing):
+    """``features_badges`` rides next to ``features_title`` in the document.
+
+    ``draft_listing``'s schema flags ``condition`` ``show_as_badge`` (see
+    ``DEFAULT_FEATURE_DEFS`` in conftest.py) — the same feature that lands in
+    ``features_badges`` on the model. The search document must carry the same
+    DAO so ``stapel_classified.cards.card_features`` has something to
+    decorate instead of always seeing ``[]``.
+    """
+    from stapel_core.comm import call
+
+    publish_service.publish_listing(draft_listing)
+    draft_listing.apply_moderation("approved")
+
+    doc = call("listings.search_documents", {"keys": [draft_listing.pk]})[
+        str(draft_listing.pk)
+    ]
+    assert [d["slug"] for d in doc["features_badges"]] == ["condition"]
+
+
+def test_search_document_without_badges_projects_an_empty_list(user):
+    """No badge-flagged feature on the listing -> ``[]``, not a missing key."""
+    from stapel_core.comm import call
+
+    listing = Listing.objects.create(owner=user, category_id="7", title="Bare")
+
+    doc = call("listings.search_documents", {"keys": [listing.pk]})[str(listing.pk)]
+    assert doc["features_badges"] == []
+
+
 def test_search_documents_is_a_keyed_batch(user, draft_listing):
     from stapel_core.comm import call
 

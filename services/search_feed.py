@@ -67,9 +67,10 @@ def build_search_document(listing) -> dict[str, Any]:
     ``INDEXED_STATUSES``, not a boolean this module bakes in.
 
     **A non-public value is filtered again on the way out.**
-    ``services.features`` already keeps it out of ``features_search`` and
-    ``features_title`` at build time, so on a freshly projected row this costs
-    one set difference and removes nothing. It is here for the rows projected
+    ``services.features`` already keeps it out of ``features_search``,
+    ``features_title`` and ``features_badges`` at build time, so on a freshly
+    projected row this costs one set difference and removes nothing. It is
+    here for the rows projected
     by an older writer, which are the entire installed base on the day this
     ships: those columns still hold the VIN until
     ``listings_reproject_features`` has run, and an indexer that pulled one in
@@ -104,6 +105,15 @@ def build_search_document(listing) -> dict[str, Any]:
         # attribute's value makes the document findable by `q=`. A hidden value
         # in there is the same oracle as a facet, spelled differently.
         "features_title": public_daos(listing.features_title or []),
+        # ``features_badges`` feeds the same free-text/facet surface as
+        # ``features_title`` above, one slot over — a card's badge chips —
+        # and gets the exact same belt-and-braces filter for the exact same
+        # reason (an older writer's row can still carry a pre-visibility
+        # DAO). Downstream, ``stapel_classified.cards.card_features`` decorates
+        # both keys with the same call
+        # (``stapel_listings.services.features.decorate_card_elements``); this
+        # module only has to serve the DAO list, not render it.
+        "features_badges": public_daos(listing.features_badges or []),
         "images": listing.images or [],
         "published_at": _isoformat(listing.published_at),
         "updated_at": _isoformat(listing.updated_at),

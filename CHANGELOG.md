@@ -4,6 +4,37 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.21.6] — 2026-09-05
+
+### Fixed — the search document dropped `features_badges` on the floor
+
+`build_search_document` served `features_title` but never `features_badges`,
+even though both columns exist on `Listing`, are built by the same
+`services.features` projection, and the public listing API serializes both
+side by side. The search document's free-text arm got the title line; the
+badge chips a card draws next to it never left this module.
+
+Downstream this was invisible until a consumer actually rendered the chips:
+`stapel-classified` 0.10.9's search source, `cards.card_features`, calls
+`stapel_listings.services.features.decorate_card_elements` on whatever the
+document hands it under `features_badges` — and since the key was simply
+absent, `payload.get(key) or []` always resolved to `[]`. Every published
+listing with a badge-flagged feature (a closed-select "condition", say)
+indexed correctly, searched correctly, and then rendered its card with no
+badge at all — not a wrong badge, a silently missing one.
+
+`build_search_document` now serves `features_badges` next to
+`features_title`, filtered through the same `public_daos` belt-and-braces
+pass (the projection is already public-only at build time in
+`services.features`; this catches a row built by an older writer, before
+the visibility axis existed, exactly as `features_title` already does). No
+new import, no new column — the source and the decoration are both already
+this module's.
+
+`docs/schema.json` is unchanged: the search document is an internal comm
+shape (`listings.search_documents` / `listings.search_export`), not an HTTP
+response, so it carries no OpenAPI surface to update.
+
 ## [0.21.5] — 2026-09-04
 
 ### Added — `listings.draft_content`: the owner-scoped read a composer needs
