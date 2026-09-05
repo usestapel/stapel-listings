@@ -57,6 +57,7 @@ from .serializers import (
     MyCountersResponseSerializer,
     MyListingCardSerializer,
     PublishResponseSerializer,
+    normalize_features_draft,
 )
 from .services import publish as publish_service
 
@@ -86,6 +87,39 @@ def parse_status_filter(raw_values):
             if piece not in wanted:
                 wanted.append(piece)
     return wanted
+
+
+def _normalize_request_features_draft(request):
+    """Coerce ``request.data["features_draft"]`` in place, before it reaches
+    ``ListingDraftSerializer`` — the one call every ``features_draft`` write
+    entry point (``create``, ``update``, ``save-draft``) makes.
+
+    Returns a ``StapelErrorResponse`` naming which of the three
+    ``features_draft_*`` shape errors applies, or ``None`` when the payload
+    was already fine (or the field was absent — normal on a partial save).
+
+    Done here rather than inside ``ListingFeaturesInputField`` itself:
+    raising a ``StapelValidationError`` from a DRF field's
+    ``to_internal_value`` never reaches the client with its ``params``
+    intact — ``Serializer.to_internal_value`` catches it per field and
+    ``Serializer.run_validation`` re-wraps ``.validate()`` errors the same
+    way, both collapsing the exception to a bare error-key string before
+    ``stapel_exception_handler`` ever sees it. Mutating the raw payload
+    ahead of the serializer, and returning a fully-formed error response
+    directly from the view, sidesteps that collapse entirely — the same
+    pattern ``_get_own`` already uses for 403/404.
+    """
+    data = request.data
+    if "features_draft" not in data:
+        return None
+    normalized, error_key, params = normalize_features_draft(data["features_draft"])
+    if error_key is not None:
+        return StapelErrorResponse(400, error_key, params)
+    if normalized is not data["features_draft"]:
+        mutable = data.copy()
+        mutable["features_draft"] = normalized
+        request._full_data = mutable  # noqa: SLF001 — see docstring above
+    return None
 
 
 #: Owner edges that are a PUBLICATION rather than a lifecycle hop: they run
@@ -273,6 +307,9 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         refusal = anonymous_write_refusal(request)
         if refusal is not None:
             return refusal
+        shape_error = _normalize_request_features_draft(request)
+        if shape_error is not None:
+            return shape_error
         return super().create(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
@@ -290,6 +327,9 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         _, error = self._get_own(request, kwargs.get("pk"))
         if error:
             return error
+        shape_error = _normalize_request_features_draft(request)
+        if shape_error is not None:
+            return shape_error
         return super().update(request, *args, **kwargs)
 
     # -- inter-service status ---------------------------------------------
@@ -475,6 +515,9 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         listing, error = self._get_own(request, pk)
         if error:
             return error
+        shape_error = _normalize_request_features_draft(request)
+        if shape_error is not None:
+            return shape_error
         serializer = self.draft_serializer_class(listing, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()

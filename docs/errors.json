@@ -320,6 +320,40 @@
     "owner": "stapel_listings"
   },
   {
+    "code": "error.400.listing_features_draft_shape",
+    "status": 400,
+    "params": [
+      "got_type",
+      "example"
+    ],
+    "remediation": "fix_input",
+    "en": "features_draft must be an object keyed by feature slug, or the list of feature objects a listing read returns (each carrying its own 'slug') — got {got_type}. Example of the accepted object form: {example}",
+    "owner": "stapel_listings"
+  },
+  {
+    "code": "error.400.listing_features_draft_unknown_slug",
+    "status": 400,
+    "params": [
+      "index",
+      "example"
+    ],
+    "remediation": "fix_input",
+    "en": "Every entry of a features_draft list must carry its own non-empty 'slug' string (the slug a listing read stores on that element) so it can be filed back under the right feature — entry at index {index} has none. Example: {example}",
+    "owner": "stapel_listings"
+  },
+  {
+    "code": "error.400.listing_features_draft_value_shape",
+    "status": 400,
+    "params": [
+      "slug",
+      "got_type",
+      "example"
+    ],
+    "remediation": "fix_input",
+    "en": "features_draft['{slug}'] must itself be an object of the form {{\"type\": <feature type>, \"value\": <feature value>}} — got {got_type}. Example: {example}",
+    "owner": "stapel_listings"
+  },
+  {
     "code": "error.400.listing_invalid_status_filter",
     "status": 400,
     "params": [

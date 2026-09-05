@@ -33,7 +33,12 @@ from .dto import (
     MyCountersResponse,
     PublishResponse,
 )
-from .errors import ERR_400_DRAFT_META_TOO_LARGE
+from .errors import (
+    ERR_400_DRAFT_META_TOO_LARGE,
+    ERR_400_FEATURES_DRAFT_SHAPE,
+    ERR_400_FEATURES_DRAFT_UNKNOWN_SLUG,
+    ERR_400_FEATURES_DRAFT_VALUE_SHAPE,
+)
 from .models import (
     Favorite,
     Listing,
@@ -48,10 +53,107 @@ from .services.features import PRESENTATIONS, decorate_card_elements
 
 
 class ListingFeaturesInputField(serializers.DictField):
-    """``{slug: FeatureDto}`` — draft attribute values keyed by feature slug."""
+    """``{slug: FeatureDto}`` — draft attribute values keyed by feature slug.
+
+    This is the CANONICAL write shape. A listing read, though, hands back
+    features as a *list* of decorated DAOs (``features`` /
+    ``ListingCardFeaturesOutputField`` — ``{slug, name, label, presentation,
+    …}``), and a client that fetches a listing and posts that same list back
+    under ``features_draft`` is a round trip anyone would expect to work.
+    :func:`normalize_features_draft` is what makes it work: both write entry
+    points (create/update, save-draft — see ``views.py``) run the raw request
+    payload through it before this field ever sees it, so by the time
+    ``to_internal_value`` runs, ``features_draft`` is always already the dict
+    form below.
+    """
 
     def __init__(self, **kwargs):
         super().__init__(child=get_feature_dto_serializer_class()(), **kwargs)
+
+
+#: One-line JSON examples quoted verbatim in ``features_draft_*`` error
+#: messages (``params["example"]``) — computed once, not per-error, since the
+#: whole point is a client sees the exact shape that would have worked.
+FEATURES_DRAFT_DICT_EXAMPLE = json.dumps(
+    {"mileage": {"type": "int", "value": 42000}}, separators=(",", ":")
+)
+FEATURES_DRAFT_LIST_EXAMPLE = json.dumps(
+    [{"slug": "mileage", "type": "int", "value": 42000}], separators=(",", ":")
+)
+
+#: Keys of a FeatureDto — everything else on a read-shape DAO element
+#: (``name``, ``order``, ``title``, ``badge``, ``translate``, ``labels``,
+#: ``label``, ``unit``, ``presentation``, ``visibility``, per-type display
+#: metadata such as ``prefix``/``uiStyle``/``vocabulary``, …) is decoration
+#: this module itself put there on the way OUT and is silently dropped on
+#: the way back IN, exactly as a client that never inspected the extra keys
+#: would expect.
+_DTO_KEYS = ("type", "value")
+
+
+def normalize_features_draft(raw):
+    """Coerce a raw ``features_draft`` write payload to the canonical shape.
+
+    Accepts, on top of the canonical ``{slug: {"type": ..., "value": ...}}``
+    dict:
+
+    - the READ shape — a list of DAO-like objects, each carrying its own
+      ``slug`` (what ``features`` returns) — ``slug``/``type``/``value`` are
+      pulled back out and every decoration key is dropped;
+    - ``None`` (the field is nullable — a client clearing the whole map).
+
+    Returns ``(normalized, None, None)`` on success, or
+    ``(None, error_key, params)`` naming exactly one of the three
+    ``features_draft_*`` shape errors — ``params["example"]`` is always the
+    one-line shape that WOULD have worked, so a caller can hand it straight
+    to :func:`stapel_core.django.api.errors.StapelErrorResponse` without a
+    second lookup.
+
+    Deliberately returns a tuple rather than raising: raising from inside
+    ``ListingFeaturesInputField.to_internal_value`` would ONLY get here via
+    DRF's serializer field-validation loop, which re-wraps any
+    ``ValidationError`` into a generic ``{field: [message]}`` shape and
+    drops arbitrary ``params`` on the way — see the release notes for
+    0.22.3. Both write entry points therefore call this directly on the raw
+    request payload, before the serializer ever sees it.
+    """
+    if raw is None:
+        return None, None, None
+
+    if isinstance(raw, dict):
+        for slug, entry in raw.items():
+            if not isinstance(entry, dict):
+                return None, ERR_400_FEATURES_DRAFT_VALUE_SHAPE, {
+                    "slug": str(slug),
+                    "got_type": type(entry).__name__,
+                    "example": FEATURES_DRAFT_DICT_EXAMPLE,
+                }
+        return raw, None, None
+
+    if isinstance(raw, list):
+        normalized: dict = {}
+        for index, entry in enumerate(raw):
+            if not isinstance(entry, dict):
+                return None, ERR_400_FEATURES_DRAFT_VALUE_SHAPE, {
+                    "slug": f"[{index}]",
+                    "got_type": type(entry).__name__,
+                    "example": FEATURES_DRAFT_LIST_EXAMPLE,
+                }
+            slug = entry.get("slug")
+            if not isinstance(slug, str) or not slug:
+                return None, ERR_400_FEATURES_DRAFT_UNKNOWN_SLUG, {
+                    "index": index,
+                    "example": FEATURES_DRAFT_LIST_EXAMPLE,
+                }
+            normalized[slug] = {
+                key: entry[key] for key in _DTO_KEYS if key in entry
+            }
+        return normalized, None, None
+
+    return None, ERR_400_FEATURES_DRAFT_SHAPE, {
+        "got_type": type(raw).__name__,
+        "example": FEATURES_DRAFT_DICT_EXAMPLE,
+    }
 
 
 class ListingFeaturesInputFieldExtension(OpenApiSerializerFieldExtension):
@@ -63,6 +165,21 @@ class ListingFeaturesInputFieldExtension(OpenApiSerializerFieldExtension):
         return {
             "type": "object",
             "additionalProperties": {"$ref": "#/components/schemas/FeatureDto"},
+            "description": (
+                "The WRITE shape of features_draft: an object keyed by "
+                "feature slug, each value a FeatureDto — e.g. "
+                f"{FEATURES_DRAFT_DICT_EXAMPLE}. A listing READ hands back "
+                "features as a *list* of decorated DAOs instead "
+                "(`features` / `features_title` / `features_badges` — "
+                "`{slug, name, label, presentation, …}`); posting that same "
+                "list back here is also accepted, e.g. "
+                f"{FEATURES_DRAFT_LIST_EXAMPLE} — only `slug`, `type` and "
+                "`value` are read back out, every other (decoration) key is "
+                "ignored. A malformed payload of either shape gets a "
+                "features_draft_shape / features_draft_value_shape / "
+                "features_draft_unknown_slug 400 naming the shape that "
+                "would have worked."
+            ),
         }
 
 

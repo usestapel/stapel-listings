@@ -55,6 +55,19 @@ ERR_400_LOCATION_REQUIRED = "error.400.listing_location_required"
 # caller sees this the moment the STORED object would cross the cap rather
 # than only on a single oversized call.
 ERR_400_DRAFT_META_TOO_LARGE = "error.400.listing_draft_meta_too_large"
+# Д421-follow-up (0.22.3): three ways a `features_draft` write payload can be
+# shaped wrong, each naming the shape that WOULD have worked (in `params`,
+# key `example` — a compact one-line JSON string) rather than only the type
+# DRF's own field validation already names. The classic trigger is a client
+# that read a listing's `features` (a list of decorated DAOs —
+# `{slug, name, label, presentation, …}`) and posted that same list back
+# under `features_draft`, which is written as a DICT keyed by slug. See
+# `serializers.normalize_features_draft`, the one function both write
+# entry points (create/update, save-draft) run their raw payload through
+# before it ever reaches `ListingFeaturesInputField`.
+ERR_400_FEATURES_DRAFT_SHAPE = "error.400.listing_features_draft_shape"
+ERR_400_FEATURES_DRAFT_VALUE_SHAPE = "error.400.listing_features_draft_value_shape"
+ERR_400_FEATURES_DRAFT_UNKNOWN_SLUG = "error.400.listing_features_draft_unknown_slug"
 
 STAPEL_LISTINGS_ERRORS = {
     ERR_404_LISTING_NOT_FOUND: "Listing not found",
@@ -78,6 +91,23 @@ STAPEL_LISTINGS_ERRORS = {
         "Leave the price empty for \"price not stated\"."
     ),
     ERR_400_DRAFT_META_TOO_LARGE: "draft_meta is too large ({max_bytes} bytes max)",
+    ERR_400_FEATURES_DRAFT_SHAPE: (
+        "features_draft must be an object keyed by feature slug, or the list "
+        "of feature objects a listing read returns (each carrying its own "
+        "'slug') — got {got_type}. Example of the accepted object form: "
+        "{example}"
+    ),
+    ERR_400_FEATURES_DRAFT_VALUE_SHAPE: (
+        "features_draft['{slug}'] must itself be an object of the form "
+        "{{\"type\": <feature type>, \"value\": <feature value>}} — got "
+        "{got_type}. Example: {example}"
+    ),
+    ERR_400_FEATURES_DRAFT_UNKNOWN_SLUG: (
+        "Every entry of a features_draft list must carry its own non-empty "
+        "'slug' string (the slug a listing read stores on that element) so "
+        "it can be filed back under the right feature — entry at index "
+        "{index} has none. Example: {example}"
+    ),
 }
 
 register_service_errors(STAPEL_LISTINGS_ERRORS)
@@ -97,4 +127,8 @@ __all__ = [
     "ERR_400_FEATURE_NOT_ALLOWED",
     "ERR_400_INVALID_STATUS_FILTER",
     "ERR_400_ZERO_PRICE_NOT_ALLOWED",
+    "ERR_400_DRAFT_META_TOO_LARGE",
+    "ERR_400_FEATURES_DRAFT_SHAPE",
+    "ERR_400_FEATURES_DRAFT_VALUE_SHAPE",
+    "ERR_400_FEATURES_DRAFT_UNKNOWN_SLUG",
 ]

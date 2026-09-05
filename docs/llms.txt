@@ -1,8 +1,8 @@
-# stapel-listings 0.22.2
+# stapel-listings 0.22.3
 
 Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle including the moderation takedown state 'blocked', an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, first-class favorites, and the two pull seams its consumers read it through — listings.search_documents / listings.search_export for an indexer and listings.moderation_content for a moderation queue.
 
-Contract: axes 3 · surface 10 · extension points 6 · operations 20 · error codes 69.
+Contract: axes 3 · surface 10 · extension points 6 · operations 20 · error codes 72.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -85,7 +85,7 @@ Paths are relative to `/listings/api/v1/listings/`.
 - PUT /{id}/ — listings_api_v1_listings_update
 - GET /{id}/validate-draft/ — listings_api_v1_listings_validate_draft_retrieve
 
-## Error codes (69) — the StapelError envelope
+## Error codes (72) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
@@ -120,6 +120,9 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.400.invalid_ad_id [400] fix_input
 - error.400.listing_draft_meta_too_large [400] fix_input {max_bytes}
 - error.400.listing_feature_not_allowed [400] fix_input {feature}
+- error.400.listing_features_draft_shape [400] fix_input {got_type,example}
+- error.400.listing_features_draft_unknown_slug [400] fix_input {index,example}
+- error.400.listing_features_draft_value_shape [400] fix_input {slug,got_type,example}
 - error.400.listing_invalid_status_filter [400] fix_input {status}
 - error.400.listing_location_required [400] fix_input
 - error.400.listing_zero_price_not_allowed [400] fix_input

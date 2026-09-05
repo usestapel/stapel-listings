@@ -4,6 +4,56 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.22.3] — 2026-09-05
+
+### Fixed — `features_draft` names the shape it wants instead of only the type it got
+
+`features_draft` is WRITTEN as `{slug: FeatureDto}` (a dict keyed by feature
+slug) but a listing is READ back with features as a *list* of decorated DAOs
+(`features` / `features_title` / `features_badges` —
+`{slug, name, label, presentation, …}`). A client that fetched a listing and
+posted that same list back under `features_draft` — the round trip anyone
+integrating against this API would reach for first — got a 400 whose message
+named only the TYPE DRF's own field validation saw ("expected a
+dictionary"), never the shape that would have worked. Three attempts, three
+different messages, no example in any of them.
+
+Two changes close this:
+
+- `ListingFeaturesInputField` (backing `features_draft` on both
+  `ListingDraftSerializer` writes and reads) now accepts EITHER shape. The
+  new `normalize_features_draft` coerces a list-of-DAOs payload back to the
+  canonical dict form — pulling `slug`, `type` and `value` back out of each
+  element and dropping every decoration key (`name`, `order`, `title`,
+  `badge`, `translate`, `labels`,
+  `label`, `unit`, `presentation`, per-type display metadata) the read side
+  put there. `create`, `update` and `save-draft` all run the raw request
+  payload through it before the serializer ever sees `features_draft`.
+
+- Every shape failure on `features_draft` now names ONE of three error codes
+  — `error.400.listing_features_draft_shape` (the top-level value is neither
+  an object nor a list), `error.400.listing_features_draft_value_shape` (an
+  entry isn't itself `{"type": ..., "value": ...}`), or
+  `error.400.listing_features_draft_unknown_slug` (a list entry carries no
+  usable `slug`) — each with a one-line JSON example of the accepted shape
+  in `params["example"]`, interpolated straight into the message.
+
+Raising these from inside `ListingFeaturesInputField.to_internal_value` (or
+from `ListingDraftSerializer.validate`) would not have worked: DRF's
+`Serializer.to_internal_value` catches a per-field `ValidationError` and
+keeps only its `.detail` string, and `Serializer.run_validation` does the
+same to whatever `.validate()` raises — both collapse a `StapelValidationError`
+to a bare error-key before `stapel_exception_handler` ever sees it, dropping
+any `params` a caller attached (this is *also* true, quietly, of the existing
+`draft_meta` cap error — its `max_bytes` param has never actually reached a
+client). So the shape check runs on the raw payload in the view, ahead of
+the serializer, and returns a fully-formed `StapelErrorResponse` directly —
+the same pattern `_get_own`'s 403/404 already uses.
+
+`docs/schema.json` documents the write shape (with an example) on
+`features_draft` itself and states that the read (DAO-list) shape is also
+accepted.
+
 ## [0.22.2] — 2026-09-05
 
 ### Fixed — the `name_value` colon missed the actual catalogue case it was written for
