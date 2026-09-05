@@ -1823,7 +1823,7 @@
                     {
                       "type": "object",
                       "title": "CardFeatureElement",
-                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption («Этаж 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
+                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption, name gets a trailing colon («Этаж: 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
                       "required": [
                         "label",
                         "name",
@@ -1912,7 +1912,7 @@
                     {
                       "type": "object",
                       "title": "CardFeatureElement",
-                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption («Этаж 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
+                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption, name gets a trailing colon («Этаж: 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
                       "required": [
                         "label",
                         "name",
@@ -2213,7 +2213,7 @@
                     {
                       "type": "object",
                       "title": "CardFeatureElement",
-                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption («Этаж 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
+                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption, name gets a trailing colon («Этаж: 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
                       "required": [
                         "label",
                         "name",
@@ -2302,7 +2302,7 @@
                     {
                       "type": "object",
                       "title": "CardFeatureElement",
-                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption («Этаж 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
+                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption, name gets a trailing colon («Этаж: 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
                       "required": [
                         "label",
                         "name",
@@ -2747,7 +2747,7 @@
                     {
                       "type": "object",
                       "title": "CardFeatureElement",
-                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption («Этаж 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
+                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption, name gets a trailing colon («Этаж: 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
                       "required": [
                         "label",
                         "name",
@@ -2836,7 +2836,7 @@
                     {
                       "type": "object",
                       "title": "CardFeatureElement",
-                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption («Этаж 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
+                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption, name gets a trailing colon («Этаж: 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
                       "required": [
                         "label",
                         "name",

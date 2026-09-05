@@ -116,10 +116,14 @@ def test_number_with_a_unit_renders_value_and_unit(apartment_title):
 
 
 def test_number_without_a_unit_renders_name_and_value(apartment_title):
-    """«Этаж 3» / «Этажей в доме 9» — the bug the whole contract exists for.
+    """«Этаж: 3» / «Этажей в доме: 9» — the bug the whole contract exists for.
 
     Both are stored as dictionary values with numeric labels, so a rule that
-    read the TYPE would print them bare and reproduce «… · 3 · 9».
+    read the TYPE would print them bare and reproduce «… · 3 · 9». Both get
+    the ``name_value`` colon (0.22.2, Д421): the label is a bare numeral, and
+    that is true whether or not a vocabulary produced it — see
+    ``test_raw_numeric_value_gets_a_colon_not_a_glued_name`` for the catalogue
+    case (a ``ref_select`` term) this exact discriminator was fixed for.
     """
     elements = _by_slug(apartment_title)
     for slug, name, label in (
@@ -129,7 +133,7 @@ def test_number_without_a_unit_renders_name_and_value(apartment_title):
         element = elements[slug]
         assert element["presentation"] == PRESENTATION_NAME_VALUE, slug
         assert element["label"] == label
-        assert element["name"] == name
+        assert element["name"] == f"{name}:"
         assert "unit" not in element
 
 
@@ -163,12 +167,11 @@ def test_multi_select_is_never_read_as_a_number():
     assert element["label"] == "1, 2"
 
 
-def test_raw_numeric_value_gets_a_colon_not_a_glued_name(apartment_title):
+def test_raw_numeric_value_gets_a_colon_not_a_glued_name():
     """«HONOR · Модель 90» read as one phrase — PASS-16 Д421.
 
-    ``model`` here is a raw ``string``, unlike ``floor`` above: no vocabulary
-    behind its value, so its numeric caption gets the name's trailing colon
-    that ``floor``/``floors`` are exempt from.
+    ``model`` here is a raw ``string``: no vocabulary behind its value, and
+    its numeric caption gets the name's trailing colon.
     """
     (element,) = decorate_card_elements([
         {"slug": "model", "type": "string", "name": "Модель", "value": "90"},
@@ -177,11 +180,42 @@ def test_raw_numeric_value_gets_a_colon_not_a_glued_name(apartment_title):
     assert element["label"] == "90"
     assert element["name"] == "Модель:"
 
-    # The vocabulary-backed siblings from the apartment fixture keep their
-    # bare name — this fix does not touch them.
-    elements = _by_slug(apartment_title)
-    assert elements["floor"]["name"] == "Этаж"
-    assert elements["floors"]["name"] == "Этажей в доме"
+
+def test_vocabulary_backed_numeric_label_also_gets_a_colon():
+    """The catalogue case 0.22.1 missed — measured live, PASS-16 Д421.
+
+    A ``ref_select`` resolves to a catalogue TERM whose own label is the bare
+    numeral «90» (a phone model number, not a floor count): vocabulary-backed
+    by source, exactly like ``floor``/``floors`` above, and it glued exactly
+    the same way («HONOR · Модель 90»). 0.22.1 exempted every
+    vocabulary-backed caption from the colon; 0.22.2 fixes the discriminator
+    to the label's shape instead of its source, so this now reads
+    «Модель: 90» too.
+    """
+    (element,) = decorate_card_elements([
+        {"slug": "model", "type": "ref_select", "name": "Модель",
+         "value": ["honor-90"], "labels": ["90"]},
+    ])
+    assert element["presentation"] == PRESENTATION_NAME_VALUE
+    assert element["label"] == "90"
+    assert element["name"] == "Модель:"
+
+
+def test_vocabulary_word_label_keeps_the_bare_name():
+    """«Этаж третий» — a WORD term never takes the ``name_value`` colon.
+
+    Unlike a numeral term, a word caption fails ``_is_numeric_caption`` and
+    is rendered ``PRESENTATION_VALUE`` (caption alone), so it was never
+    exempted by 0.22.1's rule in the first place and 0.22.2 does not touch
+    it either.
+    """
+    (element,) = decorate_card_elements([
+        {"slug": "floor", "type": "ref_select", "name": "Этаж",
+         "value": ["third"], "labels": ["третий"]},
+    ])
+    assert element["presentation"] == PRESENTATION_VALUE
+    assert element["label"] == "третий"
+    assert element["name"] == "Этаж"
 
 
 def test_mileage_is_grouped_with_its_unit():
@@ -208,11 +242,17 @@ def test_a_year_is_never_grouped():
 
 
 def test_the_contract_only_adds_keys():
-    """Backward compatibility: nothing stored is renamed or dropped."""
+    """Backward compatibility: nothing stored is renamed or dropped.
+
+    A word-label ``select`` (``PRESENTATION_VALUE``) on purpose: a numeric
+    ``name_value`` caption mutates ``name`` with a trailing colon by design
+    (see ``test_number_without_a_unit_renders_name_and_value``), which is not
+    what this test is pinning.
+    """
     stored = {
-        "slug": "floor", "type": "select", "name": "Этаж", "order": 7,
-        "title": True, "badge": False, "value": ["3"], "labels": ["3"],
-        "uiStyle": "dropdown", "maxSelected": 1,
+        "slug": "house_type", "type": "select", "name": "Тип дома", "order": 7,
+        "title": True, "badge": False, "value": ["kirpichnyy"],
+        "labels": ["Кирпичный"], "uiStyle": "dropdown", "maxSelected": 1,
     }
     (element,) = decorate_card_elements([dict(stored)])
     for key, value in stored.items():

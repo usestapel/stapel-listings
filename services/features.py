@@ -343,7 +343,7 @@ def _extract_search_values(dao: Dict[str, Any]) -> List[Any]:
 #
 #   PRESENTATION_VALUE       «Кирпичный»  caption is not a number
 #   PRESENTATION_VALUE_UNIT  «42 м²»      caption is a number, unit known
-#   PRESENTATION_NAME_VALUE  «Этаж 3»     caption is a number, no unit
+#   PRESENTATION_NAME_VALUE  «Этаж: 3»    caption is a number, no unit
 #   PRESENTATION_NAME        «Балкон»     a true boolean — the name IS the fact
 #
 # A false boolean is dropped from the line: «Балкон: нет» is noise on a card,
@@ -366,13 +366,25 @@ def _extract_search_values(dao: Dict[str, Any]) -> List[Any]:
 #   ``floors`` above) is exactly what the catalogue wrote and stays untouched,
 #   same as ``postfix1000`` already leaves it alone;
 # - for ``PRESENTATION_NAME_VALUE`` specifically, ``name`` gets a trailing
-#   colon UNLESS the caption is that same vocabulary label. «Этаж 3» reads as
-#   a name-then-count because «Этаж» is a term; «Модель 90» does not, because
-#   «90» is the feature's raw value with no term behind it, and the two used
-#   to read as one glued phrase («HONOR · Модель 90», PASS-16 Д421). The
-#   colon lands in ``name`` rather than in a new key so a client already
-#   joining ``name`` and ``label`` with one space — the 0.21.3 contract's own
-#   reference renderer — reads «Модель: 90» with no client-side change.
+#   colon — 0.22.1 shipped this gated on the caption NOT being a vocabulary
+#   label, reasoning that «Этаж 3» reads as a name-then-count because «Этаж»
+#   is a term. That gate was wrong: a live catalogue's ``ref_select`` for
+#   phone models resolves to a term whose own label is the bare numeral
+#   «90» — vocabulary-backed by source, but shaped exactly like the raw
+#   «Модель 90» the colon exists for, and it kept gluing («HONOR · Модель
+#   90», PASS-16 Д421 — measured again in 0.22.2 against the live DAO,
+#   ``{"name": "Модель", "label": "90", "labels": ["90"]}``). 0.22.2 drops
+#   the source test: since ``PRESENTATION_NAME_VALUE`` is only ever chosen
+#   when the caption already reads as a bare number (the ``single and
+#   _is_numeric_caption(label)`` test above), every caption reaching this
+#   branch qualifies for the colon, vocabulary-backed or not. A vocabulary
+#   term with a WORD label — «Этаж третий» — never takes this branch at
+#   all: it fails ``_is_numeric_caption`` and gets ``PRESENTATION_VALUE``
+#   instead, so it was never protected by 0.22.1's exemption in the first
+#   place. The colon lands in ``name`` rather than in a new key so a client
+#   already joining ``name`` and ``label`` with one space — the 0.21.3
+#   contract's own reference renderer — reads «Модель: 90» with no
+#   client-side change.
 
 #: Render the caption alone.
 PRESENTATION_VALUE = "value"
@@ -441,7 +453,7 @@ def decorate_card_element(dao: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "presentation": PRESENTATION_NAME,
         }
 
-    label, single, from_vocabulary = _card_caption(dao)
+    label, single = _card_caption(dao)
     if not label:
         return None
 
@@ -458,63 +470,69 @@ def decorate_card_element(dao: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     # ``name_value`` is the one presentation that puts two separate wire
     # fields («Этаж», «3») next to each other on a card, and a bare number
     # next to a bare caption reads as one glued phrase («HONOR · Модель 90» —
-    # Д421). A vocabulary-backed caption (below, ``from_vocabulary``) is
-    # exempt: its label is a catalogue TERM, and a term's own name already
-    # reads as a natural prefix word («Этаж 3», «Комнат 2») — this is the
-    # schema marking the name as a prefix word, via the vocabulary mechanism
-    # it already uses to resolve the term's display text. A caption built
-    # from the feature's raw stored value has no such term behind it, so its
-    # name gets a trailing colon: any client already joining ``name`` and
-    # ``label`` with a single space (the 0.21.3 contract's own reference
-    # renderer) now reads «Модель: 90» instead of «Модель 90» — the fix
-    # lands without a second, coordinated client release.
-    if presentation == PRESENTATION_NAME_VALUE and not from_vocabulary:
+    # Д421). ``PRESENTATION_NAME_VALUE`` is only ever chosen above when the
+    # caption already passed ``_is_numeric_caption`` — so every element
+    # reaching this line reads as a bare number, whatever produced that
+    # caption: a raw stored value, or a catalogue TERM whose own label
+    # happens to be a bare numeral (the ``ref_select`` model case, PASS-16
+    # Д421 measured again in 0.22.2). 0.22.1 exempted the latter, reasoning
+    # a vocabulary term's name reads as a natural prefix word («Этаж 3»); that
+    # held for that one example and broke on «Модель 90», so 0.22.2 drops the
+    # source test and always adds the colon here. A vocabulary term with a
+    # WORD label («Этаж третий») never reaches this branch at all — it fails
+    # ``_is_numeric_caption`` above and gets ``PRESENTATION_VALUE`` instead,
+    # so it keeps its bare name without needing an exemption. The colon lands
+    # in ``name`` rather than in a new key so a client already joining
+    # ``name`` and ``label`` with a single space (the 0.21.3 contract's own
+    # reference renderer) reads «Модель: 90» with no client-side change.
+    if presentation == PRESENTATION_NAME_VALUE:
         element["name"] = f"{name}:"
     return element
 
 
-def _card_caption(dao: Dict[str, Any]) -> Tuple[str, bool, bool]:
-    """``(caption, is a single value, is vocabulary-backed)`` for a non-bool DAO.
+def _card_caption(dao: Dict[str, Any]) -> Tuple[str, bool]:
+    """``(caption, is a single value)`` for a non-bool DAO.
 
     The second half exists so a multi-select never takes the numeric branch:
     two labels joined can parse as a number («1, 2») and mean nothing of the
     kind.
 
-    The third half tells :func:`decorate_card_element` whether the caption is
-    a catalogue TERM (a ``select`` / ``ref_select`` option's ``labels``
-    snapshot, or an already-resolved caption like ``hex_color``'s) rather than
-    the feature's raw stored value rendered as text. Only the raw-value case
-    gets locale number grouping and the ``name_value`` colon fix below — a
-    vocabulary label is exactly what the catalogue wrote and this module
-    still never touches it, the same rule ``_card_unit`` already applies to
-    ``postfix``.
+    Locale number grouping (below) is the one thing that still depends on
+    WHERE the caption came from: it only ever touches a caption built from
+    the feature's raw stored value, never a catalogue TERM's ``labels``
+    snapshot — a vocabulary label is exactly what the catalogue wrote, the
+    same rule ``_card_unit`` already applies to ``postfix``. That distinction
+    is structural (which branch below produced the caption) and no longer
+    needs a returned flag; the ``name_value`` colon, unlike grouping, does
+    not care which branch ran — see the comment in
+    :func:`decorate_card_element`.
     """
     if dao.get("type") == "convertible_unit":
-        return _convertible_caption(dao), True, False
+        return _convertible_caption(dao), True
 
     labels = dao.get("labels")
     if isinstance(labels, list):
         parts = [str(item) for item in labels if item not in (None, "")]
         if parts:
-            return ", ".join(parts), len(parts) == 1, True
+            return ", ".join(parts), len(parts) == 1
 
     # hex_color keeps its caption under ``label`` already; the contract reuses
     # it rather than printing a #RRGGBB at a person.
     existing = dao.get("label")
     if isinstance(existing, str) and existing:
-        return existing, True, True
+        return existing, True
 
     value = dao.get("value")
     if isinstance(value, list):
         parts = [str(item) for item in value if item not in (None, "")]
-        return ", ".join(parts), len(parts) == 1, True
+        return ", ".join(parts), len(parts) == 1
     if value is None or value == "":
-        return "", True, False
+        return "", True
     if isinstance(value, bool):
-        return str(value), True, False
+        return str(value), True
     if isinstance(value, (int, float)):
-        return _format_number(value), True, False
-    return str(value), True, False
+        return _format_number(value), True
+    return str(value), True
 
 
 def _card_unit(dao: Dict[str, Any]) -> Optional[str]:

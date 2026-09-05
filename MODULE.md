@@ -72,7 +72,7 @@
 - **The card badge contract** (0.21.3): the two card projections additionally
   carry `label` / `unit` / `name` / `presentation` per element, added on the
   way out. A card renders one element by branching on `presentation` alone —
-  `value` («Кирпичный»), `value_unit` («42 м²»), `name_value` («Этаж 3») or
+  `value` («Кирпичный»), `value_unit` («42 м²»), `name_value` («Этаж: 3») or
   `name` (a true boolean); a false boolean is absent. The rule lives once, in
   `services/features.py`, because the alternative was every client inventing
   per feature whether a value stands alone — which is how a live apartment card

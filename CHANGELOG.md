@@ -4,6 +4,41 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.22.2] — 2026-09-05
+
+### Fixed — the `name_value` colon missed the actual catalogue case it was written for
+
+0.22.1's fix for the glued `«HONOR · Модель 90»` line (Д421) exempted the
+colon whenever the caption came from a vocabulary, reasoning that a
+vocabulary term's own name already reads as a natural prefix word (`«Этаж
+3»`). That was the wrong discriminator: measured against the live DAO,
+`model` is itself a `ref_select` resolving to a catalogue term whose label is
+the bare numeral `«90»` — `{"name": "Модель", "label": "90", "labels":
+["90"]}` — vocabulary-backed by source, but shaped exactly like the raw value
+the colon exists for, and it kept gluing. 0.22.1 shipped without fixing the
+one case it was named after.
+
+`decorate_card_element` now decides the colon on the LABEL's shape, not on
+where the caption came from: any `name_value` caption gets `name: value`
+(the label already passed `_is_numeric_caption` — that is what put it on the
+`name_value` branch in the first place — so this is now unconditional there).
+A vocabulary term with a WORD label (`«Этаж третий»`) was never protected by
+the old exemption to begin with: a non-numeric caption never reaches
+`name_value`, it renders `PRESENTATION_VALUE` instead and stays bare. The
+practical effect: the catalogue `«90»` case now reads `«Модель: 90»`, and
+`floor`/`floors` — whose vocabulary labels are also bare numerals in a real
+schema — now read `«Этаж: 3»` / `«Этажей в доме: 9»` instead of staying
+exempt; a vocabulary label that is an actual word is untouched.
+
+`_card_caption` drops its now-dead third return value (`is
+vocabulary-backed`) along with it — nothing downstream of the colon decision
+ever needed it once the discriminator moved to the label's shape.
+
+No reprojection or reindex is required for this release: the contract is
+applied on read (`decorate_card_elements`, on the way out of `features_title`
+/ `features_badges`), exactly as documented for the 0.22.1 fix — nothing is
+stored, so there is nothing stale to refresh.
+
 ## [0.22.1] — 2026-09-05
 
 ### Fixed — a card badge stopped gluing its name into its value, and stopped printing «20000 км»
