@@ -22,6 +22,15 @@ listings_settings = AppSettings(
         # Seconds a resolved feature-config list is memoized in the Django
         # cache. Invalidated early by the ``category.changed`` subscription.
         "FEATURE_CONFIG_CACHE_TIMEOUT": 300,
+        # Name of the comm Function that lists one rung of the category
+        # cascade — ``{"parent_id": id}`` -> ``{"children": [{id,
+        # children_count, …}]}``. Read by ``listings.rename_feature_keys``
+        # alone, to resolve the SUBTREE a renamed feature is inherited
+        # through: a feature defined on a parent is answered by listings in
+        # every category under it. Empty disables the walk, and so does an
+        # unregistered provider — the rename then applies to the single
+        # category it was given and says so (``subtree_resolved``).
+        "CATEGORY_CHILDREN_FUNCTION": "categories.children",
         # --- Pricing (currency is an opaque code; conversion is a seam) ---
         # Base currency code price_base is expressed in.
         "BASE_CURRENCY": "USD",

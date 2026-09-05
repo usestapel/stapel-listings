@@ -24,7 +24,7 @@ pip install stapel-listings
 
 | Fact | Value |
 |---|---|
-| Version | `0.21.6` |
+| Version | `0.22.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | Django | `djangorestframework>=3.14` |
 | HTTP operations | 20 |
@@ -84,8 +84,10 @@ Emits (Actions): `listing.submitted` (moderation boundary),
 `listing.published` / `listing.updated` / `listing.removed` (search boundary).
 Consumes: `category.changed`, `moderation.completed`, `user.deleted`.
 Provides Functions: `listings.status`, `listings.search_documents`,
-`listings.search_export`, `listings.moderation_content`.
-Calls: `categories.features`.
+`listings.search_export`, `listings.moderation_content`,
+`listings.rename_feature_keys` (the catalogue seam — a feature-slug rename
+moves the stored draft keys here).
+Calls: `categories.features`, `categories.children`.
 
 **Boundaries:** search/filtering is a separate **stapel-search** module; this
 module builds `features_search`, signals with the `listing.*` events and hands

@@ -357,6 +357,11 @@ def test_the_raw_feature_columns_are_read_only_where_they_should_be():
             "services/reproject.py",
             # The command that drives it: prose and an argparse help string.
             "management/commands/listings_reproject_features.py",
+            # Prose only, and about the schema half of the word: it renames
+            # draft KEYS and prints counts. Values never reach it — the
+            # projections are rebuilt by services/reproject.py, which is
+            # where the redaction already lives.
+            "management/commands/listings_rename_feature_keys.py",
             # The document builder: filters again on the way out.
             "services/search_feed.py",
             # Emits the two bus payloads through _public_features_search.

@@ -4,6 +4,58 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.22.0] — 2026-09-05
+
+### Added — `listings.rename_feature_keys`: the write half of a slug rename
+
+A catalogue import renamed five feature slugs in place on a live fleet
+(`make_ref_select` → `make`, `body_type_ref_select` → `body_type`, and three
+more; the loader's dry run said `features: updated 62` and nothing about a
+rename). The category schema moved. The listings did not: every draft
+composed against the old schema kept its answers under the OLD keys in
+`features_draft`, so the make facet went empty, the search projection lost
+the values, and `listings_reproject_features` — which keys on the CURRENT
+slugs — would have DROPPED them rather than repaired them. A feature rename
+is not a category-side edit at all; it is a two-sided data migration, and
+this library owned a half of it that did not exist.
+
+It exists now, as the comm Function `listings.rename_feature_keys`
+(`{category_id, renames: {old: new}, dry_run}`) and the command
+`listings_rename_feature_keys --category ID --rename old=new [--dry-run]`.
+Across the category subtree — resolved rung by rung over the new
+`CATEGORY_CHILDREN_FUNCTION` seam, because a feature defined on a parent is
+answered by listings beneath it — it rewrites the KEY, keeps the value and
+the key's position, re-projects the categories it touched through the same
+`reproject_listings` pass a repair run uses, and lets those writes emit
+`listing.updated` so a search index re-pulls. Idempotent: a second run finds
+nothing to move and writes nothing.
+
+Three refusals are the point of it:
+
+* a draft that already answers the NEW slug as well as the old one keeps
+  **both** keys untouched and is reported as a conflict, per listing, with
+  both slugs — nothing here knows which answer the seller meant, and
+  overwriting one with the other would be a silent edit of their data on a
+  run whose whole purpose is to stop being silent;
+* a rename map that cannot mean anything (empty, a slug onto itself, two old
+  slugs onto one new one, or a chain `a→b, b→c`) is refused as a whole,
+  before a single row is read: every one of those makes the result depend on
+  iteration order;
+* the memoized category schema is invalidated for every category in scope
+  first. `category_schema` caches feature configs under a revision-keyed
+  entry, and a re-projection that read a PRE-rename revision would re-derive
+  every listing against the schema that just retired — writing back exactly
+  the loss the call was made to undo.
+
+What it does not cover, said rather than implied: soft-deleted listings are
+outside the pass (they render nowhere and have already told the index they
+are gone) and are counted as `deleted_skipped`; with no children provider
+wired the call covers the one category it was named and answers
+`subtree_resolved: false` instead of implying a subtree it never walked.
+
+Minor, not patch: a new comm Function and a new settings key are features,
+and pre-1.0 house semver reads a minor as the breaking edge.
+
 ## [0.21.6] — 2026-09-05
 
 ### Fixed — the search document dropped `features_badges` on the floor

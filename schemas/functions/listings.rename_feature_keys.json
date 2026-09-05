@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "listings.rename_feature_keys",
+  "description": "Second half of a feature-slug rename: move the KEYS of stored drafts to follow a category schema that renamed a feature. A catalogue import that renames a slug in place (make_ref_select -> make) moves the schema and nothing else; every listing composed against the old schema keeps its answer under the old key in features_draft, so the facet empties, the search projection loses the value, and listings_reproject_features on its own would DROP it (it keys on current slugs). This call rewrites the key in place across the category subtree (resolved over categories.children, because a feature defined on a parent is inherited downward), keeps the value untouched, re-projects the touched categories through the same code path as listings_reproject_features, and lets those writes emit listing.updated so a search index re-pulls. A draft that already answers the NEW key as well as the old one is NEVER guessed at: both keys are left exactly as they are and the pair is reported in `conflicts`. Idempotent — a second run finds nothing to move. This object validates the request payload; the response is {listings_scanned, listings_changed, keys_renamed, conflicts: [{listing_id, old, new}], conflicts_total, conflicts_truncated, categories, subtree_resolved, deleted_skipped, dry_run, reprojected}.",
+  "type": "object",
+  "required": ["category_id", "renames"],
+  "properties": {
+    "category_id": {
+      "type": ["string", "integer"],
+      "description": "Root of the subtree to rewrite. Its descendants are included: a feature defined on a parent category is answered by listings in every category beneath it."
+    },
+    "renames": {
+      "type": "object",
+      "description": "{old_slug: new_slug}. Refused as a whole (nothing read, nothing written) when it is empty, renames a slug onto itself, sends two old slugs to one new one, or chains (a slug appearing on both sides) — every one of those makes the outcome depend on iteration order.",
+      "minProperties": 1,
+      "additionalProperties": { "type": "string", "minLength": 1 },
+      "propertyNames": { "minLength": 1 }
+    },
+    "dry_run": {
+      "type": "boolean",
+      "description": "Report the counts and the conflicts and write nothing. Default false.",
+      "default": false
+    }
+  },
+  "additionalProperties": false
+}

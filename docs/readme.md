@@ -44,8 +44,10 @@ Emits (Actions): `listing.submitted` (moderation boundary),
 `listing.published` / `listing.updated` / `listing.removed` (search boundary).
 Consumes: `category.changed`, `moderation.completed`, `user.deleted`.
 Provides Functions: `listings.status`, `listings.search_documents`,
-`listings.search_export`, `listings.moderation_content`.
-Calls: `categories.features`.
+`listings.search_export`, `listings.moderation_content`,
+`listings.rename_feature_keys` (the catalogue seam — a feature-slug rename
+moves the stored draft keys here).
+Calls: `categories.features`, `categories.children`.
 
 **Boundaries:** search/filtering is a separate **stapel-search** module; this
 module builds `features_search`, signals with the `listing.*` events and hands

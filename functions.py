@@ -28,6 +28,10 @@ its database (MODULE.md: "talk over comm by string name"):
 - ``listings.moderation_content`` — the moderation seam. The verdict bus
   carries identifiers only, so the screener reads content through this call at
   the moment it screens, not from a six-hour-old event payload.
+- ``listings.rename_feature_keys`` — the catalogue seam, and the only WRITE
+  among these. A feature-slug rename is a two-sided migration: the schema moves
+  in stapel-categories, the stored answers move here. The loader performing the
+  first half calls this by name to perform the second.
 - ``listings.draft_content`` — the composer seam, and the only read here that
   answers the DRAFT twins first. A service that analyses a draft is addressed
   by the draft id and has no body to read the content from; the public detail
@@ -200,3 +204,40 @@ def draft_content_function(payload: dict) -> dict:
         "language": listing.language or "",
         "is_empty": not images and not title.strip() and not description.strip(),
     }
+
+
+@function("listings.rename_feature_keys", schema=_schema("listings.rename_feature_keys"))
+def rename_feature_keys_function(payload: dict) -> dict:
+    """Move stored draft KEYS to follow a category that renamed a feature slug.
+
+    The WRITE half of a two-sided migration. A catalogue import renames a slug
+    in place (``make_ref_select`` → ``make``); the schema moves and the stored
+    answers do not, so the facet empties, the search projection loses the
+    values, and ``listings_reproject_features`` — which keys on the CURRENT
+    slugs — would have dropped them rather than repaired them. Measured on a
+    live fleet on 2026-09-05 over five car features at once.
+
+    So the loader that renames the slug calls this by name in the same run
+    (stapel-categories ``load_catalog --rename-features``, whose hook this is
+    the default of), and a person can call it by hand through
+    ``manage.py listings_rename_feature_keys``.
+
+    Payload: ``{"category_id": <id>, "renames": {old: new}, "dry_run": bool}``.
+    The subtree under ``category_id`` is included — a feature defined on a
+    parent is answered by listings in every category beneath it.
+
+    Answers ``{listings_scanned, listings_changed, keys_renamed, conflicts,
+    …}``. A draft already answering the NEW key as well as the old one is a
+    ``conflict``: both keys are kept exactly as they are, because nothing here
+    knows which answer the seller meant, and overwriting one with the other
+    would be a silent edit of their data on a run whose point is to stop being
+    silent. Raises ``ValueError`` for a rename map that cannot mean anything
+    (empty, onto itself, two olds onto one new, or a chain).
+    """
+    from .services.rename_features import rename_feature_keys
+
+    return rename_feature_keys(
+        category_id=payload["category_id"],
+        renames=payload["renames"],
+        dry_run=bool(payload.get("dry_run", False)),
+    )

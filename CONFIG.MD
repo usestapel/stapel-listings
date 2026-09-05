@@ -20,6 +20,7 @@ headless pip dependency. The category schema is resolved by *comm-by-name*
 | Key | Source | Purpose | Required | Default |
 |-----|--------|---------|----------|---------|
 | CATEGORY_FEATURES_FUNCTION | env | name of the comm Function that resolves a category's feature schema. | no | categories.features |
+| CATEGORY_CHILDREN_FUNCTION | env | name of the comm Function listing one rung of the category cascade. Read only by `listings.rename_feature_keys`, to resolve the subtree a renamed feature is inherited through; empty or unregistered narrows that one call to the category it was given. | no | categories.children |
 | FEATURE_CONFIG_CACHE_TIMEOUT | env | seconds a resolved feature-config list is memoized (early-invalidated by `category.changed`). | no | 300 |
 | BASE_CURRENCY | env | base currency code `price_base` is expressed in. | no | USD |
 | PRICE_BASE_CONVERTER | env | dotted path to a `(amount, currency, base) -> Decimal` price_base converter (REPLACE). Default is identity. | no | stapel_listings.services.pricing.identity_converter |
