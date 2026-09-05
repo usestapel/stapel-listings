@@ -3377,14 +3377,6 @@
           "level": {
             "type": "string",
             "nullable": true
-          },
-          "prefix": {
-            "type": "string",
-            "nullable": true
-          },
-          "postfix": {
-            "type": "string",
-            "nullable": true
           }
         }
       },

@@ -4,6 +4,61 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.22.1] — 2026-09-05
+
+### Fixed — a card badge stopped gluing its name into its value, and stopped printing «20000 км»
+
+The desktop walk (PASS-16, Д421) caught the 0.21.3 card badge contract one
+short of the job it set out to do: an apartment card correctly reads «Этаж
+3», but a phone card read **«HONOR · Модель 90»** — the feature's own name
+(«Модель») and its raw value («90») sitting next to each other with nothing
+between them, one glued phrase instead of a name and an answer. And a car's
+mileage read **«20000 км»** instead of «20 000 км»: the number reached the
+card exactly as it was stored, ungrouped.
+
+Both are fixed in `services/features.py`'s `decorate_card_element`, on the
+same `name_value` / `value_unit` path the 0.21.3 contract already decides on:
+
+- **Numbers are grouped per locale.** A caption built from a feature's raw
+  stored value (`int` / `float`, not a vocabulary label) now gets RU
+  thousands grouping — a non-breaking space every three digits, from five
+  digits up: `20000` → `20 000`. Below that a number prints bare, which is
+  the whole reason for the threshold: a four-digit number is very often a
+  YEAR on a real catalogue (`year`, `built_year` — stored as a plain `int`,
+  no vocabulary behind it), and grouping it would split `2019` into `2 019`.
+  `GROUPING_THRESHOLD = 10_000` is the one constant that does both jobs.
+  `value_unit`'s unit is unaffected, same as `postfix1000` already leaves the
+  value alone — only the digits change shape.
+
+- **`name_value` no longer glues.** `«Этаж 3»` reads fine because `«Этаж»`
+  is a vocabulary TERM — `floor` / `floors` are `ref_select`/`select`, and a
+  term's own name already reads as a natural prefix word. `«Модель 90»` does
+  not, because `«90»` is the feature's raw value with no term behind it. So a
+  `name_value` element built from a raw value now gets a trailing colon on
+  `name` (`"Модель:"`), while a vocabulary-backed one (`floor`, `floors`)
+  keeps its bare name exactly as before. The colon lands in the EXISTING
+  `name` field rather than a new key: a client already joining `name` and
+  `label` with one space — the 0.21.3 contract's own reference renderer —
+  now reads «Модель: 90» with **no client-side change required**.
+
+Both fixes are additive to the wire: `value`, `label`, `unit` and
+`presentation` keep their 0.21.3 meaning, and the only elements affected are
+the ones the bug was in (a raw-value `name_value`, or a `value_unit` /
+`name_value` numeric caption of 10 000 or more). The existing badge-contract
+tests (vocabulary-backed `floor`/`floors`, `square`'s `42 м²`, the boolean and
+multi-select cases) are untouched and still pass unmodified.
+
+Applied **on the way out** (`decorate_card_element`), exactly as the rest of
+the card badge contract already is — not at build/publish time, so no
+migration and no re-projection is needed for `features_title` /
+`features_badges` themselves. **Fleets should still run
+`listings_reproject_features` and `search_rebuild --type listing`**: a search
+index built downstream of this module (`stapel_classified.cards.card_features`
+decorates `features_title`/`features_badges` with this same call before
+indexing them for the free-text/facet surface) can be holding pre-fix
+rendered strings, and only a rebuild refreshes those cached copies — `stapel-listings`
+itself has nothing stored to migrate.
+
 ## [0.22.0] — 2026-09-05
 
 ### Added — `listings.rename_feature_keys`: the write half of a slug rename

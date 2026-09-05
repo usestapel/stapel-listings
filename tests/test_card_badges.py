@@ -163,6 +163,50 @@ def test_multi_select_is_never_read_as_a_number():
     assert element["label"] == "1, 2"
 
 
+def test_raw_numeric_value_gets_a_colon_not_a_glued_name(apartment_title):
+    """«HONOR · Модель 90» read as one phrase — PASS-16 Д421.
+
+    ``model`` here is a raw ``string``, unlike ``floor`` above: no vocabulary
+    behind its value, so its numeric caption gets the name's trailing colon
+    that ``floor``/``floors`` are exempt from.
+    """
+    (element,) = decorate_card_elements([
+        {"slug": "model", "type": "string", "name": "Модель", "value": "90"},
+    ])
+    assert element["presentation"] == PRESENTATION_NAME_VALUE
+    assert element["label"] == "90"
+    assert element["name"] == "Модель:"
+
+    # The vocabulary-backed siblings from the apartment fixture keep their
+    # bare name — this fix does not touch them.
+    elements = _by_slug(apartment_title)
+    assert elements["floor"]["name"] == "Этаж"
+    assert elements["floors"]["name"] == "Этажей в доме"
+
+
+def test_mileage_is_grouped_with_its_unit():
+    """«20 000 км», not «20000 км» — PASS-16 Д421."""
+    (element,) = decorate_card_elements([
+        {"slug": "mileage", "type": "int", "name": "Пробег", "value": 20000,
+         "postfix": "км"},
+    ])
+    assert element["presentation"] == PRESENTATION_VALUE_UNIT
+    assert element["label"] == "20\xa0000"
+    assert element["unit"] == "км"
+
+
+def test_a_year_is_never_grouped():
+    """«2019», never «2 019» — a raw ``int`` year has no vocabulary either,
+    so it takes the same colon as ``model`` above; grouping is the one thing
+    it is exempt from, below :data:`GROUPING_THRESHOLD`."""
+    (element,) = decorate_card_elements([
+        {"slug": "year", "type": "int", "name": "Год выпуска", "value": 2019},
+    ])
+    assert element["presentation"] == PRESENTATION_NAME_VALUE
+    assert element["label"] == "2019"
+    assert element["name"] == "Год выпуска:"
+
+
 def test_the_contract_only_adds_keys():
     """Backward compatibility: nothing stored is renamed or dropped."""
     stored = {

@@ -355,6 +355,24 @@ def _extract_search_values(dao: Dict[str, Any]) -> List[Any]:
 # type-driven rule would file them under "dictionary value, print it alone"
 # and reproduce the exact bug this contract exists to fix. A caption of several
 # joined labels is never numeric, whatever its parts look like.
+#
+# 0.22.1 (Д421) refines the numeric caption itself, in two ways:
+#
+# - it is grouped per locale (RU: a non-breaking space every three digits,
+#   from five digits up — ``20000`` -> «20 000». Below that a number prints
+#   bare, which is what keeps a year («2019») from being split into «2 019»:
+#   see ``GROUPING_THRESHOLD``. Grouping only ever touches a caption built
+#   from the feature's raw stored value; a vocabulary label (``floor``,
+#   ``floors`` above) is exactly what the catalogue wrote and stays untouched,
+#   same as ``postfix1000`` already leaves it alone;
+# - for ``PRESENTATION_NAME_VALUE`` specifically, ``name`` gets a trailing
+#   colon UNLESS the caption is that same vocabulary label. «Этаж 3» reads as
+#   a name-then-count because «Этаж» is a term; «Модель 90» does not, because
+#   «90» is the feature's raw value with no term behind it, and the two used
+#   to read as one glued phrase («HONOR · Модель 90», PASS-16 Д421). The
+#   colon lands in ``name`` rather than in a new key so a client already
+#   joining ``name`` and ``label`` with one space — the 0.21.3 contract's own
+#   reference renderer — reads «Модель: 90» with no client-side change.
 
 #: Render the caption alone.
 PRESENTATION_VALUE = "value"
@@ -423,7 +441,7 @@ def decorate_card_element(dao: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "presentation": PRESENTATION_NAME,
         }
 
-    label, single = _card_caption(dao)
+    label, single, from_vocabulary = _card_caption(dao)
     if not label:
         return None
 
@@ -436,40 +454,67 @@ def decorate_card_element(dao: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     element = {**dao, "name": name, "label": label, "presentation": presentation}
     if unit:
         element["unit"] = unit
+
+    # ``name_value`` is the one presentation that puts two separate wire
+    # fields («Этаж», «3») next to each other on a card, and a bare number
+    # next to a bare caption reads as one glued phrase («HONOR · Модель 90» —
+    # Д421). A vocabulary-backed caption (below, ``from_vocabulary``) is
+    # exempt: its label is a catalogue TERM, and a term's own name already
+    # reads as a natural prefix word («Этаж 3», «Комнат 2») — this is the
+    # schema marking the name as a prefix word, via the vocabulary mechanism
+    # it already uses to resolve the term's display text. A caption built
+    # from the feature's raw stored value has no such term behind it, so its
+    # name gets a trailing colon: any client already joining ``name`` and
+    # ``label`` with a single space (the 0.21.3 contract's own reference
+    # renderer) now reads «Модель: 90» instead of «Модель 90» — the fix
+    # lands without a second, coordinated client release.
+    if presentation == PRESENTATION_NAME_VALUE and not from_vocabulary:
+        element["name"] = f"{name}:"
     return element
 
 
-def _card_caption(dao: Dict[str, Any]) -> Tuple[str, bool]:
-    """``(caption, is a single value)`` for a non-boolean DAO.
+def _card_caption(dao: Dict[str, Any]) -> Tuple[str, bool, bool]:
+    """``(caption, is a single value, is vocabulary-backed)`` for a non-bool DAO.
 
     The second half exists so a multi-select never takes the numeric branch:
     two labels joined can parse as a number («1, 2») and mean nothing of the
     kind.
+
+    The third half tells :func:`decorate_card_element` whether the caption is
+    a catalogue TERM (a ``select`` / ``ref_select`` option's ``labels``
+    snapshot, or an already-resolved caption like ``hex_color``'s) rather than
+    the feature's raw stored value rendered as text. Only the raw-value case
+    gets locale number grouping and the ``name_value`` colon fix below — a
+    vocabulary label is exactly what the catalogue wrote and this module
+    still never touches it, the same rule ``_card_unit`` already applies to
+    ``postfix``.
     """
     if dao.get("type") == "convertible_unit":
-        return _convertible_caption(dao), True
+        return _convertible_caption(dao), True, False
 
     labels = dao.get("labels")
     if isinstance(labels, list):
         parts = [str(item) for item in labels if item not in (None, "")]
         if parts:
-            return ", ".join(parts), len(parts) == 1
+            return ", ".join(parts), len(parts) == 1, True
 
     # hex_color keeps its caption under ``label`` already; the contract reuses
     # it rather than printing a #RRGGBB at a person.
     existing = dao.get("label")
     if isinstance(existing, str) and existing:
-        return existing, True
+        return existing, True, True
 
     value = dao.get("value")
     if isinstance(value, list):
         parts = [str(item) for item in value if item not in (None, "")]
-        return ", ".join(parts), len(parts) == 1
+        return ", ".join(parts), len(parts) == 1, True
     if value is None or value == "":
-        return "", True
-    if isinstance(value, float):
-        return _trim_float(value), True
-    return str(value), True
+        return "", True, False
+    if isinstance(value, bool):
+        return str(value), True, False
+    if isinstance(value, (int, float)):
+        return _format_number(value), True, False
+    return str(value), True, False
 
 
 def _card_unit(dao: Dict[str, Any]) -> Optional[str]:
@@ -508,13 +553,49 @@ def _convertible_caption(dao: Dict[str, Any]) -> str:
             value = convert_from_base(value, code, unit_type)
         except Exception:  # unknown family/unit — print the stored number
             pass
-    return _trim_float(value) if isinstance(value, float) else str(value)
+    return _format_number(value) if isinstance(value, (int, float)) else str(value)
 
 
 def _trim_float(value: float) -> str:
     """``42.0`` -> ``"42"``, ``42.50`` -> ``"42.5"``."""
     text = f"{value:.6f}".rstrip("0").rstrip(".")
     return text or "0"
+
+
+#: Below this magnitude a number is printed bare. RU typography groups
+#: thousands from five digits up precisely so a plain four-digit number —
+#: most often a year, on a real catalogue (``built_year``, ``year``) stored as
+#: a raw ``int`` with no vocabulary behind it — is never split into «2 019».
+#: Below the threshold nothing needed the exemption in the first place, so
+#: one constant does both jobs: mileage (``20000`` -> «20 000», Д421) crosses
+#: it, a year never does.
+GROUPING_THRESHOLD = 10_000
+
+
+def _format_number(value: float) -> str:
+    """*value* with RU thousands grouping, non-breaking space as separator.
+
+    ``42`` -> ``"42"``, ``20000`` -> ``"20\xa0000"``, ``2019`` -> ``"2019"``
+    (below :data:`GROUPING_THRESHOLD`), ``-1234567.5`` ->
+    ``"-1\xa0234\xa0567.5"``. The separator is U+00A0, the character
+    :func:`_is_numeric_caption` already tolerates — that tolerance predates
+    this function, written for a write-time vocabulary label that already
+    carried one.
+    """
+    text = _trim_float(value) if isinstance(value, float) else str(value)
+    negative = text.startswith("-")
+    body = text[1:] if negative else text
+    int_part, dot, frac_part = body.partition(".")
+    if int(int_part) >= GROUPING_THRESHOLD:
+        digits = int_part
+        groups: List[str] = []
+        while len(digits) > 3:
+            groups.insert(0, digits[-3:])
+            digits = digits[:-3]
+        groups.insert(0, digits)
+        int_part = "\xa0".join(groups)
+    result = int_part + (f".{frac_part}" if dot else "")
+    return f"-{result}" if negative else result
 
 
 def _is_numeric_caption(caption: str) -> bool:
