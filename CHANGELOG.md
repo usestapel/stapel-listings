@@ -4,7 +4,7 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
-## [0.23.0] — 2026-09-06
+## [0.22.4] — 2026-09-06
 
 ### Added — `my/counters` counts the moderation takedown too
 

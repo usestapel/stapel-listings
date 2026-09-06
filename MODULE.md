@@ -124,7 +124,7 @@
   content — it answers for a soft-deleted listing on purpose), and
   `unfavorite` only deletes the caller's own row.
 - **Two owner-scoped reads, one scope** (0.7.0): `GET my/counters` (four
-  integers — `active`, `archived`, `drafts` and, since 0.23.0, `blocked`, the
+  integers — `active`, `archived`, `drafts` and, since 0.22.4, `blocked`, the
   moderation takedown that used to belong to no tab) and `GET my/listings`
   (the rows behind them) both answer
   `Listing.objects.owned_by(request.user)` under `IsAuthenticated` — every
