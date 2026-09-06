@@ -313,6 +313,41 @@ def test_moderation_content_unknown_listing_raises():
         call("listings.moderation_content", {"listing_id": 999999})
 
 
+def test_moderation_content_accepts_the_prefixed_key_shape(draft_listing):
+    """A moderation ``target_key`` is an opaque host string, and hosts spell it
+    two ways: ``"630"`` and ``"listing:630"``. A live case that can never be
+    screened because two services disagree about a colon is not a contract
+    win. Tolerant reader, unchanged contract.
+    """
+    from stapel_core.comm import call
+
+    content = call(
+        "listings.moderation_content", {"listing_id": f"listing:{draft_listing.pk}"}
+    )
+    assert content["listing_id"] == draft_listing.pk
+    assert content["title"] == "Toyota Camry"
+
+
+def test_moderation_content_refuses_a_draft_key_by_name(draft_listing):
+    """The 207 questions from a client stand, and the answer they needed.
+
+    ``draft:<uuid>`` is stapel-moderation's SYNTHETIC key for a case about
+    content that was never published. It names no row here and never will, so
+    the answer is "not found" — said in words that survive a transport which
+    keeps only the message text, because the caller reads exactly that to tell
+    a missing target from an outage.
+    """
+    from stapel_core.comm import FunctionCallError, call
+
+    with pytest.raises(FunctionCallError) as exc:
+        call(
+            "listings.moderation_content",
+            {"listing_id": "draft:71bde8564c2148e09eb0d2b3b8d8ab80"},
+        )
+    assert "not found" in str(exc.value)
+    assert "LookupError" in str(exc.value)
+
+
 def test_moderation_content_request_schema_enforced():
     from stapel_core.comm import call
     from stapel_core.comm.exceptions import SchemaValidationError

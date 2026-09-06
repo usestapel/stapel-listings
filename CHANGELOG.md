@@ -4,6 +4,30 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.22.5] — 2026-09-06
+
+### `moderation_content` reads every key shape a case can carry
+
+A moderation `target_key` is an opaque host string, and stapel-moderation has
+been observed carrying two spellings of the same listing — the bare id
+(`"630"`) and the prefixed one (`"listing:630"`). The second resolved to
+`ValueError` and then to "listing not found", which the caller reads as *the
+target is gone* and — on a real fleet, where the exception is flattened into a
+message — as *your service is down*, retried to exhaustion. A live case that
+can never be screened because two services disagree about a colon is not a
+contract win.
+
+Both shapes now resolve. The contract is unchanged: the payload key is still
+`listing_id`, it still means this module's own id, and the tolerance is in the
+reader, not in the promise.
+
+A `draft:<uuid>` key is refused by name, and this is the other half of the
+same story. It is stapel-moderation's SYNTHETIC key for a case about content
+that was never published — it names no row here and never will — and on a
+client stand this function was asked that question 207 times in two days. The
+`LookupError` now says so in words, because the only thing that survives the
+transport back to the caller is the message text.
+
 ## [0.22.4] — 2026-09-06
 
 ### Added — `my/counters` counts the moderation takedown too

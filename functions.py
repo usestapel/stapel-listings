@@ -103,6 +103,30 @@ def search_export_function(payload: dict) -> dict:
     return export_page(payload.get("cursor"), payload.get("limit") or 500)
 
 
+#: Key prefixes a moderation ``target_key`` may carry for a listing. Only the
+#: module's own name — a tolerant reader accepts a spelling of ITS id, never
+#: somebody else's namespace.
+_MODERATION_KEY_PREFIX = "listing:"
+
+
+def _moderation_target_id(raw):
+    """The listing id inside a moderation ``target_key``, or ``None``.
+
+    ``None`` means "this key does not name a listing at all" — a
+    ``draft:<uuid>``, an empty string, anything with a foreign prefix — and
+    the caller turns that into the same ``LookupError`` a deleted listing
+    gets, because from here the two are the same fact.
+    """
+    text = str(raw if raw is not None else "").strip()
+    if not text:
+        return None
+    if text.startswith(_MODERATION_KEY_PREFIX):
+        text = text[len(_MODERATION_KEY_PREFIX) :].strip()
+    if not text or ":" in text:
+        return None
+    return text
+
+
 @function("listings.moderation_content", schema=_schema("listings.moderation_content"))
 def moderation_content_function(payload: dict) -> dict:
     """Content of one listing for a screener or a moderator's card.
@@ -110,11 +134,38 @@ def moderation_content_function(payload: dict) -> dict:
     Published fields first, draft twins as the fallback: what is live is what
     is moderated, and a listing still on its way to publication is moderated on
     the draft that is about to become live.
+
+    **Key shapes.** The caller is stapel-moderation, whose ``target_key`` is an
+    opaque host string, and it has been observed carrying two spellings of the
+    same listing: the bare id (``"630"``) and the prefixed one
+    (``"listing:630"``). Both are accepted here. That is a tolerant READER, not
+    a tolerant contract — the payload key is still ``listing_id`` and still
+    means this module's own id — and it is one line against the alternative,
+    which is a live case that can never be screened because two services
+    disagree about a colon.
+
+    A ``draft:<uuid>`` key is a different thing entirely and is NOT resolved:
+    it is stapel-moderation's synthetic key for a case about content that was
+    never published, it names no row here and never will, and answering
+    anything but "not found" would invent a listing. The message says so in
+    those words, because on a client stand this call was asked that question
+    207 times and the answer had to travel back through a transport that keeps
+    only the text.
+
+    Raises ``LookupError`` when there is no such listing — the documented
+    contract of the ``*.moderation_content`` family, and what the caller reads
+    to tell "gone" (dismiss the case) from "your service is down" (retry).
     """
     from .conf import listings_settings
     from .models import Listing
 
-    listing_id = payload["listing_id"]
+    raw = payload["listing_id"]
+    listing_id = _moderation_target_id(raw)
+    if listing_id is None:
+        raise LookupError(
+            f"listing {raw} not found: {raw!r} is not a listing key "
+            "(a draft: key names an unpublished draft this module never held)"
+        )
     try:
         listing = Listing.all_objects.get(pk=listing_id)
     except (Listing.DoesNotExist, ValueError, TypeError):
