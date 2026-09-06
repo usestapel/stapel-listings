@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-listings"
-version = "0.22.5"
+version = "0.22.6"
 description = "Listings and catalog for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -26,7 +26,14 @@ classifiers = [
 dependencies = [
     # Floor: the core this app is developed and tested against. The old
     # `>=0.10` let a consumer resolve a core the app has not seen in a year.
-    "stapel-core>=0.26.0,<1.0",
+    #
+    # 0.60.6 is the floor because ListingDraftSerializer.validate() raises
+    # StapelValidationError(..., params={"max_bytes": ...}) — a
+    # serializer-level `.validate()` — and before core 0.60.6, DRF's own
+    # Serializer.run_validation catches and re-raises that as a plain
+    # ValidationError, discarding `params` along the way; a client below the
+    # floor never sees `max_bytes`.
+    "stapel-core>=0.60.6,<1.0",
     # attributes 0.3.x caps `stapel-core<0.12`, which made stapel-listings
     # unresolvable next to any modern core (stapel-categories 0.5.4 hit the
     # same wall and moved the same way).

@@ -4,6 +4,20 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.22.6] — 2026-09-06
+
+### `stapel-core` floor raised to 0.60.6 — `params` now survives DRF's re-raise
+
+`ListingDraftSerializer.validate()` raises
+`StapelValidationError(ERR_400_DRAFT_META_TOO_LARGE, params={"max_bytes": ...})`
+from a serializer-level `.validate()`. Below core 0.60.6, DRF's own
+`Serializer.run_validation` catches and re-raises that as a plain
+`ValidationError`, and the re-raise path discards everything but the error's
+text and `.code` — a caller below the floor got the error key with no
+`max_bytes` to act on. 0.60.6 packs `error_key`/`params` into the exception's
+`.code` itself, so `params` reaches the client through any depth of DRF
+re-wrapping. Floor-only; no behaviour here changes.
+
 ## [0.22.5] — 2026-09-06
 
 ### `moderation_content` reads every key shape a case can carry
