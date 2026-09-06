@@ -123,8 +123,10 @@
   inter-service existence/status read (`AllowAny` over `all_objects`, no
   content — it answers for a soft-deleted listing on purpose), and
   `unfavorite` only deletes the caller's own row.
-- **Two owner-scoped reads, one scope** (0.7.0): `GET my/counters` (three
-  integers) and `GET my/listings` (the rows behind them) both answer
+- **Two owner-scoped reads, one scope** (0.7.0): `GET my/counters` (four
+  integers — `active`, `archived`, `drafts` and, since 0.23.0, `blocked`, the
+  moderation takedown that used to belong to no tab) and `GET my/listings`
+  (the rows behind them) both answer
   `Listing.objects.owned_by(request.user)` under `IsAuthenticated` — every
   status the caller owns, soft-deleted excluded by the default manager,
   narrowable with `?status=` (repeat the parameter or pass one

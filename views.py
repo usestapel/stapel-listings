@@ -407,12 +407,26 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], url_path="my/counters",
             permission_classes=[IsAuthenticated])
     def my_counters(self, request):  # noqa: R007
+        """One integer per cabinet tab, over the caller's own listings.
+
+        The tab groupings are the SERVER's — ``my/listings?status=`` takes
+        the same sets — so a cabinet never has to re-derive which statuses
+        make up "active". Every lifecycle status is in exactly one group:
+        ``blocked`` (a moderation takedown) is its own count rather than
+        being folded into ``archived``, because the two tell the seller
+        different things and only one of them is theirs to undo.
+
+        Owner-scoped at the queryset via ``owned_by``, soft-deleted rows
+        excluded by the default manager — the same scope as
+        ``my/listings``, so a tab's rows and its count always agree.
+        """
         counts = Listing.objects.owned_by(request.user).aggregate(
             active=Count("id", filter=Q(status__in=[ListingStatus.PUBLISHED, ListingStatus.PENDING])),
             archived=Count("id", filter=Q(status__in=[
                 ListingStatus.ARCHIVED, ListingStatus.PAUSED,
                 ListingStatus.EXPIRED, ListingStatus.SOLD])),
             drafts=Count("id", filter=Q(status__in=[ListingStatus.DRAFT, ListingStatus.REJECTED])),
+            blocked=Count("id", filter=Q(status=ListingStatus.BLOCKED)),
         )
         return StapelResponse(MyCountersResponseSerializer(MyCountersResponse(**counts)))
 
@@ -439,7 +453,7 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         """The caller's OWN listings, in every status.
 
         The counterpart of ``my/counters``: the same owner scope and the same
-        status grouping, but the rows behind the three numbers. ``list`` is
+        status grouping, but the rows behind the four numbers. ``list`` is
         the shop window (``published()``, narrowable to nobody), so this is
         the only route by which a person can be shown their own drafts.
 

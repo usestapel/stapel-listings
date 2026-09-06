@@ -9,8 +9,8 @@ any call this contract offered.
 What is pinned here:
 
 * every status the owner has is visible through this route — including the
-  eight that are not indexed, and BLOCKED, the one ``my/counters`` counts in
-  no tab at all;
+  eight that are not indexed, and BLOCKED, the moderation takedown that gets
+  a counter tab of its own;
 * a stranger's listing is never in the answer, at any status;
 * an anonymous caller is refused, not given an empty page;
 * the ``?status=`` filter in both spellings, and its 400 for a value that is
@@ -146,20 +146,35 @@ def test_comma_separated_is_the_same_set(auth_client, one_of_each):
     }
 
 
-def test_the_three_counter_tabs_add_up_to_the_counters(auth_client, one_of_each):
+TABS = {
+    "active": "published,pending",
+    "drafts": "draft,rejected",
+    "archived": "archived,paused,expired,sold",
+    "blocked": "blocked",
+}
+
+
+def test_the_counter_tabs_add_up_to_the_counters(auth_client, one_of_each):
     """The tab groupings are the server's; rows and counts must agree."""
     counters = auth_client.get("/listings/listings/my/counters/").data
-    tabs = {
-        "active": "published,pending",
-        "drafts": "draft,rejected",
-        "archived": "archived,paused,expired,sold",
-    }
-    for tab, statuses in tabs.items():
+    for tab, statuses in TABS.items():
         resp = auth_client.get(URL + f"?status={statuses}")
         assert resp.data["count"] == counters[tab], tab
 
 
-def test_blocked_is_reachable_even_though_no_tab_counts_it(auth_client, one_of_each):
+def test_every_status_is_counted_by_exactly_one_tab(auth_client, one_of_each):
+    """No status falls between the tabs — the hole ``blocked`` used to sit in.
+
+    ``one_of_each`` is one listing per status, so the counters must sum to
+    the number of statuses; if a status belonged to two tabs it would sum to
+    more, and if it belonged to none (``blocked``, before this) to less.
+    """
+    counters = auth_client.get("/listings/listings/my/counters/").data
+    assert set(counters) == set(TABS)
+    assert sum(counters[tab] for tab in TABS) == len(ALL_STATUSES)
+
+
+def test_blocked_rows_are_reachable_and_counted(auth_client, one_of_each):
     resp = auth_client.get(URL + "?status=blocked")
     assert _ids(resp) == [one_of_each[ListingStatus.BLOCKED].pk]
 

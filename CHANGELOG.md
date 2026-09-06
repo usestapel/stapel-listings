@@ -4,6 +4,32 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.23.0] — 2026-09-06
+
+### Added — `my/counters` counts the moderation takedown too
+
+`GET my/counters` answered three integers — `active`, `archived`, `drafts` —
+and the nine lifecycle statuses did not fit in them: `blocked`, the takedown
+a moderator applies to a live listing, belonged to no tab and so had no
+count. A cabinet that renders a "taken down" tab had a route for the ROWS
+(`my/listings?status=blocked`, since 0.7.0) and nothing for the TOTAL, so it
+counted the first page it happened to fetch and showed a page size where a
+total belonged — wrong for any owner past one page, and silently so.
+
+`blocked` is now a fourth key on the response, from the same aggregate over
+the same `owned_by(request.user)` scope as the other three (soft-deleted rows
+excluded by the default manager, no caching layer on this route to invalidate).
+It is deliberately its own count rather than folded into `archived`: an
+archive is something the seller did and can undo, a takedown is not, and a
+tab that mixes them cannot say which of the two a number describes.
+
+Every lifecycle status is now counted by exactly one tab, and a test pins
+that as a sum rather than a list — one listing per status must add up to the
+number of statuses, so a status added later without a home fails here instead
+of disappearing from the owner's totals.
+
+The three existing keys are unchanged in name, grouping and value.
+
 ## [0.22.3] — 2026-09-05
 
 ### Fixed — `features_draft` names the shape it wants instead of only the type it got

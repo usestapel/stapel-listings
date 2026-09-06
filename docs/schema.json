@@ -742,7 +742,7 @@
     "/listings/api/v1/listings/my/counters/": {
       "get": {
         "operationId": "listings_api_v1_listings_my_counters_retrieve",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticated`",
+        "description": "One integer per cabinet tab, over the caller's own listings.\n\nThe tab groupings are the SERVER's — ``my/listings?status=`` takes\nthe same sets — so a cabinet never has to re-derive which statuses\nmake up \"active\". Every lifecycle status is in exactly one group:\n``blocked`` (a moderation takedown) is its own count rather than\nbeing folded into ``archived``, because the two tell the seller\ndifferent things and only one of them is theirs to undo.\n\nOwner-scoped at the queryset via ``owned_by``, soft-deleted rows\nexcluded by the default manager — the same scope as\n``my/listings``, so a tab's rows and its count always agree.\n\n**Permissions:** `IsAuthenticated`",
         "tags": [
           "listings"
         ],
@@ -829,7 +829,7 @@
     "/listings/api/v1/listings/my/listings/": {
       "get": {
         "operationId": "listings_api_v1_listings_my_listings_list",
-        "description": "The caller's OWN listings, in every status.\n\nThe counterpart of ``my/counters``: the same owner scope and the same\nstatus grouping, but the rows behind the three numbers. ``list`` is\nthe shop window (``published()``, narrowable to nobody), so this is\nthe only route by which a person can be shown their own drafts.\n\nOwner-scoped at the queryset via ``owned_by`` — a stranger's listing\ncannot be reached from here at any status, and soft-deleted rows are\nexcluded by the default manager (a deleted listing is gone from the\nowner's dashboard exactly as it is gone from everywhere else).\n\n**Permissions:** `IsAuthenticated`",
+        "description": "The caller's OWN listings, in every status.\n\nThe counterpart of ``my/counters``: the same owner scope and the same\nstatus grouping, but the rows behind the four numbers. ``list`` is\nthe shop window (``published()``, narrowable to nobody), so this is\nthe only route by which a person can be shown their own drafts.\n\nOwner-scoped at the queryset via ``owned_by`` — a stranger's listing\ncannot be reached from here at any status, and soft-deleted rows are\nexcluded by the default manager (a deleted listing is gone from the\nowner's dashboard exactly as it is gone from everywhere else).\n\n**Permissions:** `IsAuthenticated`",
         "parameters": [
           {
             "name": "anchor",
@@ -2682,7 +2682,7 @@
       },
       "MyCountersResponse": {
         "type": "object",
-        "description": "Listing counts by tab for the current user.",
+        "description": "Listing counts by tab for the current user.\n\nOne integer per cabinet tab, and every lifecycle status belongs to\nexactly one of them — ``blocked`` included, so a listing a moderator\ntook down is counted somewhere instead of vanishing from the totals.",
         "properties": {
           "active": {
             "type": "integer"
@@ -2692,11 +2692,15 @@
           },
           "drafts": {
             "type": "integer"
+          },
+          "blocked": {
+            "type": "integer"
           }
         },
         "required": [
           "active",
           "archived",
+          "blocked",
           "drafts"
         ]
       },

@@ -29,11 +29,17 @@ class DeleteResponse:
 
 @dataclass
 class MyCountersResponse:
-    """Listing counts by tab for the current user."""
+    """Listing counts by tab for the current user.
+
+    One integer per cabinet tab, and every lifecycle status belongs to
+    exactly one of them — ``blocked`` included, so a listing a moderator
+    took down is counted somewhere instead of vanishing from the totals.
+    """
 
     active: int
     archived: int
     drafts: int
+    blocked: int
 
 
 @dataclass

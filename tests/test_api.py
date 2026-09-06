@@ -171,6 +171,34 @@ def test_my_counters(auth_client, user):
     assert resp.status_code == 200
     assert resp.data["drafts"] == 1
     assert resp.data["active"] == 1
+    assert resp.data["archived"] == 0
+    assert resp.data["blocked"] == 0
+
+
+def test_my_counters_counts_a_moderation_takedown(auth_client, user):
+    """A listing pulled by moderation has a number of its own.
+
+    Without it a cabinet's «снятые» tab has no total to render and falls
+    back to counting one unpaged ``?status=blocked`` page.
+    """
+    Listing.objects.create(owner=user, category_id="7", status=ListingStatus.BLOCKED)
+    resp = auth_client.get("/listings/listings/my/counters/")
+    assert resp.status_code == 200
+    assert resp.data["blocked"] == 1
+    # The takedown is not silently folded into any of the other three.
+    assert resp.data["active"] == 0
+    assert resp.data["archived"] == 0
+    assert resp.data["drafts"] == 0
+
+
+def test_my_counters_blocked_is_owner_scoped(auth_client, user, other_user):
+    """Same scope as the other three: a stranger's takedown is not mine."""
+    Listing.objects.create(
+        owner=other_user, category_id="7", status=ListingStatus.BLOCKED
+    )
+    resp = auth_client.get("/listings/listings/my/counters/")
+    assert resp.status_code == 200
+    assert resp.data["blocked"] == 0
 
 
 def test_destroy_active_conflicts(auth_client, user):
