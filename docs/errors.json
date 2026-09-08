@@ -550,11 +550,9 @@
   {
     "code": "error.409.invalid_listing_transition",
     "status": 409,
-    "params": [
-      "from_status"
-    ],
+    "params": [],
     "remediation": "fix_input",
-    "en": "Invalid status transition for {from_status}",
+    "en": "This listing cannot move to that status from the one it is in now",
     "owner": "stapel_listings"
   },
   {

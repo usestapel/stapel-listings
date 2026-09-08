@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.22.10] — 2026-09-08
+
+### Fixed — a refusal stops printing a wire value inside a translated sentence
+
+Patch, no API change, no dependency change. `error.409.invalid_listing_transition`
+loses its `{from_status}` slot in all three languages:
+
+| Language | Was | Now |
+|---|---|---|
+| en | `Invalid status transition for {from_status}` | `This listing cannot move to that status from the one it is in now` |
+| ru | `Недопустимая смена статуса для «{from_status}»` | `Из текущего статуса объявление нельзя перевести в выбранный` |
+| es | `Cambio de estado no válido para {from_status}` | `El anuncio no puede pasar de su estado actual al estado elegido` |
+
+`from_status` is a WIRE value — `draft`, `archived`, `sold` — and the sentence
+interpolated it verbatim. A seller on a Russian storefront read «Недопустимая
+смена статуса для «archived»» two lines under a status tag the storefront had
+already drawn in their own language, because the tag renders a translation key
+and the refusal rendered the enum. There is no translation of the slot that
+fixes this: the value arrives from the database, not from a catalogue, so the
+only honest repair is a sentence that does not contain it.
+
+**The value still travels.** `params["from_status"]` is unchanged and is what a
+client re-renders from (`serializers.py` says so, and `POST
+listings/{id}/transition/` still answers 409-with-`from_status` rather than the
+400 a narrowed `ChoiceField` would give). A machine-readable status belongs in
+`params`; a sentence names the state in prose or not at all.
+
+What moves with it: `docs/errors.json` drops `from_status` from that key's
+`params` array — the array documents the message's `{param}` slots, and the
+message has none — and `docs/llms.txt` follows. The en canon had to change
+alongside ru/es rather than only the translations: core's catalogue gate and
+`tests/test_error_i18n.py::test_the_owned_catalogue_preserves_every_placeholder`
+both refuse a translation whose slots differ from the canon's, and rightly — a
+half-done repair here would have been a red suite, not a silent one.
+
+Reported by the pair train that consumes this catalogue: `@stapel/listings-react`
+carried a local override for exactly this key, which it deletes now that the
+upstream text no longer interpolates.
+
 ## [0.22.9] — 2026-09-08
 
 ### Fixed — the refusals no view raises answer the fleet envelope

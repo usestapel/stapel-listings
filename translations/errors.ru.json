@@ -14,6 +14,6 @@
   "error.403.listing_not_owner": "Это не ваше объявление",
   "error.404.listing_not_found": "Объявление не найдено",
   "error.409.already_favorited": "Объявление уже в избранном",
-  "error.409.invalid_listing_transition": "Недопустимая смена статуса для «{from_status}»",
+  "error.409.invalid_listing_transition": "Из текущего статуса объявление нельзя перевести в выбранный",
   "error.409.listing_cannot_delete_active": "Активное объявление нельзя удалить. Сначала перенесите его в архив."
 }

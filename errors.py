@@ -33,6 +33,13 @@ ERR_409_LISTING_CANNOT_DELETE_ACTIVE = "error.409.listing_cannot_delete_active"
 ERR_400_CATEGORY_REQUIRED = "error.400.category_required"
 ERR_400_PUBLISH_VALIDATION_FAILED = "error.400.publish_validation_failed"
 ERR_400_IMAGE_REQUIRED = "error.400.image_required"
+# The message carries NO `{from_status}` slot, deliberately (0.22.10). The
+# status is a WIRE value — `draft`, `archived` — and interpolating it dropped an
+# English token into a translated sentence, two lines under a status tag the
+# storefront had already rendered in the reader's own language. The value still
+# travels: `params["from_status"]` is what a client re-renders from, and that is
+# where a machine-readable status belongs. A sentence names the state in prose
+# or not at all.
 ERR_409_INVALID_TRANSITION = "error.409.invalid_listing_transition"
 ERR_409_ALREADY_FAVORITED = "error.409.already_favorited"
 # M-7: a draft feature whose slug is not in the category's schema. Owned here
@@ -86,7 +93,9 @@ STAPEL_LISTINGS_ERRORS = {
     ERR_400_CATEGORY_REQUIRED: "Category is required",
     ERR_400_PUBLISH_VALIDATION_FAILED: "Listing validation failed",
     ERR_400_IMAGE_REQUIRED: "At least one image is required to publish",
-    ERR_409_INVALID_TRANSITION: "Invalid status transition for {from_status}",
+    ERR_409_INVALID_TRANSITION: (
+        "This listing cannot move to that status from the one it is in now"
+    ),
     ERR_409_ALREADY_FAVORITED: "Listing already favorited",
     ERR_400_FEATURE_NOT_ALLOWED: "Feature '{feature}' is not allowed for this category",
     ERR_400_INVALID_STATUS_FILTER: "Unknown listing status '{status}'",

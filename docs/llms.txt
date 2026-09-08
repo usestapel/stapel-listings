@@ -1,4 +1,4 @@
-# stapel-listings 0.22.9
+# stapel-listings 0.22.10
 
 Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle including the moderation takedown state 'blocked', an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, first-class favorites, and the two pull seams its consumers read it through — listings.search_documents / listings.search_export for an indexer and listings.moderation_content for a moderation queue.
 
@@ -147,7 +147,7 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.408.request_timeout [408] retry
 - error.409.already_favorited [409] fix_input
 - error.409.conflict [409] fix_input
-- error.409.invalid_listing_transition [409] fix_input {from_status}
+- error.409.invalid_listing_transition [409] fix_input
 - error.409.listing_cannot_delete_active [409] fix_input
 - error.410.gone [410] retry
 - error.413.payload_too_large [413] retry
