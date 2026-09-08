@@ -72,7 +72,14 @@ class TestTheWritePathRefusesAPath:
             "/listings/listings/", {"category_id": category_id}, format="json"
         )
         assert resp.status_code == 400, resp.content
-        assert "category_id" in resp.data
+        # The refusal names the field, read where a real deployment puts it.
+        # This used to be `"category_id" in resp.data` — DRF's bare
+        # {"category_id": [...]}, which is the body only a harness with no
+        # REST_FRAMEWORK["EXCEPTION_HANDLER"] answers. Under the fleet handler
+        # the field rides in params (stapel_core.django.api.errors), and that
+        # is the shape a client actually parses.
+        assert resp.data["params"]["field"] == "category_id", resp.data
+        assert "category_id" in resp.data["params"]["detail"], resp.data
 
     @pytest.mark.parametrize("category_id", VALID_IDS)
     def test_create_still_accepts_an_id(self, auth_client, category_id):

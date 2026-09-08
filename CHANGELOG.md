@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.22.9] — 2026-09-08
+
+### Fixed — the refusals no view raises answer the fleet envelope
+
+Patch, no API change, no schema change, no dependency change. One shipped file
+moves: `_codegen_settings.py`, whose non-contract branch returned
+`rest_framework = None` and therefore built settings with **no**
+`REST_FRAMEWORK` dict at all. `conftest.py` wrote its own settings with the
+same hole.
+
+A settings module that writes its own `REST_FRAMEWORK` must carry
+`EXCEPTION_HANDLER`, or DRF falls back to `rest_framework.views.exception_handler`
+and every refusal **no view code raises** — 401/403 from authenticators and
+permission classes, 404 from `get_object_or_404`, 405/406/415 from dispatch,
+429 from a throttle, and the 400 of a serializer's own `ValidationError` —
+answers a bare `{"detail": …}` / `{"field": [...]}` instead of
+`{localizable_error, error, params, error_language}`.
+`stapel_core.error_envelope.W001` (stapel-core 0.61.1) reports it.
+
+**One pre-existing test was reading the wrong shape.**
+`tests/test_category_id_is_an_id.py::TestTheWritePathRefusesAPath::
+test_create_refuses` asserted `"category_id" in resp.data` — DRF's bare
+`{"category_id": [...]}` body, which no deployment of this module has ever
+answered. Under the handler the field rides in `params` (`params["field"] ==
+"category_id"`, `params["detail"]["category_id"]`), and the test now says so.
+The refusal itself is unchanged; only the harness's reading of it was wrong.
+
+`tests/test_public_read.py::test_anonymous_create_is_refused_in_the_fleet_envelope`
+is the new gate: it asserts the anonymous-write refusal *body*, where the
+neighbouring test asserted only its status code — a reading that passes with
+or without the handler. It fails on the previous harness with
+`{'detail': 'Authentication credentials were not provided.'}`.
+
+The key is read off `stapel_core.testing.BASE_REST_FRAMEWORK` rather than
+re-typed, and it is the only key set — DRF's own defaults stay where the
+harness had them, so no permission, renderer or authentication behaviour
+changes (the suite still configures no authenticators, which is why the
+anonymous write is still a 403 here and a 401 on a fleet host). The
+`contract=True` branch is untouched and the emitted contracts are
+byte-identical.
+
 All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
