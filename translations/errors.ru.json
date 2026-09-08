@@ -1,0 +1,19 @@
+{
+  "error.400.category_required": "Категория обязательна",
+  "error.400.image_required": "Для публикации нужна хотя бы одна фотография",
+  "error.400.listing_draft_meta_too_large": "Поле draft_meta слишком большое (не более {max_bytes} байт)",
+  "error.400.listing_feature_not_allowed": "Характеристика «{feature}» недопустима для этой категории",
+  "error.400.listing_features_draft_shape": "features_draft должен быть объектом с ключами-слагами характеристик либо списком объектов характеристик, который возвращает чтение объявления (у каждого есть собственный «slug») — получено {got_type}. Пример допустимой формы объекта: {example}",
+  "error.400.listing_features_draft_unknown_slug": "Каждый элемент списка features_draft должен содержать собственную непустую строку «slug» (тот слаг, который чтение объявления сохраняет в этом элементе), чтобы значение вернулось к нужной характеристике — у элемента с индексом {index} его нет. Пример: {example}",
+  "error.400.listing_features_draft_value_shape": "features_draft['{slug}'] сам должен быть объектом вида {{\"type\": <тип характеристики>, \"value\": <значение характеристики>}} — получено {got_type}. Пример: {example}",
+  "error.400.listing_invalid_status_filter": "Неизвестный статус объявления «{status}»",
+  "error.400.listing_location_required": "Перед публикацией укажите, где находится товар",
+  "error.400.listing_zero_price_not_allowed": "Цена 0 в этой категории недопустима. Оставьте поле цены пустым — это означает «цена не указана».",
+  "error.400.publish_validation_failed": "Объявление не прошло проверку",
+  "error.403.listing_anonymous_not_allowed": "Гостевая учётная запись не может публиковать объявления",
+  "error.403.listing_not_owner": "Это не ваше объявление",
+  "error.404.listing_not_found": "Объявление не найдено",
+  "error.409.already_favorited": "Объявление уже в избранном",
+  "error.409.invalid_listing_transition": "Недопустимая смена статуса для «{from_status}»",
+  "error.409.listing_cannot_delete_active": "Активное объявление нельзя удалить. Сначала перенесите его в архив."
+}

@@ -1,0 +1,19 @@
+{
+  "error.400.category_required": "La categoría es obligatoria",
+  "error.400.image_required": "Se necesita al menos una imagen para publicar",
+  "error.400.listing_draft_meta_too_large": "El campo draft_meta es demasiado grande (máximo {max_bytes} bytes)",
+  "error.400.listing_feature_not_allowed": "La característica {feature} no está permitida en esta categoría",
+  "error.400.listing_features_draft_shape": "features_draft debe ser un objeto con los slugs de las características como claves, o la lista de objetos de característica que devuelve la lectura de un anuncio (cada uno con su propio «slug»); se recibió {got_type}. Ejemplo de la forma de objeto aceptada: {example}",
+  "error.400.listing_features_draft_unknown_slug": "Cada elemento de una lista features_draft debe llevar su propia cadena «slug» no vacía (el slug que la lectura de un anuncio guarda en ese elemento) para poder asignarlo a la característica correcta; el elemento con índice {index} no la tiene. Ejemplo: {example}",
+  "error.400.listing_features_draft_value_shape": "features_draft['{slug}'] debe ser a su vez un objeto de la forma {{\"type\": <tipo de característica>, \"value\": <valor de la característica>}}; se recibió {got_type}. Ejemplo: {example}",
+  "error.400.listing_invalid_status_filter": "Estado de anuncio desconocido: {status}",
+  "error.400.listing_location_required": "Indica dónde se encuentra el artículo antes de publicar",
+  "error.400.listing_zero_price_not_allowed": "No se permite un precio de 0 en esta categoría. Deja el precio vacío para indicar «precio no indicado».",
+  "error.400.publish_validation_failed": "La validación del anuncio ha fallado",
+  "error.403.listing_anonymous_not_allowed": "Una cuenta de invitado no puede publicar anuncios",
+  "error.403.listing_not_owner": "Este anuncio no es tuyo",
+  "error.404.listing_not_found": "Anuncio no encontrado",
+  "error.409.already_favorited": "El anuncio ya está en favoritos",
+  "error.409.invalid_listing_transition": "Cambio de estado no válido para {from_status}",
+  "error.409.listing_cannot_delete_active": "No se puede eliminar un anuncio activo. Archívalo primero."
+}

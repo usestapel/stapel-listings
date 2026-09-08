@@ -4,6 +4,87 @@ All notable changes to stapel-listings are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
+## [0.22.8] — 2026-09-08
+
+### Added — the seventeen codes this module owns now speak Russian and Spanish
+
+Patch, purely additive (pre-1.0: minor = breaking, patch = compatible). No API
+change, no schema change, no dependency change: `docs/errors.json` carries the
+same 72 keys with the same owners, and `docs/schema.json` regenerates
+byte-identical. Two files appear in the wheel.
+
+0.22.7 closed the half of the i18n gap this module BORROWS — the fifty-five
+codes owned by `stapel_attributes` and `stapel_core` that enter a host's
+registry through `errors.py`, reachable by raising the dependency floors so
+their owners' catalogues travel with them. It said, in its own test file, that
+the other half was still open:
+
+> This module ships no `translations/` directory of its own, so the seventeen
+> codes it OWNS render their English literal in every locale.
+
+This release closes it. `translations/errors.ru.json` and
+`translations/errors.es.json` translate **all seventeen** codes `errors.py`
+registers — every one of them, in both languages, authored here because a
+module owns the strings for the keys it registers:
+
+```
+error.400.category_required                    error.400.image_required
+error.400.listing_draft_meta_too_large         error.400.listing_feature_not_allowed
+error.400.listing_features_draft_shape         error.400.listing_features_draft_unknown_slug
+error.400.listing_features_draft_value_shape   error.400.listing_invalid_status_filter
+error.400.listing_location_required            error.400.listing_zero_price_not_allowed
+error.400.publish_validation_failed            error.403.listing_anonymous_not_allowed
+error.403.listing_not_owner                    error.404.listing_not_found
+error.409.already_favorited                    error.409.invalid_listing_transition
+error.409.listing_cannot_delete_active
+```
+
+These are the refusals a seller meets: no photo, no category, no location, a
+price of zero, a draft that will not publish. On a Russian-language storefront
+whose core this library is, every one of them printed English at the person
+filling in the form, on every deployment, with nothing red anywhere to say so.
+The contract emitter said it out loud at every emission —
+
+```
+[warning:unshipped] 'stapel_listings' owns 17 declared code(s) but ships no
+errors catalog in any language — they will render as English fallbacks in a
+translated deployment
+```
+
+— and that line is gone from this release's emission.
+
+Nothing here translates a key this module does not own. The fifty-three
+borrowed codes still resolve from their owners' wheels through the floors
+0.22.7 set; copying them here is a `foreign` error in core's catalogue gate and
+a second, drifting copy of somebody else's wording.
+
+### Packaging
+
+`translations/*.json` is in `[tool.setuptools.package-data]`. A catalogue that
+is in git and not in the wheel is a catalogue no deployment ever reads — three
+sibling libraries shipped exactly that first, so `tests/test_error_i18n.py`
+asserts the pattern is declared, and the built wheel was listed before the tag.
+
+### The gate
+
+`test_a_catalogue_this_module_ships_covers_every_key_it_owns` was written in
+0.22.7 as a trip-wire that would arm itself the day a catalogue appeared. It
+has armed, and the properties it now holds are:
+
+* every key the loader attributes to this package is present in every shipped
+  language, and non-empty — with the owned-key set asserted equal to the
+  registry, so a new code in `errors.py` fails here until it is translated;
+* nothing but owned keys is in the catalogue (`foreign`, pointed inward);
+* every `{param}` slot of the canon survives the translation — the runtime
+  runs `template.format(**params)` on the translated text, so a dropped slot
+  loses the detail the message exists to carry;
+* the shipped language set is exactly the gated one, in both directions;
+* the files are in `dump_catalog` byte-stable form;
+* `translations/*.json` is packaged.
+
+`test_this_module_ships_no_foreign_key` now asserts the whole `error`-level
+verdict of `check_translation_catalogs`, not only `foreign`.
+
 ## [0.22.7] — 2026-09-08
 
 ### Fixed — the codes travelled to the host, their translations did not
