@@ -119,12 +119,71 @@ def test_api_create_service_listing(auth_client, user):
     assert resp.data["stock_quantity"] is None
 
 
-def test_api_create_service_listing_without_explicit_null_rejected(auth_client, user):
-    # countable=False alone isn't enough: the model default for a brand-new
-    # stock_quantity is 0, and 0 conflicts with "uncountable must be NULL" —
-    # the request must explicitly clear stock_quantity in the same call.
+def test_api_create_service_listing_without_explicit_null(auth_client, user):
+    """``countable: false`` alone is a complete request.
+
+    A quantity is exactly what "not countable" says there isn't, so an absent
+    ``stock_quantity`` is derived as NULL rather than resolved from the
+    column default — which is 0, the one value the invariant forbids here.
+    """
     resp = auth_client.post(
         "/listings/listings/", {"category_id": "7", "countable": False}, format="json"
+    )
+    assert resp.status_code == 201, resp.content
+    assert resp.data["countable"] is False
+    assert resp.data["stock_quantity"] is None
+
+
+def test_api_create_seeder_payload_shape(auth_client, user):
+    """The shape a catalogue seeder sends for a one-off classified ad.
+
+    A classified ad is one item, not an inventory line — the fleet's showcase
+    seeder marks every such row ``countable: false`` and names no quantity.
+    That payload was unreachable through this API and had to spell out
+    ``"stock_quantity": None`` to get in.
+    """
+    resp = auth_client.post(
+        "/listings/listings/",
+        {
+            "category_id": "7",
+            "currency": "RUB",
+            "language": "ru",
+            "countable": False,
+            "title_draft": "Ковёр ручной работы",
+            "description_draft": "Самовывоз, торг уместен.",
+        },
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    assert resp.data["countable"] is False
+    assert resp.data["stock_quantity"] is None
+
+    # The multi-unit row the same seeder sends is untouched by that rule.
+    resp = auth_client.post(
+        "/listings/listings/",
+        {
+            "category_id": "7",
+            "currency": "RUB",
+            "language": "ru",
+            "countable": True,
+            "stock_quantity": 12,
+            "title_draft": "Саженцы яблони",
+            "description_draft": "Двухлетние.",
+        },
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    assert resp.data["stock_quantity"] == 12
+
+
+def test_api_create_uncountable_with_a_quantity_is_still_rejected(auth_client, user):
+    # Deriving the absent side is not the same as ignoring a stated one: a
+    # quantity spelled out next to countable=False is still the contradiction
+    # the invariant exists to catch.
+    resp = auth_client.post(
+        "/listings/listings/",
+        {"category_id": "7", "countable": False, "stock_quantity": 3},
+        format="json",
     )
     assert resp.status_code == 400, resp.content
 
@@ -151,17 +210,32 @@ def test_api_save_draft_rejects_negative_stock_quantity(auth_client, user):
     assert resp.status_code == 400
 
 
-def test_api_save_draft_switch_to_service_requires_explicit_null(auth_client, user):
+def test_api_save_draft_switch_to_service_derives_null(auth_client, user):
     listing = Listing.objects.create(owner=user, category_id="7")  # countable=True, stock=0
 
-    # Sending only countable=False leaves stock_quantity=0 (untouched by this
-    # partial request) which conflicts with the invariant.
+    # Sending only countable=False clears the quantity the listing carried:
+    # the same derivation as on create, so a seller switching an ad to a
+    # service does not have to know the pair exists.
     resp = auth_client.post(
         f"/listings/listings/{listing.pk}/save-draft/",
         {"countable": False},
         format="json",
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 200, resp.content
+    assert resp.data["stock_quantity"] is None
+    listing.refresh_from_db()
+    assert listing.countable is False
+    assert listing.stock_quantity is None
+
+    # Switching back states the quantity again.
+    resp = auth_client.post(
+        f"/listings/listings/{listing.pk}/save-draft/",
+        {"countable": True, "stock_quantity": 4},
+        format="json",
+    )
+    assert resp.status_code == 200, resp.content
+    listing.refresh_from_db()
+    assert listing.stock_quantity == 4
 
     # Sending both together switches cleanly.
     resp = auth_client.post(
@@ -173,6 +247,20 @@ def test_api_save_draft_switch_to_service_requires_explicit_null(auth_client, us
     listing.refresh_from_db()
     assert listing.countable is False
     assert listing.stock_quantity is None
+
+
+def test_api_save_draft_leaves_an_unmentioned_quantity_alone(auth_client, user):
+    # Deriving the absent side must not fire on a request that is about
+    # something else: a title edit keeps the stock the listing already had.
+    listing = Listing.objects.create(owner=user, category_id="7", stock_quantity=9)
+    resp = auth_client.post(
+        f"/listings/listings/{listing.pk}/save-draft/",
+        {"title_draft": "Renamed"},
+        format="json",
+    )
+    assert resp.status_code == 200, resp.content
+    listing.refresh_from_db()
+    assert listing.stock_quantity == 9
 
 
 def test_api_listing_detail_exposes_stock_fields(api_client, user):

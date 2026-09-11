@@ -648,6 +648,8 @@ class ListingDraftSerializer(serializers.ModelSerializer):
         # (that only happens later, inside ``Model.__init__``) — so on create
         # the fallback must be the model field default explicitly, not
         # ``None``, or a bare ``{"category_id": "7"}`` POST would be rejected.
+        # The absent quantity is the one exception: it depends on the resolved
+        # ``countable``, which no column default can express (see below).
         if self.instance is not None:
             countable_default = self.instance.countable
             stock_quantity_default = self.instance.stock_quantity
@@ -658,7 +660,20 @@ class ListingDraftSerializer(serializers.ModelSerializer):
             ).get_default()
 
         countable = attrs.get("countable", countable_default)
-        stock_quantity = attrs.get("stock_quantity", stock_quantity_default)
+        if "stock_quantity" in attrs:
+            stock_quantity = attrs["stock_quantity"]
+        elif countable:
+            stock_quantity = stock_quantity_default
+        else:
+            # "How many" is the question `countable: false` says does not
+            # apply, so an absent quantity is NULL — the only value the
+            # invariant allows — not the fallback above, which is the column
+            # default 0 on create and the quantity the listing carried while
+            # it was still countable on update. Written into `attrs` so the
+            # model sees it too: without this the create falls back to the
+            # same column default and trips the DB constraint instead.
+            stock_quantity = None
+            attrs["stock_quantity"] = None
         try:
             validate_countable_stock(countable, stock_quantity)
         except DjangoValidationError as exc:

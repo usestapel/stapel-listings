@@ -1,5 +1,61 @@
 # Changelog
 
+## [0.22.11] — 2026-09-11
+
+### Fixed — a listing that is not countable can be created through the API
+
+Patch, no schema change, no migration. One dependency floor moves (below).
+
+`{"countable": false}` with no `stock_quantity` answered **400**:
+
+```
+stock_quantity must be empty when countable is False
+(the listing is a service — a quantity doesn't apply).
+```
+
+on a payload that never mentioned a quantity. The two model defaults disagree —
+`countable` defaults `True`, `stock_quantity` defaults `0` — and
+`ListingDraftSerializer.validate()` filled **both** absent sides from
+`_meta.get_default()`, so overriding only `countable` left the `0` behind and
+validated `False` against `0`: precisely the pair the invariant exists to
+reject. A classified ad — one item, where "how many" is not a question the
+catalogue asks — was therefore unreachable through the public API without
+spelling out `"stock_quantity": null`, and the fleet's showcase seeder had to
+do exactly that to get 300 listings in.
+
+The absent quantity is now **derived from the resolved `countable`** rather
+than from the column default: `null` when the listing is not countable, the
+previous fallback when it is. It is written into `attrs`, not just used for the
+check — without that the create falls back to the same column default 0 and
+trips the DB constraint instead of the serializer.
+
+The rule is the same on update: `POST listings/{id}/save-draft/` with
+`{"countable": false}` and no quantity clears the one the listing carried, so a
+seller switching an ad to a service does not have to know the pair exists. A
+request that does not mention either side still leaves a stored quantity alone.
+
+**Deliberately unchanged.** The column default stays `0`, so a bare
+`Listing.objects.create(...)` still lands in "countable good, zero known stock"
+— flipping it to `None` turns 244 tests red, because every such create then
+violates `listing_stock_invariant_chk`. A quantity **stated** next to
+`countable: false` is still a 400: deriving an absent side is not ignoring a
+stated one. `countable: true` with no quantity still resolves to `0`, and the
+Python/DB layers (`validate_countable_stock`, `Listing.clean()`, the check
+constraint) are untouched — this was never a rule about what is valid, only
+about what an absent field means.
+
+### Fixed — the dependency floor that made 0.22.9's envelope fix resolvable-away
+
+`stapel-core>=0.60.8` → `>=0.61.0`. 0.22.9 wired core's `EXCEPTION_HANDLER`
+into this module's settings and harness so the refusals no view raises answer
+the fleet envelope — but only core **0.61.0** added `_envelope_drf_response`,
+which re-dresses the body DRF's own handler produced. Resolve 0.60.8 and every
+401/403/404/405/429 is a bare `{"detail": …}` again, with nothing red to say
+so: the suite in this repo was itself running on 0.60.8 and
+`test_anonymous_create_is_refused_in_the_fleet_envelope` was failing there
+while CI, resolving a newer core, stayed green. The fix ships the floor the
+behaviour actually needs.
+
 ## [0.22.10] — 2026-09-08
 
 ### Fixed — a refusal stops printing a wire value inside a translated sentence

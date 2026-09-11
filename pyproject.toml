@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-listings"
-version = "0.22.10"
+version = "0.22.11"
 description = "Listings and catalog for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -43,7 +43,17 @@ dependencies = [
     # catalogue that wheel ships, however complete it was, and those codes
     # rendered their English floor on an otherwise translated screen.
     # `tests/test_error_i18n.py` is the gate.
-    "stapel-core>=0.60.8,<1.0",
+    #
+    # 0.61.0 moves it a third time, for the refusals no view raises. This
+    # module's 0.22.9 wired core's EXCEPTION_HANDLER into its own harness so
+    # 401/403/404/405/429 answer the fleet envelope — but only core 0.61.0's
+    # handler re-dresses the body DRF's own handler produced
+    # (`_envelope_drf_response`). Resolve 0.60.8 and every such refusal is a
+    # bare `{"detail": ...}` a frontend reading `localizable_error` cannot
+    # translate, with nothing red to say so.
+    # `tests/test_public_read.py::test_anonymous_create_is_refused_in_the_fleet_envelope`
+    # is the gate.
+    "stapel-core>=0.61.0,<1.0",
     # attributes 0.3.x caps `stapel-core<0.12`, which made stapel-listings
     # unresolvable next to any modern core (stapel-categories 0.5.4 hit the
     # same wall and moved the same way).
