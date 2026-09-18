@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.23.0] — 2026-09-18
+
+### Fixed — `GET listings/{id}/status/` declared one body for a route that answers two
+
+Minor, no migration. The response **shape changes for every caller**: both
+bodies now carry a `scope` label, and the operation declares a discriminated
+union instead of a single component. Regenerate the frontend pair.
+
+The route is `AllowAny` and answers two different bodies on purpose. The
+owner and the service transport get the full `ListingStatus`; everyone else
+gets one boolean, because listing ids are sequential and handing a stranger
+`owner_id` and `moderation_status` for every id in the fleet was an
+enumeration oracle over other people's drafts and rejected rows (cut in
+0.8.0, verified live on a stand).
+
+What was never updated is the annotation: `responses={200: ListingStatus}`,
+six REQUIRED properties, on a route that answers `{"is_deleted": …}` to the
+ordinary reader. A generated client read `body.status` and got `undefined` on
+every stranger's probe, and nothing in the contract said why. The drift gate
+could not see it — it compares the committed document against a fresh
+emission of the same annotation, so both sides come from the claim.
+
+Now the operation declares **`ListingStatusResponse`**, a `oneOf` over
+`ListingStatus` and the new **`ListingStatusPublic`**, discriminated on
+`scope`:
+
+| caller | body |
+| --- | --- |
+| the listing's owner, the service transport | `{scope: "owner", status, moderation_status, is_deleted, is_expired, is_active, owner_id}` |
+| anyone else (signed in or not) | `{scope: "public", is_deleted}` |
+
+`scope` is **additive on the owner body** and required on both, so a client
+switches on one field it is guaranteed to have instead of probing for a
+field a stranger's answer will never carry. The disclosure boundary is
+unchanged: `ListingStatusPublicSerializer` is the former
+`ListingPresenceSerializer`, renamed so the component says what it is, and it
+still answers exactly one boolean.
+
+`tests/test_contract_wire.py` drives all four audiences — owner, service,
+signed-in stranger, anonymous — against the committed document, and a
+separate case asserts the label on each answer is the branch it actually is:
+a body that satisfied the union while calling itself the wrong half would
+send a client into the wrong fields. The `KNOWN_MISMATCHES` entry that
+recorded this is deleted; the file has none left.
+
 ## [0.22.11] — 2026-09-11
 
 ### Fixed — a listing that is not countable can be created through the API

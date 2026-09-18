@@ -9,7 +9,11 @@ stapel-search module fed by the ``listing.*`` events (see MODULE.md).
 """
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count, Q
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    PolymorphicProxySerializer,
+    extend_schema,
+)
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
@@ -51,7 +55,7 @@ from .serializers import (
     ListingDetailSerializer,
     ListingEngagementBatchSerializer,
     ListingDraftSerializer,
-    ListingPresenceSerializer,
+    ListingStatusPublicSerializer,
     ListingStatusSerializer,
     ListingTransitionRequestSerializer,
     MyCountersResponseSerializer,
@@ -350,7 +354,23 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
     # So the CAPABILITY stays and the DISCLOSURE goes. A service (the
     # `listings.status` function's transport) and the listing's own owner get
     # the full view; everyone else gets one boolean.
-    @extend_schema(responses={200: ListingStatusSerializer})
+    #
+    # The route answers TWO bodies, so it declares two: a union discriminated
+    # on `scope`, which both bodies carry. A generated client reads
+    # `body.scope` and knows which one it holds instead of probing for a
+    # field that a stranger's answer will never have.
+    @extend_schema(
+        responses={
+            200: PolymorphicProxySerializer(
+                component_name="ListingStatusResponse",
+                serializers={
+                    "owner": ListingStatusSerializer,
+                    "public": ListingStatusPublicSerializer,
+                },
+                resource_type_field_name="scope",
+            )
+        }
+    )
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def status(self, request, pk=None):  # noqa: R007
         try:
@@ -359,7 +379,7 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
             return StapelErrorResponse(404, ERR_404_LISTING_NOT_FOUND)
         if _may_see_full_status(request, listing):
             return StapelResponse(ListingStatusSerializer(listing))
-        return StapelResponse(ListingPresenceSerializer(listing))
+        return StapelResponse(ListingStatusPublicSerializer(listing))
 
     # -- owner: counters & drafts -----------------------------------------
 

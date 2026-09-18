@@ -46,19 +46,21 @@ gate was written for had exactly that shape; this is the fourth.
 
 What it found on its first run: 20 of 20 operations driven, one red.
 
-* ``GET /listings/{id}/status/`` declares ``ListingStatus`` — six REQUIRED
+* ``GET /listings/{id}/status/`` declared ``ListingStatus`` — six REQUIRED
   properties, ``owner_id`` and ``moderation_status`` among them — and
-  answers ``{"is_deleted": …}`` and nothing else to every caller who is
+  answered ``{"is_deleted": …}`` and nothing else to every caller who is
   neither the listing's owner nor the service transport. The route is
-  ``AllowAny`` on purpose, so that is the ordinary reader. The body is real
-  and deliberate (``ListingPresenceSerializer``, serializers.py:926-949: the
-  full view was an enumeration oracle over other people's drafts and was
-  narrowed on purpose); what was never updated is the annotation
-  ``@extend_schema(responses={200: ListingStatusSerializer})`` on
-  ``ListingViewSet.status`` (views.py:353), which still promises one shape
-  for a route that answers two. A generated client reads ``body.status`` and
-  gets ``undefined`` on every stranger's probe. Recorded in
-  ``KNOWN_MISMATCHES`` and left exactly as it is: this is a gate, not a fix.
+  ``AllowAny`` on purpose, so that is the ordinary reader. The narrow body is
+  real and deliberate (``ListingStatusPublicSerializer``: the full view was
+  an enumeration oracle over other people's drafts and was cut on purpose);
+  what was never updated was the annotation on ``ListingViewSet.status``,
+  which promised one shape for a route that answers two.
+
+  Closed in 0.23.0: the route declares BOTH bodies as
+  ``ListingStatusResponse``, a union discriminated on ``scope``, and both
+  bodies carry ``scope`` on the wire (``"owner"`` / ``"public"``) — so a
+  generated client reads which body it holds instead of probing for a field
+  a stranger's answer will never have. Driven below for all four audiences.
 """
 import contextlib
 import copy
@@ -688,9 +690,9 @@ def _publish(call):
 
 @recipe("GET", "/listings/{id}/status/")
 def _status_probe(call):
-    """Driven for all three audiences on purpose — the declared shape holds
-    for two of them and not for the third, which is the finding recorded in
-    ``KNOWN_MISMATCHES``."""
+    """Driven for all four audiences on purpose: the route answers the full
+    body to two of them and the narrow one to the other two, and the union it
+    declares has to hold for both halves."""
     owner = make_user()
     with category_features():
         listing = make_published(owner)
@@ -792,22 +794,41 @@ def _unfavorite(call):
 #: Operations whose declared body the wire does not send, with the defect and
 #: its owner. ``strict=True``: a fixed entry fails until it is deleted, so a
 #: finding can be neither forgotten nor quietly kept.
-KNOWN_MISMATCHES = {
-    ("GET", V1 + "/listings/{id}/status/"):
-        "declares ListingStatus — six REQUIRED properties including owner_id "
-        "and moderation_status — and answers {\"is_deleted\": …} alone to "
-        "every caller who is neither the owner nor the service transport. "
-        "The route is AllowAny, so that is the ordinary reader. The narrow "
-        "body is deliberate (ListingPresenceSerializer, serializers.py:926 — "
-        "the full view was an enumeration oracle over other people's drafts "
-        "and was cut on purpose); the annotation on ListingViewSet.status "
-        "(views.py:353, `responses={200: ListingStatusSerializer}`) was never "
-        "updated to say the route answers two shapes. A generated client "
-        "reads body.status and gets undefined on every stranger's probe — "
-        "owner stapel-listings. The owner and service states DO match the "
-        "declared shape; this operation is xfail as a whole because the "
-        "stranger's state does not.",
-}
+KNOWN_MISMATCHES: dict[tuple[str, str], str] = {}
+
+
+def test_the_status_probe_says_which_of_its_two_bodies_it_sent():
+    """The discriminator is a wire value, not a schema decoration.
+
+    ``ListingStatusResponse`` is a union keyed on ``scope``; the operation
+    check above proves each answer matches ONE branch, and this proves the
+    label on the answer is the branch it actually is. Without it a body could
+    satisfy the union while telling the client the wrong half, and a client
+    that switches on ``body.scope`` would read the wrong fields.
+    """
+    owner = make_user()
+    with category_features():
+        listing = make_published(owner)
+        draft = make_draft(owner, ready=False)
+
+    def probe(client, pk):
+        response = client.get(f"{V1}/listings/{pk}/status/")
+        assert response.status_code == 200, response.content[:400]
+        return response.json()
+
+    full = probe(client_for(owner), listing.pk)
+    assert full["scope"] == "owner"
+    assert full["owner_id"] and full["moderation_status"]
+
+    service = probe(service_client(), listing.pk)
+    assert service["scope"] == "owner"
+
+    for who, client in (
+        ("a signed-in stranger", client_for(make_user())),
+        ("an anonymous reader", anonymous()),
+    ):
+        narrow = probe(client, draft.pk)
+        assert narrow == {"scope": "public", "is_deleted": False}, who
 
 
 def test_the_contract_declares_something_to_check():

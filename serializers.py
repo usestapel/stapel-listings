@@ -923,7 +923,7 @@ class ListingEngagementBatchSerializer(serializers.Serializer):
     items = serializers.DictField(child=ListingEngagementSerializer())
 
 
-class ListingPresenceSerializer(serializers.Serializer):
+class ListingStatusPublicSerializer(serializers.Serializer):
     """What a STRANGER may learn from the status probe: that a row exists.
 
     The probe reads ``all_objects``, so it answers for soft-deleted and
@@ -941,17 +941,36 @@ class ListingPresenceSerializer(serializers.Serializer):
     existed and is gone) is the feature. So the CAPABILITY stays and the
     DISCLOSURE goes: one boolean, which is all the removed-versus-never-existed
     sentence needs.
+
+    Both shapes carry ``scope``, so a client reads which one it got instead
+    of probing for a field: the route answers two bodies and the contract
+    says so (``ListingStatusResponse``, a discriminated union on ``scope``).
     """
 
+    scope = serializers.ChoiceField(
+        choices=[("public", "public")],
+        help_text="Always `public`: the narrow body every caller who is "
+        "neither the owner nor a service gets.",
+    )
     is_deleted = serializers.BooleanField()
 
     def to_representation(self, instance):
-        return {"is_deleted": instance.is_deleted}
+        return {"scope": "public", "is_deleted": instance.is_deleted}
 
 
 class ListingStatusSerializer(serializers.Serializer):
-    """Lightweight status view (mirrors the listings.status comm Function)."""
+    """Lightweight status view (mirrors the listings.status comm Function).
 
+    Answered to the listing's owner and to the service transport only; every
+    other caller gets ``ListingStatusPublicSerializer``. ``scope`` is the
+    discriminator that tells the two apart on the wire.
+    """
+
+    scope = serializers.ChoiceField(
+        choices=[("owner", "owner")],
+        help_text="Always `owner`: the full body, answered to the listing's "
+        "owner and to the service transport.",
+    )
     status = serializers.ChoiceField(choices=ListingStatus.choices)
     moderation_status = serializers.CharField()
     is_deleted = serializers.BooleanField()
@@ -961,6 +980,7 @@ class ListingStatusSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         return {
+            "scope": "owner",
             "status": instance.status,
             "moderation_status": instance.moderation_status,
             "is_deleted": instance.is_deleted,

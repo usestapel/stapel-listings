@@ -109,12 +109,14 @@ def test_status_tells_a_stranger_only_whether_the_row_is_gone(api_client, user):
 
     A stranger still gets an answer, because a browser client needs to tell
     "this listing was removed" from "there was never a listing here", and a
-    404 alone cannot. It just gets one boolean.
+    404 alone cannot. It just gets one boolean — plus `scope`, the label that
+    tells a client which of the route's two bodies it is holding.
     """
     listing = Listing.objects.create(owner=user, category_id="7")
     resp = api_client.get(f"/listings/listings/{listing.pk}/status/")
     assert resp.status_code == 200
-    assert set(resp.json()) == {"is_deleted"}
+    assert set(resp.json()) == {"scope", "is_deleted"}
+    assert resp.json()["scope"] == "public"
 
 
 def test_a_stranger_never_learns_the_owner_or_the_moderation_verdict(api_client, user):
@@ -151,7 +153,8 @@ def test_another_signed_in_user_is_still_a_stranger(auth_client, other_user):
     just cost an attacker one free account."""
     listing = Listing.objects.create(owner=other_user, category_id="7")
     body = auth_client.get(f"/listings/listings/{listing.pk}/status/").json()
-    assert set(body) == {"is_deleted"}
+    assert set(body) == {"scope", "is_deleted"}
+    assert body["scope"] == "public"
 
 
 def test_a_soft_deleted_listing_still_answers(api_client, user):
