@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.23.1] — 2026-09-27
+
+### Added — `listings_retype_image_refs`
+
+`manage.py listings_retype_image_refs --from A --to B [--dry-run]` rewrites
+every `A/<hash>` in `images` and `images_draft` to `B/<hash>` (order kept,
+duplicates dropped) and announces the claim change to the CDN. The listings
+half of stapel-cdn 0.28.0's `retype_images`, for photos an upload stored
+under the wrong asset type. A queryset update: no moderation or publish side
+effect fires. Rebuild the search index afterwards.
+
 ## [0.23.0] — 2026-09-18
 
 ### Fixed — `GET listings/{id}/status/` declared one body for a route that answers two
