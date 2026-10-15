@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.2] — 2026-10-15
+
+Patch: the module's router no longer owns the bare `v1/` path. It was a DRF
+`DefaultRouter`, whose API root view answered `<prefix>/api/v1/` and so
+captured the list/create route of any module mounted under the same prefix.
+It is a `SimpleRouter` now; the routes and their names are unchanged.
+
 ## [0.23.1] — 2026-09-27
 
 ### Added — `listings_retype_image_refs`

@@ -2,11 +2,11 @@
 
     path("listings/", include("stapel_listings.urls"))
 """
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 
 from .views import ListingViewSet
 
-router = DefaultRouter()
+router = SimpleRouter()
 router.register("listings", ListingViewSet, basename="listing")
 
 urlpatterns = router.urls
