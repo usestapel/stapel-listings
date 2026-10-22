@@ -38,7 +38,7 @@ listings_settings = AppSettings(
         # base: str) -> Decimal`` computing price_base (single strategy,
         # REPLACE). Default is identity (price_base == price); a host with
         # stapel-currencies points this at a wrapper over ``currencies.convert``.
-        "PRICE_BASE_CONVERTER": "stapel_listings.services.pricing.identity_converter",
+        "PRICE_BASE_CONVERTER": "stapel_listings.services.pricing.currencies_converter",
         # --- Publish / moderation policy ---
         # Which side of moderation a FIRST publication lands on.
         #

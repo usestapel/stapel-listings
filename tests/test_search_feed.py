@@ -32,9 +32,15 @@ def _schema(kind, name):
 # --- listings.search_documents -------------------------------------------
 
 
-def test_search_documents_round_trip(draft_listing):
+def test_search_documents_round_trip(draft_listing, settings):
     """Publish -> approve -> the document an indexer pulls carries the content."""
     from stapel_core.comm import call
+
+    # The fixture prices in EUR against a USD base; name the converter so the
+    # document has a price_base to carry.
+    settings.STAPEL_LISTINGS = {
+        "PRICE_BASE_CONVERTER": "stapel_listings.services.pricing.identity_converter",
+    }
 
     publish_service.publish_listing(draft_listing)
     draft_listing.apply_moderation("approved")

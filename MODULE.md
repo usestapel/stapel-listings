@@ -185,7 +185,7 @@
   it was written fails validation with actionable detail rather than an opaque
   publish `400`.
 - **Currency conversion** lives in a currencies module; `price_base` is
-  computed through the `PRICE_BASE_CONVERTER` seam (identity by default).
+  computed through the `PRICE_BASE_CONVERTER` seam (the `currencies.convert` comm Function by default; NULL for a cross-currency price when no currencies provider answers).
 - **Geocoding/proximity** live in **stapel-geo**; this module never imports
   it. `Listing.save()` stamps `geohash_draft` from `lat_draft`/`lon_draft`
   (`compute_geohash_draft()`) through the `geo.geohash_encode` comm Function
@@ -218,7 +218,7 @@ of the same name -> environment variable -> default. Read lazily at call time.
 | `FEATURE_CONFIG_CACHE_TIMEOUT` | `300` | Seconds a resolved feature-config list is memoized. |
 | `CATEGORY_CHILDREN_FUNCTION` | `"categories.children"` | Name of the comm Function listing one rung of the cascade, read by `listings.rename_feature_keys` alone to resolve the SUBTREE a renamed feature is inherited through. Empty (or unregistered) narrows that call to the single category it was given, and the answer says so (`subtree_resolved`). |
 | `BASE_CURRENCY` | `"USD"` | Currency code `price_base` is expressed in. |
-| `PRICE_BASE_CONVERTER` | `stapel_listings.services.pricing.identity_converter` | Dotted path `(amount, currency, base) -> Decimal` (REPLACE — single strategy). Default is identity; wire to a currencies backend. |
+| `PRICE_BASE_CONVERTER` | `stapel_listings.services.pricing.currencies_converter` | Dotted path `(amount, currency, base) -> Decimal` (REPLACE — single strategy). Default asks `currencies.convert`; `identity_converter` remains for a single-currency board. |
 | `MODERATION_GATE` | `"pre"` | Which side of moderation a FIRST publication lands on: `pre` waits in `pending` for a verdict; `post` publishes immediately with `moderation_status` still `pending` — review happens live, a rejecting verdict takes it down (`published` → `blocked`). Invalid values are `stapel_listings.E001`; must agree with the host's `STAPEL_MODERATION` gate for this target (`stapel_classified.E004`). |
 | `AUTO_APPROVE_ON_PUBLISH` | `False` | Approve+publish immediately instead of waiting for `moderation.completed` (deployments with no moderation module). |
 | `REQUIRE_IMAGE_ON_PUBLISH` | `True` | Whether ≥1 image is required to publish. |
@@ -226,6 +226,15 @@ of the same name -> environment variable -> default. Read lazily at call time.
 | `LISTING_URL_TEMPLATE` | `""` | Public URL template formatted with `listing_id`, returned by `listings.moderation_content`. Empty = unknown; this module serves no site of its own and will not guess one. |
 | `DESCRIPTION_MIN_LENGTH` / `DESCRIPTION_MAX_LENGTH` | `4` / `500` | Description length bounds enforced on validate/publish. |
 | `DEFAULT_LISTING_TTL_DAYS` | `30` | Days until a freshly published listing expires (`None` disables). |
+| `REQUIRE_LOCATION_ON_PUBLISH` | `True` | Publish (and `validate-draft`) refuse a listing with no `lat_draft`/`lon_draft` (a `location` result). Set `False` for a board with no geographic dimension. |
+| `FREE_PRICE_CATEGORY_IDS` | `()` | Category ids where an explicit price of 0 is legal; elsewhere `validate-draft` rejects 0 (an absent price is NULL). |
+| `ALLOW_ANONYMOUS_WRITES` | `False` | Whether a guest session may create, edit, save-draft and publish (`403` otherwise); reads and favorites stay open. |
+| `GEO_REVERSE_FUNCTION` | `"geo.reverse_geocode"` | comm Function turning the pin into the card's place line; unregistered falls back to the picker's label. |
+| `PUBLIC_COORD_PRECISION` | `2` | Decimal places `lat`/`lon` keep on a public read. |
+| `VIEW_DEDUP_WINDOW_SECONDS` / `ENGAGEMENT_BATCH_LIMIT` | see CONFIG.MD | View-count dedup window and the ids one `GET engagement` call may ask about. |
+| `DRAFT_META_MAX_BYTES` | `16384` | Ceiling on the opaque `draft_meta` sidecar. |
+
+CONFIG.MD is the complete registry (`stapel-config-lint` CFG010 warns about a key it lacks); this table names the keys that change what publish accepts.
 
 `PRICE_BASE_CONVERTER` and `CATEGORY_FEATURES_FUNCTION` are **single-strategy
 REPLACE** keys. This module ships no open (merge-semantics) registry of its own;

@@ -9,7 +9,7 @@ framework-neutral ``Listing`` and decoupled from its sibling services:
   (``services.category_schema``); a ``category.changed`` subscription
   invalidates the cache.
 - **currency is opaque**: ``currency`` is a bare ISO code; ``price_base`` is
-  computed through the ``PRICE_BASE_CONVERTER`` seam (identity by default),
+  computed through the ``PRICE_BASE_CONVERTER`` seam (``currencies.convert`` by default),
   not a FK to stapel-currencies.
 - the ``UserAdLike`` / ``UserAdView`` external-stats read-caches are dropped —
   engagement is a first-class :class:`Favorite`.

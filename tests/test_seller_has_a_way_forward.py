@@ -145,7 +145,8 @@ def test_an_archived_listing_can_be_taken_back_to_draft(auth_client, user):
         (ListingStatus.PAUSED, ListingStatus.PUBLISHED),
         (ListingStatus.SOLD, ListingStatus.PUBLISHED),
         (ListingStatus.PUBLISHED, ListingStatus.PAUSED),
-        (ListingStatus.EXPIRED, ListingStatus.PENDING),
+        # EXPIRED -> PENDING is a publication (validated, re-submitted): an
+        # empty row is refused, see tests/test_submit_transition.py.
     ],
 )
 def test_each_offered_edge_actually_works(auth_client, user, start, target):

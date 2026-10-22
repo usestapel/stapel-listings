@@ -136,8 +136,16 @@ def _normalize_request_features_draft(request):
 #: as a set of ``(from, to)`` pairs so the answer to "is this a restore?" has
 #: one home — the route asks it, and a test asserts every pair is an edge
 #: ``OWNER_TRANSITIONS`` actually offers.
+#: DRAFT -> PENDING and EXPIRED -> PENDING ("submit", "renew") are
+#: publications too: a bare FSM hop left the row PENDING with no
+#: ``listing.submitted``, so no moderation case existed to ever move it, and a
+#: DRAFT skipped validation and promotion.
 RESTORE_EDGES: frozenset[tuple[str, str]] = frozenset(
-    {(ListingStatus.ARCHIVED, ListingStatus.PUBLISHED)}
+    {
+        (ListingStatus.ARCHIVED, ListingStatus.PUBLISHED),
+        (ListingStatus.DRAFT, ListingStatus.PENDING),
+        (ListingStatus.EXPIRED, ListingStatus.PENDING),
+    }
 )
 
 

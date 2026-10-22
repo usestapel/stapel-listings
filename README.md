@@ -24,7 +24,7 @@ pip install stapel-listings
 
 | Fact | Value |
 |---|---|
-| Version | `0.25.0` |
+| Version | `0.26.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | Django | `djangorestframework>=3.14` |
 | HTTP operations | 20 |
@@ -71,7 +71,7 @@ setting, or env var — resolved lazily). Full table with seam semantics in
 | Key | Default | Meaning |
 |---|---|---|
 | `CATEGORY_FEATURES_FUNCTION` | `"categories.features"` | comm Function resolving a category's feature schema. |
-| `PRICE_BASE_CONVERTER` | identity | Dotted-path `(amount, currency, base) -> Decimal`. |
+| `PRICE_BASE_CONVERTER` | `currencies.convert` | Dotted-path `(amount, currency, base) -> Decimal`; without a currencies provider a cross-currency `price_base` is NULL. |
 | `AUTO_APPROVE_ON_PUBLISH` | `False` | Publish immediately when no moderation module is installed. |
 | `REQUIRE_IMAGE_ON_PUBLISH` | `True` | Require ≥1 image to publish. |
 | `MODERATION_TARGET_TYPE` | `"listing"` | `target_type` this module answers to in `moderation.completed`. |

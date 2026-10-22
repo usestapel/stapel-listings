@@ -23,7 +23,7 @@ headless pip dependency. The category schema is resolved by *comm-by-name*
 | CATEGORY_CHILDREN_FUNCTION | env | name of the comm Function listing one rung of the category cascade. Read only by `listings.rename_feature_keys`, to resolve the subtree a renamed feature is inherited through; empty or unregistered narrows that one call to the category it was given. | no | categories.children |
 | FEATURE_CONFIG_CACHE_TIMEOUT | env | seconds a resolved feature-config list is memoized (early-invalidated by `category.changed`). | no | 300 |
 | BASE_CURRENCY | env | base currency code `price_base` is expressed in. | no | USD |
-| PRICE_BASE_CONVERTER | env | dotted path to a `(amount, currency, base) -> Decimal` price_base converter (REPLACE). Default is identity. | no | stapel_listings.services.pricing.identity_converter |
+| PRICE_BASE_CONVERTER | settings | dotted path to a `(amount, currency, base) -> Decimal` price_base converter (REPLACE). The default asks the `currencies.convert` comm Function; without a provider a cross-currency `price_base` is NULL. | no | stapel_listings.services.pricing.currencies_converter |
 | MODERATION_GATE | env | which side of moderation a FIRST publication lands on: `pre` holds it in `pending` for a `moderation.completed` verdict; `post` publishes it immediately with `moderation_status` still `pending` (review still happens; a rejecting verdict takes it down). Values outside {`pre`,`post`} are `stapel_listings.E001`. | no | pre |
 | AUTO_APPROVE_ON_PUBLISH | env | when True, a published listing is approved immediately (no moderation.completed wait). | no | false |
 | REQUIRE_IMAGE_ON_PUBLISH | env | require at least one image reference to publish. | no | true |
@@ -34,11 +34,12 @@ headless pip dependency. The category schema is resolved by *comm-by-name*
 | ENGAGEMENT_BATCH_LIMIT | env | ids one `GET listings/engagement` call may ask about. The endpoint is AllowAny (`view_count` is public), so the cap is what keeps it from being a cheap way to enumerate the board. | no | 100 |
 | MODERATION_TARGET_TYPE | env | `target_type` this module answers to in target-generic `moderation.completed` verdicts; must match the host's `STAPEL_MODERATION["TARGET_TYPES"]` key. | no | listing |
 | LISTING_URL_TEMPLATE | env | template of a listing's public URL, formatted with `listing_id`, returned by `listings.moderation_content`. Empty = unknown (returns ""). | no | (empty) |
-| FREE_PRICE_CATEGORY_IDS | env | category ids (compared as strings) where an explicit price of 0 («free») is legal. Everywhere else `validate_draft` rejects 0; an absent price is stored/served as NULL («price not stated») and stays legal in every category. | no | () |
+| FREE_PRICE_CATEGORY_IDS | settings | category ids (compared as strings) where an explicit price of 0 («free») is legal. Everywhere else `validate_draft` rejects 0; an absent price is stored/served as NULL («price not stated») and stays legal in every category. | no | () |
 | DESCRIPTION_MIN_LENGTH | env | minimum free-text description length enforced on publish/validate. | no | 4 |
 | DESCRIPTION_MAX_LENGTH | env | maximum free-text description length enforced on publish/validate. | no | 500 |
 | DEFAULT_LISTING_TTL_DAYS | env | days until a freshly published listing expires (None disables expiry). | no | 30 |
 | ALLOW_ANONYMOUS_WRITES | env | whether a guest (anonymous account) may author a listing. Gates `create`, `PUT`/`PATCH`, `save-draft` and `publish`; favorites, wind-down actions and every read stay open either way. | no | false |
+| DRAFT_META_MAX_BYTES | env | ceiling, in bytes of its UTF-8 JSON, on the opaque `draft_meta` sidecar a save-draft stores (checked after the shallow merge, so repeated calls cannot grow past it). | no | 16384 |
 
 ### ALLOW_ANONYMOUS_WRITES
 

@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.26.0] — 2026-10-22
+
+Minor (pre-1.0: a minor is breaking): the default `PRICE_BASE_CONVERTER`
+converts, and submitting through `transition` validates.
+
+- **`price_base` is converted by default.** The default converter was
+  identity, so EUR and RUB listings stored `price_base == price` and sorted
+  100 EUR next to 100 RUB. `services.pricing.currencies_converter` (the new
+  default) asks the `currencies.convert` comm Function; a price already in
+  `BASE_CURRENCY` needs no provider, and without one a cross-currency
+  `price_base` is NULL instead of a wrong number. `identity_converter` stays
+  for a single-currency board.
+- **`transition {"to": "pending"}` is a publication.** DRAFT -> PENDING and
+  EXPIRED -> PENDING ran a bare FSM hop: the row became PENDING with no
+  `listing.submitted`, so no moderation case existed to ever move it, and a
+  draft skipped validation and promotion. Both edges now run the publish
+  service, like ARCHIVED -> PUBLISHED; an invalid draft answers 400.
+- **Settings docs.** CONFIG.MD gains `DRAFT_META_MAX_BYTES`;
+  `FREE_PRICE_CATEGORY_IDS` and `PRICE_BASE_CONVERTER` say source `settings`
+  (a container and an import string core never reads from the environment);
+  MODULE.md names the keys that change what publish accepts
+  (`REQUIRE_LOCATION_ON_PUBLISH`, `FREE_PRICE_CATEGORY_IDS`,
+  `ALLOW_ANONYMOUS_WRITES`, ...).
+
 ## [0.25.0] — 2026-10-22
 
 Minor (pre-1.0: a minor is breaking): `POST /publish/` refuses PAUSED and SOLD.
