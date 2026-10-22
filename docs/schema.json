@@ -960,7 +960,7 @@
             "nullable": true
           },
           "type": {
-            "$ref": "#/components/schemas/TypeE3eEnum"
+            "$ref": "#/components/schemas/BoolTypeEnum"
           },
           "value": {
             "type": "boolean"
@@ -980,12 +980,19 @@
         "description": "Serializer for boolean feature DTO.",
         "properties": {
           "type": {
-            "$ref": "#/components/schemas/TypeE3eEnum"
+            "$ref": "#/components/schemas/BoolTypeEnum"
           },
           "value": {
             "type": "boolean"
           }
         }
+      },
+      "BoolTypeEnum": {
+        "enum": [
+          "bool"
+        ],
+        "type": "string",
+        "description": "* `bool` - bool"
       },
       "ConvertibleUnitDao": {
         "type": "object",
@@ -1021,7 +1028,7 @@
             "nullable": true
           },
           "type": {
-            "$ref": "#/components/schemas/Type104Enum"
+            "$ref": "#/components/schemas/ConvertibleUnitTypeEnum"
           },
           "value": {
             "type": "number",
@@ -1054,7 +1061,7 @@
         "description": "Serializer for convertible-unit feature DTO.",
         "properties": {
           "type": {
-            "$ref": "#/components/schemas/Type104Enum"
+            "$ref": "#/components/schemas/ConvertibleUnitTypeEnum"
           },
           "value": {
             "type": "number",
@@ -1066,6 +1073,13 @@
             "nullable": true
           }
         }
+      },
+      "ConvertibleUnitTypeEnum": {
+        "enum": [
+          "convertible_unit"
+        ],
+        "type": "string",
+        "description": "* `convertible_unit` - convertible_unit"
       },
       "DateDao": {
         "type": "object",
@@ -1101,7 +1115,7 @@
             "nullable": true
           },
           "type": {
-            "$ref": "#/components/schemas/Type37eEnum"
+            "$ref": "#/components/schemas/DateTypeEnum"
           },
           "value": {
             "type": "integer",
@@ -1114,13 +1128,20 @@
         "description": "Serializer for date feature DTO.",
         "properties": {
           "type": {
-            "$ref": "#/components/schemas/Type37eEnum"
+            "$ref": "#/components/schemas/DateTypeEnum"
           },
           "value": {
             "type": "integer",
             "nullable": true
           }
         }
+      },
+      "DateTypeEnum": {
+        "enum": [
+          "date"
+        ],
+        "type": "string",
+        "description": "* `date` - date"
       },
       "DeleteResponse": {
         "type": "object",
@@ -1393,7 +1414,7 @@
             "nullable": true
           },
           "type": {
-            "$ref": "#/components/schemas/TypeD7cEnum"
+            "$ref": "#/components/schemas/FloatTypeEnum"
           },
           "value": {
             "type": "number",
@@ -1422,13 +1443,20 @@
         "description": "Serializer for float feature DTO.",
         "properties": {
           "type": {
-            "$ref": "#/components/schemas/TypeD7cEnum"
+            "$ref": "#/components/schemas/FloatTypeEnum"
           },
           "value": {
             "type": "number",
             "format": "double"
           }
         }
+      },
+      "FloatTypeEnum": {
+        "enum": [
+          "float"
+        ],
+        "type": "string",
+        "description": "* `float` - float"
       },
       "GroupDao": {
         "type": "object",
@@ -1464,7 +1492,7 @@
             "nullable": true
           },
           "type": {
-            "$ref": "#/components/schemas/Type312Enum"
+            "$ref": "#/components/schemas/GroupTypeEnum"
           },
           "value": {
             "type": "array",
@@ -1480,7 +1508,7 @@
         "description": "Serializer for group feature DTO.",
         "properties": {
           "type": {
-            "$ref": "#/components/schemas/Type312Enum"
+            "$ref": "#/components/schemas/GroupTypeEnum"
           },
           "value": {
             "type": "array",
@@ -1490,6 +1518,13 @@
             }
           }
         }
+      },
+      "GroupTypeEnum": {
+        "enum": [
+          "group"
+        ],
+        "type": "string",
+        "description": "* `group` - group"
       },
       "HeaderDao": {
         "type": "object",
@@ -1525,7 +1560,7 @@
             "nullable": true
           },
           "type": {
-            "$ref": "#/components/schemas/Type3feEnum"
+            "$ref": "#/components/schemas/HeaderTypeEnum"
           },
           "style": {
             "$ref": "#/components/schemas/StyleEnum"
@@ -1537,13 +1572,20 @@
         "description": "Serializer for header feature DTO.",
         "properties": {
           "type": {
-            "$ref": "#/components/schemas/Type3feEnum"
+            "$ref": "#/components/schemas/HeaderTypeEnum"
           },
           "value": {
             "type": "string",
             "nullable": true
           }
         }
+      },
+      "HeaderTypeEnum": {
+        "enum": [
+          "header"
+        ],
+        "type": "string",
+        "description": "* `header` - header"
       },
       "HexColorDao": {
         "type": "object",
@@ -1579,7 +1621,7 @@
             "nullable": true
           },
           "type": {
-            "$ref": "#/components/schemas/Type515Enum"
+            "$ref": "#/components/schemas/HexColorTypeEnum"
           },
           "simple": {
             "type": "string"
@@ -1607,9 +1649,16 @@
             "nullable": true
           },
           "type": {
-            "$ref": "#/components/schemas/Type515Enum"
+            "$ref": "#/components/schemas/HexColorTypeEnum"
           }
         }
+      },
+      "HexColorTypeEnum": {
+        "enum": [
+          "hex_color"
+        ],
+        "type": "string",
+        "description": "* `hex_color` - hex_color"
       },
       "HexColorValue": {
         "type": "object",
@@ -1665,7 +1714,7 @@
             "nullable": true
           },
           "type": {
-            "$ref": "#/components/schemas/Type5beEnum"
+            "$ref": "#/components/schemas/HierarchicalSelectTypeEnum"
           },
           "value": {
             "type": "array",
@@ -1680,7 +1729,7 @@
         "description": "Serializer for hierarchical select feature DTO.",
         "properties": {
           "type": {
-            "$ref": "#/components/schemas/Type5beEnum"
+            "$ref": "#/components/schemas/HierarchicalSelectTypeEnum"
           },
           "value": {
             "type": "array",
@@ -1689,6 +1738,13 @@
             }
           }
         }
+      },
+      "HierarchicalSelectTypeEnum": {
+        "enum": [
+          "hierarchical_select"
+        ],
+        "type": "string",
+        "description": "* `hierarchical_select` - hierarchical_select"
       },
       "IntDao": {
         "type": "object",
@@ -1724,7 +1780,7 @@
             "nullable": true
           },
           "type": {
-            "$ref": "#/components/schemas/TypeC1bEnum"
+            "$ref": "#/components/schemas/IntTypeEnum"
           },
           "value": {
             "type": "integer"
@@ -1752,12 +1808,19 @@
         "description": "Serializer for integer feature DTO.",
         "properties": {
           "type": {
-            "$ref": "#/components/schemas/TypeC1bEnum"
+            "$ref": "#/components/schemas/IntTypeEnum"
           },
           "value": {
             "type": "integer"
           }
         }
+      },
+      "IntTypeEnum": {
+        "enum": [
+          "int"
+        ],
+        "type": "string",
+        "description": "* `int` - int"
       },
       "ListingActionResponse": {
         "type": "object",
@@ -2026,7 +2089,7 @@
             "nullable": true
           },
           "status": {
-            "$ref": "#/components/schemas/StatusD41Enum"
+            "$ref": "#/components/schemas/ListingStatusEnum"
           },
           "is_favorited": {
             "type": "boolean",
@@ -2383,7 +2446,7 @@
             "readOnly": true
           },
           "status": {
-            "$ref": "#/components/schemas/StatusD41Enum"
+            "$ref": "#/components/schemas/ListingStatusEnum"
           },
           "moderation_status": {
             "$ref": "#/components/schemas/ModerationStatusEnum"
@@ -2552,7 +2615,7 @@
           "status": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/StatusD41Enum"
+                "$ref": "#/components/schemas/ListingStatusEnum"
               }
             ],
             "readOnly": true
@@ -2638,7 +2701,7 @@
             "description": "Always `owner`: the full body, answered to the listing's owner and to the service transport.\n\n* `owner` - owner"
           },
           "status": {
-            "$ref": "#/components/schemas/StatusD41Enum"
+            "$ref": "#/components/schemas/ListingStatusEnum"
           },
           "moderation_status": {
             "type": "string"
@@ -2665,6 +2728,21 @@
           "scope",
           "status"
         ]
+      },
+      "ListingStatusEnum": {
+        "enum": [
+          "draft",
+          "pending",
+          "published",
+          "paused",
+          "expired",
+          "sold",
+          "rejected",
+          "blocked",
+          "archived"
+        ],
+        "type": "string",
+        "description": "* `draft` - Draft\n* `pending` - Pending Moderation\n* `published` - Published\n* `paused` - Paused\n* `expired` - Expired\n* `sold` - Sold\n* `rejected` - Rejected\n* `blocked` - Blocked (moderation takedown)\n* `archived` - Archived"
       },
       "ListingStatusPublic": {
         "type": "object",
@@ -2723,7 +2801,7 @@
         "description": "The body of ``POST listings/{id}/transition/``: where to move it.\n\nA ``ChoiceField`` over the whole lifecycle rather than over the moves this\nparticular listing has, because the two refusals are different sentences\nand a client should be able to tell them apart: a status that does not\nexist is a 400 (the caller is confused about the vocabulary), a status\nthat exists but is not this listing's to reach is a 409 with\n``from_status`` (the caller is confused about the row). Narrowing the\nfield to the per-row set would collapse both into 400 and lose the\n``from_status`` that tells a storefront what to re-render.",
         "properties": {
           "to": {
-            "$ref": "#/components/schemas/ToEnum"
+            "$ref": "#/components/schemas/ListingStatusEnum"
           }
         },
         "required": [
@@ -3016,7 +3094,7 @@
             "nullable": true
           },
           "status": {
-            "$ref": "#/components/schemas/StatusD41Enum"
+            "$ref": "#/components/schemas/ListingStatusEnum"
           },
           "is_favorited": {
             "type": "boolean",
@@ -3101,14 +3179,28 @@
             }
           },
           "next_anchor": {
-            "type": "string",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
             "nullable": true,
-            "description": "Anchor value for next page"
+            "description": "Anchor value for next page. The raw value of the ordering field: a string for a datetime anchor, an integer for a sequence one. Set `anchor_type` on the paginator to narrow this."
           },
           "prev_anchor": {
-            "type": "string",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
             "nullable": true,
-            "description": "Anchor value for previous page"
+            "description": "Anchor value for previous page. The raw value of the ordering field: a string for a datetime anchor, an integer for a sequence one. Set `anchor_type` on the paginator to narrow this."
           },
           "has_next": {
             "type": "boolean",
@@ -3140,14 +3232,28 @@
             }
           },
           "next_anchor": {
-            "type": "string",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
             "nullable": true,
-            "description": "Anchor value for next page"
+            "description": "Anchor value for next page. The raw value of the ordering field: a string for a datetime anchor, an integer for a sequence one. Set `anchor_type` on the paginator to narrow this."
           },
           "prev_anchor": {
-            "type": "string",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
             "nullable": true,
-            "description": "Anchor value for previous page"
+            "description": "Anchor value for previous page. The raw value of the ordering field: a string for a datetime anchor, an integer for a sequence one. Set `anchor_type` on the paginator to narrow this."
           },
           "has_next": {
             "type": "boolean",
@@ -3269,7 +3375,7 @@
           "status": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/StatusD41Enum"
+                "$ref": "#/components/schemas/ListingStatusEnum"
               }
             ],
             "readOnly": true
@@ -3348,7 +3454,7 @@
             "nullable": true
           },
           "type": {
-            "$ref": "#/components/schemas/Type565Enum"
+            "$ref": "#/components/schemas/RefHierarchicalSelectTypeEnum"
           },
           "value": {
             "type": "array",
@@ -3379,7 +3485,7 @@
         "description": "Serializer for the ref_hierarchical_select feature DTO.",
         "properties": {
           "type": {
-            "$ref": "#/components/schemas/Type565Enum"
+            "$ref": "#/components/schemas/RefHierarchicalSelectTypeEnum"
           },
           "value": {
             "type": "array",
@@ -3388,6 +3494,13 @@
             }
           }
         }
+      },
+      "RefHierarchicalSelectTypeEnum": {
+        "enum": [
+          "ref_hierarchical_select"
+        ],
+        "type": "string",
+        "description": "* `ref_hierarchical_select` - ref_hierarchical_select"
       },
       "RefSelectDao": {
         "type": "object",
@@ -3423,7 +3536,7 @@
             "nullable": true
           },
           "type": {
-            "$ref": "#/components/schemas/TypeCcbEnum"
+            "$ref": "#/components/schemas/RefSelectTypeEnum"
           },
           "value": {
             "type": "array",
@@ -3460,7 +3573,7 @@
         "description": "Serializer for the ref_select feature DTO.",
         "properties": {
           "type": {
-            "$ref": "#/components/schemas/TypeCcbEnum"
+            "$ref": "#/components/schemas/RefSelectTypeEnum"
           },
           "value": {
             "type": "array",
@@ -3469,6 +3582,13 @@
             }
           }
         }
+      },
+      "RefSelectTypeEnum": {
+        "enum": [
+          "ref_select"
+        ],
+        "type": "string",
+        "description": "* `ref_select` - ref_select"
       },
       "SelectDao": {
         "type": "object",
@@ -3504,7 +3624,7 @@
             "nullable": true
           },
           "type": {
-            "$ref": "#/components/schemas/Type63eEnum"
+            "$ref": "#/components/schemas/SelectTypeEnum"
           },
           "value": {
             "type": "array",
@@ -3540,7 +3660,7 @@
         "description": "Serializer for select feature DTO.",
         "properties": {
           "type": {
-            "$ref": "#/components/schemas/Type63eEnum"
+            "$ref": "#/components/schemas/SelectTypeEnum"
           },
           "value": {
             "type": "array",
@@ -3550,20 +3670,12 @@
           }
         }
       },
-      "StatusD41Enum": {
+      "SelectTypeEnum": {
         "enum": [
-          "draft",
-          "pending",
-          "published",
-          "paused",
-          "expired",
-          "sold",
-          "rejected",
-          "blocked",
-          "archived"
+          "select"
         ],
         "type": "string",
-        "description": "* `draft` - Draft\n* `pending` - Pending Moderation\n* `published` - Published\n* `paused` - Paused\n* `expired` - Expired\n* `sold` - Sold\n* `rejected` - Rejected\n* `blocked` - Blocked (moderation takedown)\n* `archived` - Archived"
+        "description": "* `select` - select"
       },
       "StringDao": {
         "type": "object",
@@ -3599,7 +3711,7 @@
             "nullable": true
           },
           "type": {
-            "$ref": "#/components/schemas/Type839Enum"
+            "$ref": "#/components/schemas/StringTypeEnum"
           },
           "value": {
             "type": "string"
@@ -3619,12 +3731,19 @@
         "description": "Serializer for string feature DTO.",
         "properties": {
           "type": {
-            "$ref": "#/components/schemas/Type839Enum"
+            "$ref": "#/components/schemas/StringTypeEnum"
           },
           "value": {
             "type": "string"
           }
         }
+      },
+      "StringTypeEnum": {
+        "enum": [
+          "string"
+        ],
+        "type": "string",
+        "description": "* `string` - string"
       },
       "StyleEnum": {
         "enum": [
@@ -3633,112 +3752,6 @@
         ],
         "type": "string",
         "description": "* `l` - l\n* `m` - m"
-      },
-      "ToEnum": {
-        "enum": [
-          "draft",
-          "pending",
-          "published",
-          "paused",
-          "expired",
-          "sold",
-          "rejected",
-          "blocked",
-          "archived"
-        ],
-        "type": "string",
-        "description": "* `draft` - Draft\n* `pending` - Pending Moderation\n* `published` - Published\n* `paused` - Paused\n* `expired` - Expired\n* `sold` - Sold\n* `rejected` - Rejected\n* `blocked` - Blocked (moderation takedown)\n* `archived` - Archived"
-      },
-      "Type104Enum": {
-        "enum": [
-          "convertible_unit"
-        ],
-        "type": "string",
-        "description": "* `convertible_unit` - convertible_unit"
-      },
-      "Type312Enum": {
-        "enum": [
-          "group"
-        ],
-        "type": "string",
-        "description": "* `group` - group"
-      },
-      "Type37eEnum": {
-        "enum": [
-          "date"
-        ],
-        "type": "string",
-        "description": "* `date` - date"
-      },
-      "Type3feEnum": {
-        "enum": [
-          "header"
-        ],
-        "type": "string",
-        "description": "* `header` - header"
-      },
-      "Type515Enum": {
-        "enum": [
-          "hex_color"
-        ],
-        "type": "string",
-        "description": "* `hex_color` - hex_color"
-      },
-      "Type565Enum": {
-        "enum": [
-          "ref_hierarchical_select"
-        ],
-        "type": "string",
-        "description": "* `ref_hierarchical_select` - ref_hierarchical_select"
-      },
-      "Type5beEnum": {
-        "enum": [
-          "hierarchical_select"
-        ],
-        "type": "string",
-        "description": "* `hierarchical_select` - hierarchical_select"
-      },
-      "Type63eEnum": {
-        "enum": [
-          "select"
-        ],
-        "type": "string",
-        "description": "* `select` - select"
-      },
-      "Type839Enum": {
-        "enum": [
-          "string"
-        ],
-        "type": "string",
-        "description": "* `string` - string"
-      },
-      "TypeC1bEnum": {
-        "enum": [
-          "int"
-        ],
-        "type": "string",
-        "description": "* `int` - int"
-      },
-      "TypeCcbEnum": {
-        "enum": [
-          "ref_select"
-        ],
-        "type": "string",
-        "description": "* `ref_select` - ref_select"
-      },
-      "TypeD7cEnum": {
-        "enum": [
-          "float"
-        ],
-        "type": "string",
-        "description": "* `float` - float"
-      },
-      "TypeE3eEnum": {
-        "enum": [
-          "bool"
-        ],
-        "type": "string",
-        "description": "* `bool` - bool"
       },
       "UiStyleEnum": {
         "enum": [

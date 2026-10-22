@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.24.0] — 2026-10-22
+
+Minor (pre-1.0: a minor is breaking) for generated clients only: enum
+component names in `docs/schema.json` change; the wire is unchanged.
+
+- **Named enums.** The listing status set carried two names, one of them a
+  drf-spectacular collision name (`StatusD41Enum`, plus `ToEnum` for the same
+  set), and the type discriminators were `TypeE3eEnum` and friends — names that
+  change with unrelated edits and with the generator version. The contract
+  harness pins them (`_codegen_settings.enum_name_overrides`):
+  `ListingStatusEnum` (status and a transition's `to`) and `ModerationStatusEnum`
+  from the model's `TextChoices`, and `<Slug>TypeEnum` for every type
+  discriminator from `stapel_attributes.openapi` (floor `stapel-attributes>=0.9.5`).
+  A react pair that reads `Schemas["StatusD41Enum"]` reads `Schemas["ListingStatusEnum"]`.
+- The schema is re-emitted against stapel-core 0.92.x: the keyset paginator's
+  `anchor` is described as a string or an integer.
+
 ## [0.23.2] — 2026-10-15
 
 Patch: the module's router no longer owns the bare `v1/` path. It was a DRF
