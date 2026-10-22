@@ -8,7 +8,7 @@
     "/listings/api/v1/listings/": {
       "get": {
         "operationId": "listings_api_v1_listings_list",
-        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "description": "The published board, newest first, optionally per category.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
         "parameters": [
           {
             "name": "anchor",
@@ -18,6 +18,17 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "category_id",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Narrow the board to these categories: ids, comma-separated or the parameter repeated (a category page passes its own id and its descendants'). At most 200 ids; absent means every category."
           },
           {
             "name": "direction",

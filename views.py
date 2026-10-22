@@ -209,6 +209,19 @@ def _may_see_full_status(request, listing) -> bool:
     return str(getattr(user, "pk", "")) == str(listing.owner_id)
 
 
+#: Ids one ``GET /listings/?category_id=`` honours: a category page and its
+#: subtree, not a crawl of the catalogue.
+CATEGORY_FILTER_LIMIT = 200
+
+
+def _category_filter(request) -> list[str]:
+    """``category_id`` values from the query, comma-split, blanks dropped."""
+    raw: list[str] = []
+    for value in request.query_params.getlist("category_id"):
+        raw.extend(part.strip() for part in str(value).split(","))
+    return [part for part in raw if part][:CATEGORY_FILTER_LIMIT]
+
+
 class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
     """Listings CRUD plus owner lifecycle actions and favorites.
 
@@ -242,10 +255,32 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         qs = super().get_queryset()
         user = self.request.user
         if self.action == "list":
-            return qs.published().with_favorited(user).with_viewed(user)
+            qs = qs.published()
+            categories = _category_filter(self.request)
+            if categories:
+                qs = qs.filter(category_id__in=categories)
+            return qs.with_favorited(user).with_viewed(user)
         if self.action == "retrieve":
             return qs.visible_to(user).with_favorited(user).with_viewed(user)
         return qs
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="category_id",
+                description="Narrow the board to these categories: ids, "
+                "comma-separated or the parameter repeated (a category page "
+                "passes its own id and its descendants'). At most "
+                f"{CATEGORY_FILTER_LIMIT} ids; absent means every category.",
+                required=False,
+                many=True,
+                type=str,
+            )
+        ],
+    )
+    def list(self, request, *args, **kwargs):
+        """The published board, newest first, optionally per category."""
+        return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
         """Read one listing — and count the open.

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.27.0] — 2026-10-22
+
+- **The public board narrows to categories.** `GET /listings/?category_id=`
+  takes category ids, comma-separated or the parameter repeated (a category
+  page passes its own id and its subtree), at most 200; absent means every
+  category. A storefront without the search module had no category grid:
+  the board answered every published listing whatever page asked.
+
 ## [0.26.1] — 2026-10-22
 
 - **An appeal that overturns a pre-publication rejection publishes.**
