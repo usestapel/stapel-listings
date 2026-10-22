@@ -354,3 +354,46 @@ def test_moderation_content_request_schema_enforced():
 
     with pytest.raises(SchemaValidationError):
         call("listings.moderation_content", {"listing": 1})
+
+
+# --- MD-3: an appeal overturns a pre-publication rejection -----------------
+
+
+def test_overturned_pre_publication_rejection_publishes(user, capture_events):
+    """pending -> rejected -> approved on appeal ends live and indexed."""
+    published = capture_events("listing.published")
+    listing = Listing.objects.create(
+        owner=user, category_id="7", title="Toyota Camry", status=ListingStatus.PENDING
+    )
+    listing.apply_moderation("rejected")
+    assert listing.status == ListingStatus.REJECTED
+
+    listing.apply_moderation("approved", note="Appeal upheld")
+
+    listing.refresh_from_db()
+    assert listing.status == ListingStatus.PUBLISHED
+    assert listing.moderation_status == ModerationStatus.APPROVED
+    assert listing.published_at is not None
+    assert len(published) == 1
+
+
+def test_overturn_leaves_a_listing_the_owner_moved_to_draft(user, capture_events):
+    published = capture_events("listing.published")
+    listing = Listing.objects.create(
+        owner=user, category_id="7", status=ListingStatus.PENDING
+    )
+    listing.apply_moderation("rejected")
+    listing.transition_to(ListingStatus.DRAFT)
+
+    listing.apply_moderation("approved", note="Appeal upheld")
+
+    listing.refresh_from_db()
+    assert listing.status == ListingStatus.DRAFT
+    assert listing.moderation_status == ModerationStatus.APPROVED
+    assert published == []
+
+
+def test_rejected_to_published_is_not_an_owner_move():
+    from stapel_listings.models import OWNER_TRANSITIONS
+
+    assert ListingStatus.PUBLISHED not in OWNER_TRANSITIONS[ListingStatus.REJECTED]

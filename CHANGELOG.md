@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.26.1] — 2026-10-22
+
+- **An appeal that overturns a pre-publication rejection publishes.**
+  `apply_moderation("approved")` published only from PENDING and BLOCKED,
+  and REJECTED had no edge to PUBLISHED, so a seller who won an appeal saw
+  `moderation_status` APPROVED on a listing that stayed REJECTED forever.
+  `REJECTED -> PUBLISHED` is now a system edge (not in `OWNER_TRANSITIONS`)
+  and the approval publishes from REJECTED, emitting `listing.published`. A
+  listing the owner has since moved (to DRAFT, ARCHIVED) stays where it is.
+
 ## [0.26.0] — 2026-10-22
 
 Minor (pre-1.0: a minor is breaking): the default `PRICE_BASE_CONVERTER`

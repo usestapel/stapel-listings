@@ -155,7 +155,13 @@ LISTING_TRANSITIONS: dict[str, set[str]] = {
         ListingStatus.ARCHIVED,
     },
     ListingStatus.SOLD: {ListingStatus.ARCHIVED, ListingStatus.PUBLISHED},
-    ListingStatus.REJECTED: {ListingStatus.DRAFT, ListingStatus.ARCHIVED},
+    ListingStatus.REJECTED: {
+        # A pre-publication rejection overturned on appeal (moderation
+        # re-emits "approved"). System-only, like BLOCKED -> PUBLISHED.
+        ListingStatus.PUBLISHED,
+        ListingStatus.DRAFT,
+        ListingStatus.ARCHIVED,
+    },
     # Restoring an archived listing is a PUBLICATION, not an unpause: it goes
     # through ``services.publish.restore_listing`` and therefore lands on
     # whichever status a fresh publish lands on — PENDING under the default
@@ -185,8 +191,8 @@ LISTING_TRANSITIONS: dict[str, set[str]] = {
 #
 # What is deliberately NOT here is as load-bearing as what is:
 #
-# * ``PENDING -> PUBLISHED`` and ``BLOCKED -> PUBLISHED`` belong to
-#   moderation. They are in ``LISTING_TRANSITIONS`` because
+# * ``PENDING -> PUBLISHED``, ``BLOCKED -> PUBLISHED`` and
+#   ``REJECTED -> PUBLISHED`` belong to moderation. They are in ``LISTING_TRANSITIONS`` because
 #   ``apply_moderation`` drives them; putting them here would be a
 #   self-service publish gate.
 # * ``PUBLISHED -> BLOCKED`` is a takedown, which is not a thing one does to
@@ -986,8 +992,10 @@ class Listing(models.Model):
         """Apply a moderation *decision* to this listing.
 
         ``approved`` -> moderation APPROVED and (if ``auto_publish``) the
-        lifecycle moves PENDING->PUBLISHED, or BLOCKED->PUBLISHED when a
-        takedown is reversed on appeal; ``rejected`` -> moderation REJECTED
+        lifecycle moves PENDING->PUBLISHED, or BLOCKED/REJECTED->PUBLISHED
+        when a takedown or a pre-publication rejection is reversed on appeal
+        (a listing the owner has since moved, e.g. to DRAFT, stays where the
+        owner put it); ``rejected`` -> moderation REJECTED
         plus the lifecycle move that expresses the verdict — PENDING->REJECTED
         before publication, PUBLISHED->BLOCKED for a takedown of a live
         listing; ``needs_review`` -> moderation NEEDS_REVIEW, lifecycle
@@ -1018,6 +1026,7 @@ class Listing(models.Model):
                 if auto_publish and self.status in (
                     ListingStatus.PENDING,
                     ListingStatus.BLOCKED,
+                    ListingStatus.REJECTED,
                 ):
                     self.transition_to(ListingStatus.PUBLISHED)
             elif decision == "rejected":
