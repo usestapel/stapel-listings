@@ -149,6 +149,30 @@ def _missing_category_result(listing):
     )
 
 
+def _unknown_category_result(listing):
+    """The structured failure for a category id the provider does not know."""
+    return FeatureValidationResult(
+        slug="category_id",
+        status=ValidationStatus.VALIDATION_FAILED,
+        localizable_error=ERR_400_PUBLISH_VALIDATION_FAILED,
+        params={"category_id": str(listing.category_id)},
+        message="This category does not exist; choose another one",
+    )
+
+
+def _configs_or_unknown(listing):
+    """``(configs, None)``, or ``([], result)`` when the category is unknown.
+
+    ``categories.features`` raises ``LookupError`` for an id that names no
+    category (absent, malformed, soft-deleted); through ``call()`` it arrives
+    as ``FunctionLookupError``, which is one (stapel-core 0.93).
+    """
+    try:
+        return category_schema.get_feature_configs(listing.category_id), None
+    except LookupError:
+        return [], _unknown_category_result(listing)
+
+
 def validate_draft(listing) -> ValidationBatchResult:
     """Structured validation of a listing's draft against its category schema.
 
@@ -162,10 +186,9 @@ def validate_draft(listing) -> ValidationBatchResult:
     # category itself is then the failure; the free-text/price/location checks
     # below still run, so the composer gets the whole list at once.
     category_error = _missing_category_result(listing)
-    configs = (
-        [] if category_error is not None
-        else category_schema.get_feature_configs(listing.category_id)
-    )
+    configs: list = []
+    if category_error is None:
+        configs, category_error = _configs_or_unknown(listing)
     result = validate_dto_structured(configs, listing.features_draft or {})
 
     if category_error is None:
@@ -231,13 +254,23 @@ def publish_listing(listing) -> None:
     nothing — one detector, no second call site that could disagree with it.
     """
     was_indexed = listing.status in INDEXED_STATUSES
+    # A moderator's rejection still stands on this content (a takedown, or a
+    # pre-publication rejection, carried through BLOCKED/REJECTED -> DRAFT or
+    # ARCHIVED). Re-submitting asks for a new verdict; neither the post gate
+    # nor AUTO_APPROVE may answer it in the moderator's place.
+    standing_rejection = (
+        listing.moderation_status == ModerationStatus.REJECTED
+        or listing.status in (ListingStatus.BLOCKED, ListingStatus.REJECTED)
+    )
     # Same side of the door as the location and image checks: a storefront
     # that skipped validate-draft must not be able to publish a category-less
     # draft anyway. The view maps this to ERR_400_PUBLISH_VALIDATION_FAILED,
     # the code the structured result above also carries.
     if _missing_category_result(listing) is not None:
         raise ValidationError("A category is required to publish a listing.")
-    configs = category_schema.get_feature_configs(listing.category_id)
+    configs, unknown_category = _configs_or_unknown(listing)
+    if unknown_category is not None:
+        raise ValidationError("The listing's category does not exist.")
     features_draft = listing.features_draft or {}
 
     if features_draft:
@@ -305,7 +338,9 @@ def publish_listing(listing) -> None:
     with mutate_and_emit():
         listing.save()
         events.emit_listing_submitted(listing)
-        if listings_settings.AUTO_APPROVE_ON_PUBLISH:
+        if standing_rejection:
+            pass  # waits in PENDING for a verdict, whatever the gate
+        elif listings_settings.AUTO_APPROVE_ON_PUBLISH:
             listing.apply_moderation("approved", note="auto-approved (no moderation module)")
         elif not was_indexed and listings_settings.MODERATION_GATE == "post":
             # Post-moderation gate: the FIRST publication goes live in the

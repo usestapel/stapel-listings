@@ -345,7 +345,7 @@ def test_moderation_content_refuses_a_draft_key_by_name(draft_listing):
             {"listing_id": "draft:71bde8564c2148e09eb0d2b3b8d8ab80"},
         )
     assert "not found" in str(exc.value)
-    assert "LookupError" in str(exc.value)
+    assert isinstance(exc.value, LookupError)
 
 
 def test_moderation_content_request_schema_enforced():

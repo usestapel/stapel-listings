@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.25.0] — 2026-10-22
+
+Minor (pre-1.0: a minor is breaking): `POST /publish/` refuses PAUSED and SOLD.
+
+- **A takedown is not undone by publishing again.** A listing that carries a
+  standing moderation rejection (BLOCKED or REJECTED, or taken through DRAFT or
+  ARCHIVED from there) now waits in PENDING for a new verdict on publish or
+  restore, whatever the gate. Under `MODERATION_GATE="post"` or
+  `AUTO_APPROVE_ON_PUBLISH` it went straight back into the window.
+- **`POST /publish/` has a status guard.** `publishable_from(status)`, derived
+  from `OWNER_TRANSITIONS`: a draft, a live listing, or a status from which the
+  owner could reach DRAFT or PENDING. PAUSED and SOLD answer
+  `409 error.409.invalid_listing_transition` with `from_status`; their way back
+  is the transition to PUBLISHED.
+- **An unknown category is a 400, not a 500.** `validate-draft` returns a
+  `category_id` result (`params.category_id`) and `publish` answers 400 when
+  `categories.features` raises `LookupError` (absent, malformed or deleted
+  id). Needs stapel-core 0.93's `FunctionLookupError`; floor
+  `stapel-core>=0.93.0`, which also applies CDN photo claims on the in-process
+  bus.
+- **A non-numeric pk is a 404 on every listing route** (`/listings/abc/archive/`,
+  `/listings/undefined/`), checked once in `ListingViewSet.initial`; the
+  schema's path parameter stays an integer.
+
 ## [0.24.0] — 2026-10-22
 
 Minor (pre-1.0: a minor is breaking) for generated clients only: enum

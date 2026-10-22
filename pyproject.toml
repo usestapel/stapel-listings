@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-listings"
-version = "0.24.0"
+version = "0.25.0"
 description = "Listings and catalog for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -53,7 +53,7 @@ dependencies = [
     # translate, with nothing red to say so.
     # `tests/test_public_read.py::test_anonymous_create_is_refused_in_the_fleet_envelope`
     # is the gate.
-    "stapel-core>=0.61.0,<1.0",
+    "stapel-core>=0.93.0,<1.0",
     # attributes 0.3.x caps `stapel-core<0.12`, which made stapel-listings
     # unresolvable next to any modern core (stapel-categories 0.5.4 hit the
     # same wall and moved the same way).

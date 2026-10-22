@@ -20,7 +20,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticate
 from rest_framework.response import Response
 
 from stapel_attributes.results import ValidationBatchResultSerializer
-from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
+from stapel_core.django.api.errors import (
+    StapelErrorResponse,
+    StapelResponse,
+    StapelServiceError,
+)
 from stapel_core.django.api.pagination import IDAnchorPagination
 from stapel_core.django.api.permissions import IsNotAnonymousUser, IsServiceRequest
 
@@ -46,6 +50,7 @@ from .models import (
     Listing,
     ListingStatus,
     TransitionError,
+    publishable_from,
 )
 from .serializers import (
     DeleteResponseSerializer,
@@ -287,6 +292,19 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         serializer.save(owner=self.request.user, status=ListingStatus.DRAFT)
 
     # -- helpers -----------------------------------------------------------
+
+    def initial(self, request, *args, **kwargs):
+        """The pk is an integer: "abc", "undefined" and "null" name no listing.
+
+        One check for every detail route, so no custom action hands such a
+        value to the ORM (``ValueError``, a 500). Kept out of the router's
+        ``lookup_value_regex`` on purpose: that would retype the path
+        parameter as a string in ``docs/schema.json``.
+        """
+        super().initial(request, *args, **kwargs)
+        pk = kwargs.get(self.lookup_url_kwarg or self.lookup_field)
+        if pk is not None and not str(pk).isdigit():
+            raise StapelServiceError(404, ERR_404_LISTING_NOT_FOUND)
 
     def _get_own(self, request, pk):
         """The module's one ownership gate: every write goes through it.
@@ -569,7 +587,8 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
 
     @extend_schema(request=None,
                    responses={200: PublishResponseSerializer,
-                              400: ValidationBatchResultSerializer})
+                              400: ValidationBatchResultSerializer,
+                              409: None})
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def publish(self, request, pk=None):  # noqa: R007
         """Put a listing in front of buyers — the act the wall is named for:
@@ -580,6 +599,10 @@ class ListingViewSet(SerializerSeamMixin, viewsets.ModelViewSet):
         listing, error = self._get_own(request, pk)
         if error:
             return error
+        if not publishable_from(listing.status):
+            return StapelErrorResponse(
+                409, ERR_409_INVALID_TRANSITION, {"from_status": listing.status}
+            )
 
         result = publish_service.validate_draft(listing)
         if not result.valid:

@@ -1,8 +1,8 @@
-# stapel-listings 0.24.0
+# stapel-listings 0.25.0
 
 Listings and catalog vertical: a Listing core (owner, opaque category, typed attribute values, price + price_base, inventory) with a draft/publish lifecycle including the moderation takedown state 'blocked', an independent moderation status, a value-validation pipeline delegated to stapel-attributes against a category schema fetched over comm, a publish service, first-class favorites, and the two pull seams its consumers read it through — listings.search_documents / listings.search_export for an indexer and listings.moderation_content for a moderation queue.
 
-Contract: axes 3 · surface 10 · extension points 6 · operations 20 · error codes 72.
+Contract: axes 3 · surface 11 · extension points 6 · operations 20 · error codes 72.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -25,7 +25,9 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - note_changed — stapel_listings.services.category_schema.note_changed
   Advance the feature-config cache's revision pointer for one category. The built-in category.changed subscription (actions.py) already calls this on every event; reach for it directly only when replaying/reconciling category revisions outside that subscription (a backfill job, a custom event pipeline).
 - publish_listing — stapel_listings.services.publish.publish_listing
-  The one function that promotes a validated draft, atomically writing every promoted field and emitting listing.submitted (or auto-approving under AUTO_APPROVE_ON_PUBLISH) in one mutate_and_emit() block. A first publication goes to PENDING; re-publishing a listing that is already PUBLISHED keeps it published and moves only moderation_status to PENDING (post-moderation — the edit is live at once, a rejecting verdict takes it down through the published→blocked edge). Reach for this instead of hand-rolling the draft-to-published field promotion when building a bulk-publish tool, an import job or any second entry point — a promotion that skips this can leave a listing PENDING with no moderation request ever sent.
+  The one function that promotes a validated draft, atomically writing every promoted field and emitting listing.submitted (or auto-approving under AUTO_APPROVE_ON_PUBLISH) in one mutate_and_emit() block. A listing that carries a standing moderation rejection (a takedown carried through DRAFT or ARCHIVED) always waits in PENDING for a new verdict, whatever the gate. A first publication goes to PENDING; re-publishing a listing that is already PUBLISHED keeps it published and moves only moderation_status to PENDING (post-moderation — the edit is live at once, a rejecting verdict takes it down through the published→blocked edge). Reach for this instead of hand-rolling the draft-to-published field promotion when building a bulk-publish tool, an import job or any second entry point — a promotion that skips this can leave a listing PENDING with no moderation request ever sent.
+- publishable_from — stapel_listings.models.publishable_from
+  Whether POST /publish/ accepts a listing in a given status, derived from the owner's state machine: a draft, a live listing, or any status from which the owner could reach DRAFT or PENDING. Ask it before offering a Publish button so a PAUSED or SOLD listing is sent back on sale through its transition, not through a publication.
 - restore_listing — stapel_listings.services.publish.restore_listing
   instead of: stapel_listings.models.Listing.transition_to
   Bring an ARCHIVED listing back on sale: the seller's «опубликовать снова», and a publication rather than a lifecycle hop — the draft is re-validated, promoted and re-submitted for review, so the row lands where the deployment's moderation policy lands a publication (PENDING under the default pre-gate, PUBLISHED under MODERATION_GATE="post" or AUTO_APPROVE_ON_PUBLISH). Reach for this from any surface that un-archives a listing, and never for Listing.transition_to(PUBLISHED): ARCHIVED is reachable from BLOCKED, so a bare FSM hop is a takedown-laundering route back into the index around the gate that keeps blocked→published out of the owner's half of the machine.

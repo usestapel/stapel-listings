@@ -234,6 +234,21 @@ def owner_transitions_for(status: str) -> list[str]:
     return sorted(OWNER_TRANSITIONS.get(status, set()))
 
 
+def publishable_from(status: str) -> bool:
+    """May ``POST /publish/`` act on a listing in *status*?
+
+    Derived from :data:`OWNER_TRANSITIONS`: a DRAFT or a live listing, or any
+    status from which the owner could reach DRAFT or PENDING anyway. PAUSED
+    and SOLD go back on sale through a transition, never through a
+    publication that would re-enter moderation from a state with no edge to
+    PENDING.
+    """
+    if status == ListingStatus.DRAFT or status in INDEXED_STATUSES:
+        return True
+    edges = OWNER_TRANSITIONS.get(status, set())
+    return ListingStatus.DRAFT in edges or ListingStatus.PENDING in edges
+
+
 # Statuses in which a listing is part of the public/search index. Entering the
 # set emits ``listing.published``; leaving it emits ``listing.removed``.
 INDEXED_STATUSES: frozenset[str] = frozenset({ListingStatus.PUBLISHED})
