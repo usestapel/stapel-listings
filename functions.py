@@ -292,3 +292,52 @@ def rename_feature_keys_function(payload: dict) -> dict:
         renames=payload["renames"],
         dry_run=bool(payload.get("dry_run", False)),
     )
+
+
+@function("listings.purchasables", schema=_schema("listings.purchasables"))
+def purchasables_function(payload: dict) -> dict:
+    """Keyed batch of listings as purchasables — the cart's resolver contract.
+
+    The shape every purchasable type answers to a cart module (which
+    registers a ``listing`` type against this name): ``{key: {title, price,
+    currency, available, max_quantity, seller_id, image, url}}``. Price is a
+    2-dp decimal string.
+
+    - ``available``: the listing is public (``INDEXED_STATUSES``) and, when it
+      counts stock, has some left.
+    - ``max_quantity``: the stock when ``countable``, otherwise ``None``.
+    - ``image``: the first published image reference, as listings serves it.
+    - ``url``: ``LISTING_URL_TEMPLATE`` formatted, or ``None`` when unset.
+
+    Absent keys mean unknown: no such listing, soft-deleted, or no price (a
+    listing without a price cannot be bought, and inventing one would be a
+    guess on a money path).
+    """
+    from decimal import Decimal
+
+    from .conf import listings_settings
+    from .models import INDEXED_STATUSES, Listing
+
+    wanted = [str(k) for k in payload.get("keys") or []]
+    numeric = [int(k) for k in wanted if k.isdigit()]
+    if not numeric:
+        return {}
+    url_template = listings_settings.LISTING_URL_TEMPLATE or ""
+    answers = {}
+    for listing in Listing.objects.filter(pk__in=numeric):
+        if listing.price is None:
+            continue
+        countable = bool(listing.countable)
+        stock = listing.stock_quantity or 0
+        images = listing.images or []
+        answers[str(listing.pk)] = {
+            "title": listing.title or "",
+            "price": str(Decimal(listing.price).quantize(Decimal("0.01"))),
+            "currency": (listing.currency or listings_settings.BASE_CURRENCY).upper(),
+            "available": listing.status in INDEXED_STATUSES and (not countable or stock > 0),
+            "max_quantity": stock if countable else None,
+            "seller_id": str(listing.owner_id),
+            "image": str(images[0]) if images else None,
+            "url": url_template.format(listing_id=listing.pk) if url_template else None,
+        }
+    return answers

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.28.0] — 2026-10-29
+
+- **Listings are purchasable.** New comm Function `listings.purchasables`:
+  a keyed batch answering the cart resolver contract (`{key: {title, price,
+  currency, available, max_quantity, seller_id, image, url}}`, price a 2-dp
+  string). `available` means public and, for a countable listing, in stock;
+  `max_quantity` is the stock when countable. Unknown, soft-deleted and
+  unpriced listings are absent. A cart module registers the `listing`
+  purchasable type against this name instead of reading listings' tables.
+
 ## [0.27.0] — 2026-10-22
 
 - **The public board narrows to categories.** `GET /listings/?category_id=`

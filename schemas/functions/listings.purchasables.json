@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "listings.purchasables",
+  "description": "Keyed batch of listings as purchasables (the stapel-orders resolver contract). Output: {key: {title, price, currency, available, max_quantity, seller_id, image, url}}; price is a 2-dp decimal string; max_quantity is the stock for countable listings, else null; absent keys are unknown (no such listing, soft-deleted, or unpriced).",
+  "type": "object",
+  "required": ["keys"],
+  "properties": {
+    "keys": {
+      "type": "array",
+      "items": {"type": "string", "maxLength": 255},
+      "maxItems": 100,
+      "description": "Listing ids as strings."
+    }
+  },
+  "additionalProperties": false
+}
