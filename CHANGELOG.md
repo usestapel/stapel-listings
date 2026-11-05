@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.29.0] — 2026-11-05
+
+- **Free listings are bookable.** New comm Function `listings.bookables`:
+  the `listings.purchasables` answer with unpriced listings included as
+  `price: null` (a free reservation) instead of left out. A reservations
+  module registers its `listing` bookable type against this name; until now
+  a free listing came back as an unknown key.
+- **`listings.purchasables` takes an opt-in `include_unpriced`** (default
+  false) for the same rows. The default does not change: the cart contract
+  requires a string price and validates the whole reply, so a null price in
+  a batch would turn every add-to-cart and checkout of that type into a
+  resolver failure.
+
 ## [0.28.0] — 2026-10-29
 
 - **Listings are purchasable.** New comm Function `listings.purchasables`:

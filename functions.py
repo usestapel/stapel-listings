@@ -294,6 +294,42 @@ def rename_feature_keys_function(payload: dict) -> dict:
     )
 
 
+def _purchasable_rows(payload: dict, *, include_unpriced: bool) -> dict:
+    """The keyed batch behind ``listings.purchasables`` and ``listings.bookables``."""
+    from decimal import Decimal
+
+    from .conf import listings_settings
+    from .models import INDEXED_STATUSES, Listing
+
+    wanted = [str(k) for k in payload.get("keys") or []]
+    numeric = [int(k) for k in wanted if k.isdigit()]
+    if not numeric:
+        return {}
+    url_template = listings_settings.LISTING_URL_TEMPLATE or ""
+    answers = {}
+    for listing in Listing.objects.filter(pk__in=numeric):
+        if listing.price is None and not include_unpriced:
+            continue
+        countable = bool(listing.countable)
+        stock = listing.stock_quantity or 0
+        images = listing.images or []
+        answers[str(listing.pk)] = {
+            "title": listing.title or "",
+            "price": (
+                None
+                if listing.price is None
+                else str(Decimal(listing.price).quantize(Decimal("0.01")))
+            ),
+            "currency": (listing.currency or listings_settings.BASE_CURRENCY).upper(),
+            "available": listing.status in INDEXED_STATUSES and (not countable or stock > 0),
+            "max_quantity": stock if countable else None,
+            "seller_id": str(listing.owner_id),
+            "image": str(images[0]) if images else None,
+            "url": url_template.format(listing_id=listing.pk) if url_template else None,
+        }
+    return answers
+
+
 @function("listings.purchasables", schema=_schema("listings.purchasables"))
 def purchasables_function(payload: dict) -> dict:
     """Keyed batch of listings as purchasables — the cart's resolver contract.
@@ -312,32 +348,25 @@ def purchasables_function(payload: dict) -> dict:
     Absent keys mean unknown: no such listing, soft-deleted, or no price (a
     listing without a price cannot be bought, and inventing one would be a
     guess on a money path).
+
+    ``include_unpriced: true`` (opt-in, default false) answers an unpriced
+    listing too, with ``price: null``. It is never the default: the cart's
+    contract requires a string price and validates the WHOLE reply, so one
+    null in a batch would turn every add-to-cart and checkout of that type
+    into a resolver failure. Reservations' bookables contract allows null
+    (a free reservation) and resolves through ``listings.bookables``.
     """
-    from decimal import Decimal
+    return _purchasable_rows(payload, include_unpriced=bool(payload.get("include_unpriced")))
 
-    from .conf import listings_settings
-    from .models import INDEXED_STATUSES, Listing
 
-    wanted = [str(k) for k in payload.get("keys") or []]
-    numeric = [int(k) for k in wanted if k.isdigit()]
-    if not numeric:
-        return {}
-    url_template = listings_settings.LISTING_URL_TEMPLATE or ""
-    answers = {}
-    for listing in Listing.objects.filter(pk__in=numeric):
-        if listing.price is None:
-            continue
-        countable = bool(listing.countable)
-        stock = listing.stock_quantity or 0
-        images = listing.images or []
-        answers[str(listing.pk)] = {
-            "title": listing.title or "",
-            "price": str(Decimal(listing.price).quantize(Decimal("0.01"))),
-            "currency": (listing.currency or listings_settings.BASE_CURRENCY).upper(),
-            "available": listing.status in INDEXED_STATUSES and (not countable or stock > 0),
-            "max_quantity": stock if countable else None,
-            "seller_id": str(listing.owner_id),
-            "image": str(images[0]) if images else None,
-            "url": url_template.format(listing_id=listing.pk) if url_template else None,
-        }
-    return answers
+@function("listings.bookables", schema=_schema("listings.bookables"))
+def bookables_function(payload: dict) -> dict:
+    """Keyed batch of listings as bookables — the reservations resolver contract.
+
+    ``listings.purchasables`` with unpriced listings included: a listing
+    without a price is a free reservation (``price: null``), not an unknown
+    key. A separate name rather than a flag because reservations sends
+    ``{keys}`` only and registers a type by Function name
+    (``{"listing": {"resolve": "listings.bookables"}}``).
+    """
+    return _purchasable_rows(payload, include_unpriced=True)

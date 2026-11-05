@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "listings.bookables",
+  "description": "Keyed batch of listings as bookables (the stapel-reservations resolver contract): listings.purchasables with unpriced listings included. Output: {key: {title, price, currency, available, max_quantity, seller_id, image, url}}; price is a 2-dp decimal string, or null for an unpriced listing (a free reservation); absent keys are unknown (no such listing or soft-deleted).",
+  "type": "object",
+  "required": [
+    "keys"
+  ],
+  "properties": {
+    "keys": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 255
+      },
+      "maxItems": 100,
+      "description": "Listing ids as strings."
+    }
+  },
+  "additionalProperties": false
+}

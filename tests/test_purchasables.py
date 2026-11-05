@@ -100,3 +100,58 @@ def test_input_schema_is_shipped():
     path = Path(__file__).resolve().parent.parent / "schemas" / "functions" / "listings.purchasables.json"
     schema = json.loads(path.read_text())
     assert schema["required"] == ["keys"]
+
+
+# ── unpriced listings, opt-in (L-free) ───────────────────────────────
+
+#: The bookables widening of ITEM_SCHEMA: a null price is a free reservation.
+BOOKABLE_ITEM_SCHEMA = {
+    **ITEM_SCHEMA,
+    "properties": {
+        **ITEM_SCHEMA["properties"],
+        "price": {"type": ["string", "null"], "pattern": r"^[0-9]{1,10}(\.[0-9]{1,2})?$"},
+        "currency": {"type": ["string", "null"], "pattern": "^[A-Z]{3}$"},
+    },
+}
+
+
+def test_include_unpriced_answers_a_free_listing_with_null_price(user):
+    free = make(user, price=None)
+    answer = call("listings.purchasables", {"keys": [str(free.pk)], "include_unpriced": True})
+    item = answer[str(free.pk)]
+    assert item["price"] is None
+    assert item["available"] is True
+    jsonschema.validate(item, BOOKABLE_ITEM_SCHEMA)
+    # Never valid for a cart: the orders contract requires a string price.
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(item, ITEM_SCHEMA)
+
+
+def test_include_unpriced_false_is_the_default(user):
+    free = make(user, price=None)
+    keys = [str(free.pk)]
+    assert call("listings.purchasables", {"keys": keys, "include_unpriced": False}) == {}
+    assert call("listings.purchasables", {"keys": keys}) == {}
+
+
+def test_bookables_answers_priced_and_free_listings(user):
+    priced, free = make(user), make(user, price=None)
+    answer = call("listings.bookables", {"keys": [str(priced.pk), str(free.pk)]})
+    assert answer[str(free.pk)]["price"] is None
+    assert answer[str(priced.pk)] == resolve(priced)[str(priced.pk)]
+    for item in answer.values():
+        jsonschema.validate(item, BOOKABLE_ITEM_SCHEMA)
+
+
+def test_bookables_still_leaves_out_deleted_and_unknown(user):
+    gone = make(user, deleted_at=timezone.now(), price=None)
+    assert call("listings.bookables", {"keys": [str(gone.pk), "999999", "abc"]}) == {}
+
+
+def test_bookables_and_include_unpriced_schemas_are_shipped():
+    root = Path(__file__).resolve().parent.parent / "schemas" / "functions"
+    purchasables = json.loads((root / "listings.purchasables.json").read_text())
+    assert purchasables["properties"]["include_unpriced"]["type"] == "boolean"
+    bookables = json.loads((root / "listings.bookables.json").read_text())
+    assert bookables["required"] == ["keys"]
+    assert bookables["additionalProperties"] is False
