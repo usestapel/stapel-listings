@@ -125,6 +125,25 @@ listings_settings = AppSettings(
         # a moderator's card links to the real listing only where the host
         # said what "real" is. This module serves no public site of its own.
         "LISTING_URL_TEMPLATE": "",
+        # --- Purchasable resolver extras and stock (services/stock.py) ---
+        # Which typed attribute (feature slug) of a listing answers the
+        # resolver's optional extras: {"weight_grams": "<slug>" |
+        # {"slug": "<slug>", "multiplier": 1000}, "shippable": "<slug>"}.
+        # The published value is read; weight is rounded to integer grams
+        # (multiplier converts e.g. a kg attribute). Empty = neither field.
+        "PURCHASABLE_ATTRIBUTES": {},
+        # comm Function answering stock ({purchasable_type, keys} ->
+        # {items: {key: {tracked, available, in_stock, policy, ...}}}). Used
+        # only when reachable in this process; otherwise, or when it does not
+        # answer, the listing's own countable/stock_quantity decide. Empty
+        # disables. While it answers, listings never decrements stock itself.
+        "INVENTORY_FUNCTION": "inventory.availability",
+        # purchasable_type listings is registered under in the inventory
+        # (and in the cart's PURCHASABLE_TYPES).
+        "INVENTORY_PURCHASABLE_TYPE": "listing",
+        # Keys per inventory call, and seconds per call.
+        "INVENTORY_BATCH_SIZE": 100,
+        "INVENTORY_TIMEOUT": 2.0,
         # Category ids (compared as strings) where an EXPLICIT price of 0 is a
         # legal claim — a "free items" / «Отдам даром» section. Everywhere
         # else validate_draft rejects 0: a marketplace card reading «0 ₽» is

@@ -305,13 +305,17 @@ def _purchasable_rows(payload: dict, *, include_unpriced: bool) -> dict:
     numeric = [int(k) for k in wanted if k.isdigit()]
     if not numeric:
         return {}
+    from .services.stock import purchasable_extras, stock_for
+
     url_template = listings_settings.LISTING_URL_TEMPLATE or ""
     answers = {}
-    for listing in Listing.objects.filter(pk__in=numeric):
-        if listing.price is None and not include_unpriced:
-            continue
-        countable = bool(listing.countable)
-        stock = listing.stock_quantity or 0
+    rows = [
+        listing for listing in Listing.objects.filter(pk__in=numeric)
+        if listing.price is not None or include_unpriced
+    ]
+    stock = stock_for(rows)
+    for listing in rows:
+        in_stock, max_quantity, _source = stock[listing.pk]
         images = listing.images or []
         answers[str(listing.pk)] = {
             "title": listing.title or "",
@@ -321,11 +325,12 @@ def _purchasable_rows(payload: dict, *, include_unpriced: bool) -> dict:
                 else str(Decimal(listing.price).quantize(Decimal("0.01")))
             ),
             "currency": (listing.currency or listings_settings.BASE_CURRENCY).upper(),
-            "available": listing.status in INDEXED_STATUSES and (not countable or stock > 0),
-            "max_quantity": stock if countable else None,
+            "available": listing.status in INDEXED_STATUSES and in_stock,
+            "max_quantity": max_quantity,
             "seller_id": str(listing.owner_id),
             "image": str(images[0]) if images else None,
             "url": url_template.format(listing_id=listing.pk) if url_template else None,
+            **purchasable_extras(listing),
         }
     return answers
 
@@ -342,6 +347,12 @@ def purchasables_function(payload: dict) -> dict:
     - ``available``: the listing is public (``INDEXED_STATUSES``) and, when it
       counts stock, has some left.
     - ``max_quantity``: the stock when ``countable``, otherwise ``None``.
+    - Stock comes from ``INVENTORY_FUNCTION`` when that Function is reachable
+      here (one bounded batch call), else from the listing's own columns —
+      see ``services/stock.py``.
+    - ``weight_grams`` (int) / ``shippable`` (bool): optional extras, present
+      only when ``PURCHASABLE_ATTRIBUTES`` maps them and the published
+      attribute converts; a cart carries them on as ``lines[].attrs``.
     - ``image``: the first published image reference, as listings serves it.
     - ``url``: ``LISTING_URL_TEMPLATE`` formatted, or ``None`` when unset.
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "listings.purchasables",
-  "description": "Keyed batch of listings as purchasables (the stapel-orders resolver contract). Output: {key: {title, price, currency, available, max_quantity, seller_id, image, url}}; price is a 2-dp decimal string; max_quantity is the stock for countable listings, else null; absent keys are unknown (no such listing, soft-deleted, or unpriced unless include_unpriced). include_unpriced (opt-in, default false) answers unpriced listings with price null - never set it for a cart, whose contract requires a string price.",
+  "description": "Keyed batch of listings as purchasables (the stapel-orders resolver contract). Output: {key: {title, price, currency, available, max_quantity, seller_id, image, url, weight_grams?, shippable?}}; price is a 2-dp decimal string; available/max_quantity come from the inventory.availability Function when it is reachable (tracked: its in_stock, and its available under policy deny, null under backorder), else from the listing (max_quantity is the stock for countable listings, else null); weight_grams (integer grams) and shippable (bool) are present only when STAPEL_LISTINGS[PURCHASABLE_ATTRIBUTES] maps them and the published attribute converts; absent keys are unknown (no such listing, soft-deleted, or unpriced unless include_unpriced). include_unpriced (opt-in, default false) answers unpriced listings with price null - never set it for a cart, whose contract requires a string price.",
   "type": "object",
   "required": [
     "keys"

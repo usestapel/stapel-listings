@@ -47,6 +47,7 @@ from .models import (
     validate_countable_stock,
 )
 from .services.features import PRESENTATIONS, decorate_card_elements
+from .services.stock import STOCK_SOURCES
 
 
 # --- Polymorphic feature fields ------------------------------------------
@@ -823,8 +824,35 @@ class MyListingCardSerializer(ListingCardSerializer):
         ]
 
 
+class ListingStockSerializer(serializers.Serializer):
+    """The stock indicator of a listing detail.
+
+    Attributes:
+        in_stock: Whether one more unit can be bought now.
+        quantity: Units available, or null when uncounted or unlimited.
+        source: Who answered: "inventory" (the inventory Function) or "listing" (the listing's own count).
+    """
+
+    in_stock = serializers.BooleanField()
+    quantity = serializers.IntegerField(allow_null=True, min_value=0)
+    source = serializers.ChoiceField(choices=list(STOCK_SOURCES))
+
+
 class ListingDetailSerializer(AudienceRedactionMixin, serializers.ModelSerializer):
     """Full listing detail."""
+
+    # Read-only stock indicator: the inventory's answer when the inventory
+    # Function is reachable, else the listing's own countable/stock_quantity
+    # (services/stock.py). The editable stock_quantity stays the owner's
+    # column either way.
+    stock = serializers.SerializerMethodField()
+
+    @extend_schema_field(ListingStockSerializer)
+    def get_stock(self, instance) -> dict:
+        from .services.stock import stock_for
+
+        in_stock, quantity, source = stock_for([instance])[instance.pk]
+        return {"in_stock": in_stock, "quantity": quantity, "source": source}
 
     # See ListingCardSerializer.geo_precision_km — same field, same reason.
     geo_precision_km = serializers.SerializerMethodField()
@@ -879,6 +907,7 @@ class ListingDetailSerializer(AudienceRedactionMixin, serializers.ModelSerialize
             "auto_republish",
             "countable",
             "stock_quantity",
+            "stock",
             "published_at",
             "expires_at",
             "created_at",

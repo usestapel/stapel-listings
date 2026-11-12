@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+Proposed version: 0.30.0 (new detail field, new settings).
+
+- **Resolver extras for delivery.** `listings.purchasables` / `bookables`
+  answer optional `weight_grams` (integer grams) and `shippable` (bool) from
+  published features named by the new `PURCHASABLE_ATTRIBUTES` mapping
+  (`multiplier` converts a kg attribute); unmapped or unreadable = absent.
+  A cart carries them as `lines[].attrs`.
+- **Stock from the inventory.** When `INVENTORY_FUNCTION`
+  (`inventory.availability`) is reachable in the process, `available` /
+  `max_quantity` and the new read-only detail field `stock`
+  (`{in_stock, quantity, source}`) come from it in bounded batches; absent or
+  unanswered, the listing's own `countable` / `stock_quantity` decide as
+  before. Listings never decrements stock itself.
+
 ## [0.29.0] — 2026-11-05
 
 - **Free listings are bookable.** New comm Function `listings.bookables`:

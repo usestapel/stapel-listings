@@ -245,7 +245,7 @@ PUBLIC_LISTING_DETAIL_KEYS = sorted([
     "geo_precision_km",
     "features", "features_title", "features_badges", "features_search",
     "status", "moderation_status", "auto_republish",
-    "countable", "stock_quantity",
+    "countable", "stock_quantity", "stock",
     "published_at", "expires_at", "created_at", "updated_at",
     "is_favorited", "viewed", "view_count",
 ])

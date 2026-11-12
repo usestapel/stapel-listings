@@ -224,6 +224,10 @@ of the same name -> environment variable -> default. Read lazily at call time.
 | `REQUIRE_IMAGE_ON_PUBLISH` | `True` | Whether ≥1 image is required to publish. |
 | `MODERATION_TARGET_TYPE` | `"listing"` | The `target_type` this module answers to in target-generic `moderation.completed` verdicts (match the host's `STAPEL_MODERATION["TARGET_TYPES"]` key). |
 | `LISTING_URL_TEMPLATE` | `""` | Public URL template formatted with `listing_id`, returned by `listings.moderation_content`. Empty = unknown; this module serves no site of its own and will not guess one. |
+| `PURCHASABLE_ATTRIBUTES` | `{}` | `{"weight_grams": "<slug>" \| {"slug", "multiplier"}, "shippable": "<slug>"}` — which published feature answers the resolver extras. Empty = neither field |
+| `INVENTORY_FUNCTION` | `"inventory.availability"` | Stock Function, used only when reachable here; empty disables |
+| `INVENTORY_PURCHASABLE_TYPE` | `"listing"` | `purchasable_type` sent to it |
+| `INVENTORY_BATCH_SIZE` / `INVENTORY_TIMEOUT` | `100` / `2.0` | Keys per call / seconds per call |
 | `DESCRIPTION_MIN_LENGTH` / `DESCRIPTION_MAX_LENGTH` | `4` / `500` | Description length bounds enforced on validate/publish. |
 | `DEFAULT_LISTING_TTL_DAYS` | `30` | Days until a freshly published listing expires (`None` disables). |
 | `REQUIRE_LOCATION_ON_PUBLISH` | `True` | Publish (and `validate-draft`) refuse a listing with no `lat_draft`/`lon_draft` (a `location` result). Set `False` for a board with no geographic dimension. |
@@ -262,7 +266,7 @@ attributes; subclass and remount the router to swap any of them.
 | Function (provides) | `listings.search_export` | `{cursor?, limit?}` -> `{rows:[{key, seq, …document}], cursor, total}` — snapshot contract verbatim from `stapel_core.comm.projections._iter_snapshot` | `schemas/functions/listings.search_export.json` — **search boundary** |
 | Function (provides) | `listings.rename_feature_keys` | `{category_id, renames:{old:new}, dry_run?}` -> `{listings_scanned, listings_changed, keys_renamed, conflicts:[{listing_id, old, new}], categories, subtree_resolved, deleted_skipped, dry_run, reprojected}` | `schemas/functions/listings.rename_feature_keys.json` — **catalogue boundary**, and the only WRITE this module provides. The second half of a feature-slug rename: the schema moves in stapel-categories, the stored `features_draft` keys move here, the touched categories are re-projected and `listing.updated` is emitted. A draft answering both slugs is reported as a conflict and left alone |
 | Function (provides) | `listings.moderation_content` | `{listing_id}` -> `{listing_id, text, title, language, media, author_id, url, status, moderation_status}` | `schemas/functions/listings.moderation_content.json` — **moderation boundary** |
-| Function (provides) | `listings.purchasables` | `{keys:[…]}` -> `{key: {title, price, currency, available, max_quantity, seller_id, image, url}}` — absent key = unknown (no listing, soft-deleted, or unpriced); `include_unpriced: true` (opt-in) answers unpriced listings with `price: null`, never for a cart | `schemas/functions/listings.purchasables.json` — **cart boundary**: the resolver a cart module registers for its `listing` purchasable type. `available` = public (`INDEXED_STATUSES`) and, when `countable`, stock > 0; `max_quantity` = stock when countable, else null |
+| Function (provides) | `listings.purchasables` | `{keys:[…]}` -> `{key: {title, price, currency, available, max_quantity, seller_id, image, url}}` — absent key = unknown (no listing, soft-deleted, or unpriced); `include_unpriced: true` (opt-in) answers unpriced listings with `price: null`, never for a cart | `schemas/functions/listings.purchasables.json` — **cart boundary**: the resolver a cart module registers for its `listing` purchasable type. `available` = public (`INDEXED_STATUSES`) and in stock; `max_quantity` = stock when countable, else null. Stock comes from `INVENTORY_FUNCTION` when it is reachable (see "Stock and resolver extras"). Optional extras `weight_grams` (int) / `shippable` (bool) from `PURCHASABLE_ATTRIBUTES` |
 | Function (provides) | `listings.bookables` | `{keys:[…]}` -> the purchasables item, unpriced listings included with `price: null` (a free reservation) | `schemas/functions/listings.bookables.json` — **reservations boundary**: the resolver a reservations module registers for its `listing` bookable type (`{"resolve": "listings.bookables"}`) |
 | Emit (Action) | `listing.submitted` | `{listing_id, owner_id, category_id, title, description, language}` | `schemas/emits/listing.submitted.json` — **moderation boundary** |
 | Emit (Action) | `listing.published` | `{listing_id, owner_id, category_id, status, features_search}` | `schemas/emits/listing.published.json` — **search boundary** |
@@ -276,6 +280,29 @@ attributes; subclass and remount the router to swap any of them.
 | Call (depends on) | `categories.children` | `{parent_id}` -> `{children:[{id, children_count, …}]}` | provided by stapel-categories; read only by `listings.rename_feature_keys`, graceful when unanswered (the rename then covers one category and says so) |
 | Call (depends on) | `geo.geohash_encode` | `{lat, lon}` -> `{geohash}` | provided by stapel-geo; graceful when unanswered (`compute_geohash_draft()` above) — no `stapel-geo` dependency in `pyproject.toml` |
 | Bus publish (depends on) | `stapel.cdn.ref-sync` topic | `cdn.ref.sync` event: `{service: "listings", entity_type: "listing", entity_id, old_hashes, new_hashes}` — the `<type>/<hash>` strings `images`/`images_draft` store verbatim | via `stapel_core.django.cdn.ref_sync.sync_cdn_refs`, fired from `Listing.save()`/`hard_delete()` whenever the claimed union (`images` ∪ `images_draft`, empty when deleted) moves, so stapel-cdn's orphan sweeper never reaps a live listing's photos and does reap dropped ones; graceful on bus failure (the write never blocks). Rows written before claim-on-save backfill via `python manage.py listings_backfill_cdn_refs` (additive `old_hashes=[]`, idempotent, rerunnable, `--dry-run`/`--limit`; run it before the sweeper deploys) |
+
+### Stock and resolver extras (`services/stock.py`)
+
+- **Extras.** `PURCHASABLE_ATTRIBUTES` maps `weight_grams` and `shippable`
+  to feature slugs. `listings.purchasables` (and `listings.bookables`) then
+  answer them from the listing's **published** features: weight as integer
+  grams (`multiplier` converts, e.g. `1000` for a kg attribute; negative or
+  unreadable = absent, never 0), shippable as a bool. A cart passes extra
+  scalar fields on as `lines[].attrs`, so a delivery module prices by weight
+  with no glue code.
+- **Stock.** When `INVENTORY_FUNCTION` is reachable in this process
+  (`function_unreachable_reason`, never an import), one batched call
+  (`INVENTORY_BATCH_SIZE` keys, `INVENTORY_TIMEOUT`) answers stock for the
+  resolver and for the detail's read-only `stock` object
+  (`{in_stock, quantity, source: "inventory" | "listing"}`). A tracked key is
+  the inventory's word (`quantity` = its `available` under `deny`, null under
+  `backorder`); an untracked key keeps the listing's own count, gated by the
+  inventory's `in_stock`. Unreachable, raising or malformed: the listing's
+  own `countable` / `stock_quantity`, as before.
+- **No decrement here.** While the inventory owns stock, listings never
+  takes a sale off `stock_quantity` (the older "decrement on
+  `orders.order.placed`" ask is superseded by the inventory's checkout
+  hooks); `stock_quantity` stays the owner's editable column.
 
 ### GDPR
 

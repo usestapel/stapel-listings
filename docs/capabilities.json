@@ -71,6 +71,16 @@
       "summary": "Name of the comm Function resolving a category's feature schema (default 'categories.features', provided by stapel-categories) — REPLACE, single provider (conf.py, MODULE.md)."
     },
     {
+      "name": "INVENTORY_FUNCTION",
+      "kind": "comm_function_name",
+      "summary": "Stock Function, used only when reachable; else the listing's own count (services/stock.py)."
+    },
+    {
+      "name": "PURCHASABLE_ATTRIBUTES",
+      "kind": "mapping",
+      "summary": "Feature slugs answering resolver extras weight_grams / shippable."
+    },
+    {
       "name": "AUTH_USER_MODEL",
       "kind": "swappable_model",
       "summary": "Standard Django user swap — Listing.owner and Favorite bind to settings.AUTH_USER_MODEL (models.py:197, models.py:480)."

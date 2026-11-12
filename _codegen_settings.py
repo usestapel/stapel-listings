@@ -135,9 +135,11 @@ def enum_name_overrides() -> dict:
     from stapel_attributes.openapi import enum_name_overrides as type_names
 
     from stapel_listings.models import ListingStatus, ModerationStatus
+    from stapel_listings.services.stock import STOCK_SOURCES
 
     return {
         **type_names(),
         "ListingStatusEnum": ListingStatus,
         "ModerationStatusEnum": ModerationStatus,
+        "ListingStockSourceEnum": list(STOCK_SOURCES),
     }

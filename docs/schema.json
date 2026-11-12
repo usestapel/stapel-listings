@@ -2478,6 +2478,14 @@
             "format": "int64",
             "nullable": true
           },
+          "stock": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ListingStock"
+              }
+            ],
+            "readOnly": true
+          },
           "published_at": {
             "type": "string",
             "format": "date-time",
@@ -2524,6 +2532,7 @@
           "images",
           "is_favorited",
           "owner",
+          "stock",
           "updated_at",
           "view_count",
           "viewed"
@@ -2809,6 +2818,36 @@
         ],
         "type": "string",
         "description": "* `owner` - owner"
+      },
+      "ListingStock": {
+        "type": "object",
+        "description": "The stock indicator of a listing detail.\n\nAttributes:\n    in_stock: Whether one more unit can be bought now.\n    quantity: Units available, or null when uncounted or unlimited.\n    source: Who answered: \"inventory\" (the inventory Function) or \"listing\" (the listing's own count).",
+        "properties": {
+          "in_stock": {
+            "type": "boolean"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          },
+          "source": {
+            "$ref": "#/components/schemas/ListingStockSourceEnum"
+          }
+        },
+        "required": [
+          "in_stock",
+          "quantity",
+          "source"
+        ]
+      },
+      "ListingStockSourceEnum": {
+        "enum": [
+          "inventory",
+          "listing"
+        ],
+        "type": "string",
+        "description": "* `inventory` - inventory\n* `listing` - listing"
       },
       "ListingTransitionRequest": {
         "type": "object",

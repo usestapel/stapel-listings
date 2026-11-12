@@ -34,6 +34,11 @@ headless pip dependency. The category schema is resolved by *comm-by-name*
 | ENGAGEMENT_BATCH_LIMIT | env | ids one `GET listings/engagement` call may ask about. The endpoint is AllowAny (`view_count` is public), so the cap is what keeps it from being a cheap way to enumerate the board. | no | 100 |
 | MODERATION_TARGET_TYPE | env | `target_type` this module answers to in target-generic `moderation.completed` verdicts; must match the host's `STAPEL_MODERATION["TARGET_TYPES"]` key. | no | listing |
 | LISTING_URL_TEMPLATE | env | template of a listing's public URL, formatted with `listing_id`, returned by `listings.moderation_content`. Empty = unknown (returns ""). | no | (empty) |
+| PURCHASABLE_ATTRIBUTES | settings | `{"weight_grams": slug or {"slug", "multiplier"}, "shippable": slug}` — feature slugs answering the purchasable resolver's optional extras. Empty = neither field. | no | {} |
+| INVENTORY_FUNCTION | settings | comm Function answering stock (`inventory.availability` contract), used only when reachable; empty disables. | no | inventory.availability |
+| INVENTORY_PURCHASABLE_TYPE | settings | `purchasable_type` listings is registered under in the inventory. | no | listing |
+| INVENTORY_BATCH_SIZE | settings | Keys per inventory call. | no | 100 |
+| INVENTORY_TIMEOUT | settings | Seconds per inventory call before falling back to the listing's own stock. | no | 2.0 |
 | FREE_PRICE_CATEGORY_IDS | settings | category ids (compared as strings) where an explicit price of 0 («free») is legal. Everywhere else `validate_draft` rejects 0; an absent price is stored/served as NULL («price not stated») and stays legal in every category. | no | () |
 | DESCRIPTION_MIN_LENGTH | env | minimum free-text description length enforced on publish/validate. | no | 4 |
 | DESCRIPTION_MAX_LENGTH | env | maximum free-text description length enforced on publish/validate. | no | 500 |

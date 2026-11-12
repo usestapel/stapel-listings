@@ -364,6 +364,9 @@ def test_the_raw_feature_columns_are_read_only_where_they_should_be():
             "management/commands/listings_rename_feature_keys.py",
             # The document builder: filters again on the way out.
             "services/search_feed.py",
+            # Resolver extras: reads only PUBLIC published DAOs (public_daos)
+            # of the slugs PURCHASABLE_ATTRIBUTES names, coerced to int/bool.
+            "services/stock.py",
             # Emits the two bus payloads through _public_features_search.
             "events.py",
             # The redaction chokepoint itself.

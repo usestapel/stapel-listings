@@ -30,7 +30,7 @@ pip install stapel-listings
 | HTTP operations | 20 |
 | Config axes | 3 |
 | Usage surface | 11 |
-| Extension points | 6 |
+| Extension points | 8 |
 | Error codes | 72 |
 | Fleet dependencies | [`stapel-attributes`](https://github.com/usestapel/stapel-attributes) · [`stapel-categories`](https://github.com/usestapel/stapel-categories) (optional) · [`stapel-core`](https://github.com/usestapel/stapel-core) |
 
