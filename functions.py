@@ -294,8 +294,13 @@ def rename_feature_keys_function(payload: dict) -> dict:
     )
 
 
-def _purchasable_rows(payload: dict, *, include_unpriced: bool) -> dict:
-    """The keyed batch behind ``listings.purchasables`` and ``listings.bookables``."""
+def _purchasable_rows(payload: dict, *, include_unpriced: bool, for_booking: bool = False) -> dict:
+    """The keyed batch behind ``listings.purchasables`` and ``listings.bookables``.
+
+    ``for_booking`` drops the stock question: a booking's capacity is the
+    reservations schedule's business, so a visible listing is bookable
+    whatever its count, and ``max_quantity`` is null.
+    """
     from decimal import Decimal
 
     from .conf import listings_settings
@@ -313,9 +318,9 @@ def _purchasable_rows(payload: dict, *, include_unpriced: bool) -> dict:
         listing for listing in Listing.objects.filter(pk__in=numeric)
         if listing.price is not None or include_unpriced
     ]
-    stock = stock_for(rows)
+    stock = {} if for_booking else stock_for(rows)
     for listing in rows:
-        in_stock, max_quantity, _source = stock[listing.pk]
+        in_stock, max_quantity, _source = stock.get(listing.pk, (True, None, "listing"))
         images = listing.images or []
         answers[str(listing.pk)] = {
             "title": listing.title or "",
@@ -376,8 +381,10 @@ def bookables_function(payload: dict) -> dict:
 
     ``listings.purchasables`` with unpriced listings included: a listing
     without a price is a free reservation (``price: null``), not an unknown
-    key. A separate name rather than a flag because reservations sends
+    key. Availability is visibility alone (``INDEXED_STATUSES``): neither the
+    listing's stock count nor the inventory is asked, because capacity is the
+    reservations schedule's; ``max_quantity`` is always null. A separate name rather than a flag because reservations sends
     ``{keys}`` only and registers a type by Function name
     (``{"listing": {"resolve": "listings.bookables"}}``).
     """
-    return _purchasable_rows(payload, include_unpriced=True)
+    return _purchasable_rows(payload, include_unpriced=True, for_booking=True)

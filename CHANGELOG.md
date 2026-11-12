@@ -15,6 +15,12 @@ Proposed version: 0.30.0 (new detail field, new settings).
   (`{in_stock, quantity, source}`) come from it in bounded batches; absent or
   unanswered, the listing's own `countable` / `stock_quantity` decide as
   before. Listings never decrements stock itself.
+- **Bookable is not a stock question.** `listings.bookables` answers
+  `available` from visibility alone (published and visible; unpublished,
+  blocked or deleted is not) and `max_quantity: null`, never from the stock
+  count or the inventory: capacity is the reservations schedule's. A listing
+  created with the default `countable=true` and zero stock is bookable.
+  `listings.purchasables` is unchanged.
 
 ## [0.29.0] — 2026-11-05
 

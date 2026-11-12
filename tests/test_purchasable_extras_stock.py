@@ -221,3 +221,11 @@ def test_detail_stock_indicator_without_inventory(user, api_client):
     body = api_client.get(f"/listings/listings/{listing.pk}/").json()
     data = body.get("data", body)
     assert data["stock"] == {"in_stock": False, "quantity": 0, "source": "listing"}
+
+
+def test_bookables_never_ask_the_inventory(user, inventory):
+    listing = make(user, stock_quantity=0)
+    inventory[str(listing.pk)] = tracked(0)
+    item = call("listings.bookables", {"keys": [str(listing.pk)]})[str(listing.pk)]
+    assert item["available"] is True and item["max_quantity"] is None
+    assert CALLS == []

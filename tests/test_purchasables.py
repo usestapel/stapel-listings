@@ -138,7 +138,7 @@ def test_bookables_answers_priced_and_free_listings(user):
     priced, free = make(user), make(user, price=None)
     answer = call("listings.bookables", {"keys": [str(priced.pk), str(free.pk)]})
     assert answer[str(free.pk)]["price"] is None
-    assert answer[str(priced.pk)] == resolve(priced)[str(priced.pk)]
+    assert answer[str(priced.pk)] == {**resolve(priced)[str(priced.pk)], "max_quantity": None}
     for item in answer.values():
         jsonschema.validate(item, BOOKABLE_ITEM_SCHEMA)
 
@@ -155,3 +155,28 @@ def test_bookables_and_include_unpriced_schemas_are_shipped():
     bookables = json.loads((root / "listings.bookables.json").read_text())
     assert bookables["required"] == ["keys"]
     assert bookables["additionalProperties"] is False
+
+
+# ── bookability is visibility, not stock ────────────────────────────
+
+
+def test_countable_listing_with_zero_stock_is_bookable(user):
+    listing = make(user, stock_quantity=0)
+    item = call("listings.bookables", {"keys": [str(listing.pk)]})[str(listing.pk)]
+    assert item["available"] is True
+    assert item["max_quantity"] is None
+    jsonschema.validate(item, BOOKABLE_ITEM_SCHEMA)
+    # The cart's answer for the same listing is unchanged: out of stock.
+    assert resolve(listing)[str(listing.pk)]["available"] is False
+
+
+@pytest.mark.parametrize("status", [ListingStatus.DRAFT, ListingStatus.ARCHIVED, ListingStatus.BLOCKED])
+def test_invisible_listing_is_not_bookable(user, status):
+    listing = make(user, status=status, stock_quantity=9)
+    answer = call("listings.bookables", {"keys": [str(listing.pk)]})
+    assert answer[str(listing.pk)]["available"] is False
+
+
+def test_deleted_listing_is_not_bookable(user):
+    gone = make(user, deleted_at=timezone.now())
+    assert call("listings.bookables", {"keys": [str(gone.pk)]}) == {}
