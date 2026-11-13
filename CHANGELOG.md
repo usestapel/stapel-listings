@@ -1,8 +1,6 @@
 # Changelog
 
-## [Unreleased]
-
-Proposed version: 0.30.0 (new detail field, new settings).
+## [0.30.0] — 2026-11-13
 
 - **Resolver extras for delivery.** `listings.purchasables` / `bookables`
   answer optional `weight_grams` (integer grams) and `shippable` (bool) from
