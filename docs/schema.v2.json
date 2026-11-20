@@ -1,0 +1,4443 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "",
+    "version": "0.0.0",
+    "x-stapel-contract": 2
+  },
+  "paths": {
+    "/listings/api/v1/listings/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_list",
+        "description": "The published board, newest first, optionally per category.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "parameters": [
+          {
+            "name": "anchor",
+            "required": false,
+            "in": "query",
+            "description": "Anchor value to paginate from (exclusive)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category_id",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Narrow the board to these categories: ids, comma-separated or the parameter repeated (a category page passes its own id and its descendants'). At most 200 ids; absent means every category."
+          },
+          {
+            "name": "direction",
+            "required": false,
+            "in": "query",
+            "description": "Pagination direction",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "next",
+                "prev",
+                "center"
+              ],
+              "default": "next"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items (default 100, max 1000)",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedListingCardList"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "x-stapel-pagination": {
+          "style": "anchor",
+          "items": "items",
+          "params": [
+            "anchor",
+            "direction",
+            "limit"
+          ]
+        }
+      },
+      "post": {
+        "operationId": "listings_api_v1_listings_create",
+        "description": "Open a draft — the first act of becoming a seller, so the guest\nwall stands here and not only at ``publish``.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "tags": [
+          "listings"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingDraft"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingDraft"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingDraft"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingDraft"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.listing_draft_meta_too_large",
+              "error.400.listing_features_draft_shape",
+              "error.400.listing_features_draft_unknown_slug",
+              "error.400.listing_features_draft_value_shape"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.listing_anonymous_not_allowed"
+            ]
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_retrieve",
+        "description": "Read one listing — and count the open.\n\nA GET with a side effect, deliberately, because \"opening a listing\"\nIS the event and a storefront that had to POST it separately would\nreport a different number than the page it drew (and would stop\nreporting at all the moment a client forgot the second call).\n\nThe side effect is bounded on both ends. It cannot lie: the owner's\nown opens and unattributable ones are refused inside\n``record_view``. And it cannot become a write per read: every repeat\nopen inside ``VIEW_DEDUP_WINDOW_SECONDS`` is one cache hit and no\nquery. The response is therefore safe to give a private cache and\nmust never be given a shared one — which is the pre-existing rule\nfor an authenticated read anyway.\n\n``viewed`` is annotated BEFORE the recording, so the open that first\nsees a listing answers ``false`` and the next one answers ``true``.\nA card that greyed itself out on the very read that discovered it\nwould be telling the reader they had already been here.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingDetail"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "put": {
+        "operationId": "listings_api_v1_listings_update",
+        "description": "Write the draft fields — the write ``save-draft`` also performs.\n\nOwner only: 404 for an absent listing, 403 for someone else's.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingDraft"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingDraft"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingDraft"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingDraft"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.listing_draft_meta_too_large",
+              "error.400.listing_features_draft_shape",
+              "error.400.listing_features_draft_unknown_slug",
+              "error.400.listing_features_draft_value_shape"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.listing_anonymous_not_allowed",
+              "error.403.listing_not_owner"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.listing_not_found"
+            ]
+          }
+        }
+      },
+      "patch": {
+        "operationId": "listings_api_v1_listings_partial_update",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedListingDraft"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedListingDraft"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedListingDraft"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingDraft"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.listing_draft_meta_too_large"
+            ]
+          }
+        }
+      },
+      "delete": {
+        "operationId": "listings_api_v1_listings_destroy",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticatedOrReadOnly`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.listing_not_owner"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.listing_not_found"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Conflict",
+            "x-stapel-errors": [
+              "error.409.listing_cannot_delete_active"
+            ]
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/archive/": {
+      "post": {
+        "operationId": "listings_api_v1_listings_archive_create",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingActionResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.listing_location_required",
+              "error.400.publish_validation_failed"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.listing_not_owner"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.listing_not_found"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Conflict",
+            "x-stapel-errors": [
+              "error.409.invalid_listing_transition"
+            ]
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/complete/": {
+      "post": {
+        "operationId": "listings_api_v1_listings_complete_create",
+        "description": "Mark a listing sold.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingActionResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.listing_location_required",
+              "error.400.publish_validation_failed"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.listing_not_owner"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.listing_not_found"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Conflict",
+            "x-stapel-errors": [
+              "error.409.invalid_listing_transition"
+            ]
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/draft/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_draft_retrieve",
+        "description": "Read back the draft twins — the reopen half of ``save-draft``.\n\nEvery user-editable field on this module is a ``*_draft`` column\n(``title_draft``, ``description_draft``, ``images_draft``,\n``features_draft``, the location trio, ...) and until now the only\ncall that ever returned one was the write itself: ``create``,\n``update`` and ``save-draft`` echo the bag back, and no READ did. So a\ncomposer reopening a listing by id had exactly one source, the detail\nread, which serves the PUBLISHED fields — empty on everything that has\nnever been published. The seller pressed «продолжить», got a blank\nform, and their text and photos were sitting in the row the whole\ntime.\n\nDeliberately a separate route rather than draft columns bolted onto\nthe detail read: the detail read is the PUBLIC one (a stranger and a\ncrawler read it without a session), and a shape whose key set depends\non who is asking is the shape a redaction bug hides in. Here the\nanswer is structural — ``_get_own`` is the module's one ownership\ngate, 403 for someone else's listing, 404 for one that is absent or\nsoft-deleted — so no draft field can reach a non-owner by omission.\n\nThe payload is ``ListingDraftSerializer``, byte for byte what\n``save-draft`` returns, so a client reopens with the mapper it already\nhas for the write's response instead of a second one.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingDraft"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.listing_draft_meta_too_large"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.listing_not_owner"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.listing_not_found"
+            ]
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/favorite/": {
+      "post": {
+        "operationId": "listings_api_v1_listings_favorite_create",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FavoriteToggleResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.listing_not_found"
+            ]
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/publish/": {
+      "post": {
+        "operationId": "listings_api_v1_listings_publish_create",
+        "description": "Put a listing in front of buyers — the act the wall is named for:\na seller nobody can reach again is not a seller.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationBatchResult"
+                }
+              }
+            },
+            "description": "",
+            "x-stapel-errors": [
+              "error.400.listing_feature_not_allowed",
+              "error.400.listing_location_required",
+              "error.400.listing_zero_price_not_allowed",
+              "error.400.publish_validation_failed"
+            ]
+          },
+          "409": {
+            "description": "No response body",
+            "x-stapel-errors": [
+              "error.409.invalid_listing_transition"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.listing_anonymous_not_allowed",
+              "error.403.listing_not_owner"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.listing_not_found"
+            ]
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/save-draft/": {
+      "post": {
+        "operationId": "listings_api_v1_listings_save_draft_create",
+        "description": "Persist draft fields (declarative validation via serializer).\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingDraft"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.listing_draft_meta_too_large",
+              "error.400.listing_features_draft_shape",
+              "error.400.listing_features_draft_unknown_slug",
+              "error.400.listing_features_draft_value_shape"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.listing_anonymous_not_allowed",
+              "error.403.listing_not_owner"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.listing_not_found"
+            ]
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/status/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_status_retrieve",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `AllowAny`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingStatusResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.listing_not_found"
+            ]
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/transition/": {
+      "post": {
+        "operationId": "listings_api_v1_listings_transition_create",
+        "description": "Move the listing to ``to``, if that is a move its OWNER may make.\n\nThe seller's way forward, as one route instead of one endpoint per\nedge. ``archive`` and ``complete`` were the only two the API ever\noffered, and both of them are exits — so a listing that reached\nARCHIVED, PAUSED, EXPIRED, SOLD, REJECTED or BLOCKED had no call left\nthat would move it, and the cabinet correctly showed its owner\nnothing but «удалить».\n\nWhich moves exist is ``models.OWNER_TRANSITIONS``, and it is the same\nlist ``available_transitions`` puts on the card — the point of routing\nevery edge through one allowlist is that the set a client is offered\nand the set the server accepts are one object, not two that agree\ntoday.\n\nOne edge is not a lifecycle hop: ARCHIVED -> PUBLISHED is\n«опубликовать снова», and it runs the publish service (validate,\npromote, re-submit for review — see ``RESTORE_EDGES``). So it can\nanswer 400 when the draft is not publishable, and the ``status`` it\nreturns is where the deployment's moderation policy put the listing,\nwhich under the default pre-moderation gate is ``pending`` and not the\n``published`` that was asked for. Read the status from the response,\nnever from the request.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingTransitionRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingTransitionRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingActionResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "description": "No response body",
+            "x-stapel-errors": [
+              "error.400.listing_location_required",
+              "error.400.publish_validation_failed"
+            ]
+          },
+          "409": {
+            "description": "No response body",
+            "x-stapel-errors": [
+              "error.409.invalid_listing_transition"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.listing_anonymous_not_allowed",
+              "error.403.listing_not_owner"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.listing_not_found"
+            ]
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/unfavorite/": {
+      "post": {
+        "operationId": "listings_api_v1_listings_unfavorite_create",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FavoriteToggleResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/{id}/validate-draft/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_validate_draft_retrieve",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A unique integer value identifying this listing.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationBatchResult"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.listing_feature_not_allowed",
+              "error.400.listing_location_required",
+              "error.400.listing_zero_price_not_allowed",
+              "error.400.publish_validation_failed"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Forbidden",
+            "x-stapel-errors": [
+              "error.403.listing_not_owner"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.listing_not_found"
+            ]
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/engagement/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_engagement_retrieve",
+        "description": "The per-viewer overlay for a page of cards, in one call.\n\n``AllowAny`` on purpose: ``view_count`` is public, and an anonymous\ncaller gets it with both per-viewer flags answering ``null``. A\nstorefront therefore makes the same request whether or not anyone is\nsigned in, and a guest's grid is not a second code path.\n\n**Permissions:** `AllowAny`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ids",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Listing ids, comma-separated or the parameter repeated. Capped at ENGAGEMENT_BATCH_LIMIT ids per call — one page of cards, not a crawl of the board.",
+            "required": true
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingEngagementBatch"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/my/counters/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_my_counters_retrieve",
+        "description": "One integer per cabinet tab, over the caller's own listings.\n\nThe tab groupings are the SERVER's — ``my/listings?status=`` takes\nthe same sets — so a cabinet never has to re-derive which statuses\nmake up \"active\". Every lifecycle status is in exactly one group:\n``blocked`` (a moderation takedown) is its own count rather than\nbeing folded into ``archived``, because the two tell the seller\ndifferent things and only one of them is theirs to undo.\n\nOwner-scoped at the queryset via ``owned_by``, soft-deleted rows\nexcluded by the default manager — the same scope as\n``my/listings``, so a tab's rows and its count always agree.\n\n**Permissions:** `IsAuthenticated`",
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCountersResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/listings/api/v1/listings/my/favorites/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_my_favorites_list",
+        "description": "Listings CRUD plus owner lifecycle actions and favorites.\n\nRead and write live in one class, so the guest wall\n(:func:`anonymous_write_refusal`, the ``ALLOW_ANONYMOUS_WRITES`` switch)\nis applied per ACTION and never as a class permission: an anonymous\nsession must keep browsing and keep its favorites, and only the\nauthorship actions — ``create``, ``update``/``partial_update``,\n``save-draft``, ``publish`` — are the ones that turn a caller into a\nseller.\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "name": "anchor",
+            "required": false,
+            "in": "query",
+            "description": "Anchor value to paginate from (exclusive)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direction",
+            "required": false,
+            "in": "query",
+            "description": "Pagination direction",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "next",
+                "prev",
+                "center"
+              ],
+              "default": "next"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items (default 100, max 1000)",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedListingCardList"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "x-stapel-pagination": {
+          "style": "anchor",
+          "items": "items",
+          "params": [
+            "anchor",
+            "direction",
+            "limit"
+          ]
+        }
+      }
+    },
+    "/listings/api/v1/listings/my/listings/": {
+      "get": {
+        "operationId": "listings_api_v1_listings_my_listings_list",
+        "description": "The caller's OWN listings, in every status.\n\nThe counterpart of ``my/counters``: the same owner scope and the same\nstatus grouping, but the rows behind the four numbers. ``list`` is\nthe shop window (``published()``, narrowable to nobody), so this is\nthe only route by which a person can be shown their own drafts.\n\nOwner-scoped at the queryset via ``owned_by`` — a stranger's listing\ncannot be reached from here at any status, and soft-deleted rows are\nexcluded by the default manager (a deleted listing is gone from the\nowner's dashboard exactly as it is gone from everywhere else).\n\n**Permissions:** `IsAuthenticated`",
+        "parameters": [
+          {
+            "name": "anchor",
+            "required": false,
+            "in": "query",
+            "description": "Anchor value to paginate from (exclusive)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direction",
+            "required": false,
+            "in": "query",
+            "description": "Pagination direction",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "next",
+                "prev",
+                "center"
+              ],
+              "default": "next"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of items (default 100, max 1000)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "archived",
+                  "blocked",
+                  "draft",
+                  "expired",
+                  "paused",
+                  "pending",
+                  "published",
+                  "rejected",
+                  "sold"
+                ]
+              }
+            },
+            "description": "Lifecycle status to narrow to. Repeat the parameter or pass one comma-separated value for a set (`?status=draft,rejected`); omit it for every status. An unknown value is a 400, not an empty page."
+          }
+        ],
+        "tags": [
+          "listings"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {
+            "JWTBearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedMyListingCardList"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Bad Request",
+            "x-stapel-errors": [
+              "error.400.listing_invalid_status_filter"
+            ]
+          }
+        },
+        "x-stapel-pagination": {
+          "style": "anchor",
+          "items": "items",
+          "params": [
+            "anchor",
+            "direction",
+            "limit"
+          ]
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AvailableTransitionsEnum": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "pending",
+          "published",
+          "paused",
+          "expired",
+          "sold",
+          "rejected",
+          "blocked",
+          "archived"
+        ]
+      },
+      "BoolDao": {
+        "type": "object",
+        "description": "Serializer for boolean feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/BoolTypeEnum"
+          },
+          "value": {
+            "type": "boolean"
+          },
+          "trueLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "falseLabel": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "BoolDto": {
+        "type": "object",
+        "description": "Serializer for boolean feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/BoolTypeEnum"
+          },
+          "value": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BoolTypeEnum": {
+        "enum": [
+          "bool"
+        ],
+        "type": "string",
+        "description": "* `bool` - bool"
+      },
+      "ConvertibleUnitDao": {
+        "type": "object",
+        "description": "Serializer for convertible-unit feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/ConvertibleUnitTypeEnum"
+          },
+          "value": {
+            "type": "number",
+            "format": "double"
+          },
+          "unitType": {
+            "type": "string",
+            "nullable": true
+          },
+          "unit_m": {
+            "type": "string",
+            "nullable": true
+          },
+          "unit_i": {
+            "type": "string",
+            "nullable": true
+          },
+          "precision": {
+            "type": "integer",
+            "nullable": true
+          },
+          "prefix": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ConvertibleUnitDto": {
+        "type": "object",
+        "description": "Serializer for convertible-unit feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/ConvertibleUnitTypeEnum"
+          },
+          "value": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "unit": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ConvertibleUnitTypeEnum": {
+        "enum": [
+          "convertible_unit"
+        ],
+        "type": "string",
+        "description": "* `convertible_unit` - convertible_unit"
+      },
+      "DateDao": {
+        "type": "object",
+        "description": "Serializer for date feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/DateTypeEnum"
+          },
+          "value": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "DateDto": {
+        "type": "object",
+        "description": "Serializer for date feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/DateTypeEnum"
+          },
+          "value": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "DateTypeEnum": {
+        "enum": [
+          "date"
+        ],
+        "type": "string",
+        "description": "* `date` - date"
+      },
+      "DeleteResponse": {
+        "type": "object",
+        "description": "Result of a (soft) delete.",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "deleted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deleted",
+          "success"
+        ]
+      },
+      "ErrorEnum": {
+        "enum": [
+          "below_minimum",
+          "above_maximum",
+          "not_in_options",
+          "invalid_type",
+          "invalid_format",
+          "mandatory_missing",
+          "duplicate_slug",
+          "unknown_feature_type",
+          "not_allowed",
+          "unknown_feature",
+          "description_too_short",
+          "description_too_long",
+          "invalid_config",
+          "min_greater_than_max",
+          "empty_options",
+          "invalid_rules"
+        ],
+        "type": "string",
+        "description": "* `below_minimum` - below_minimum\n* `above_maximum` - above_maximum\n* `not_in_options` - not_in_options\n* `invalid_type` - invalid_type\n* `invalid_format` - invalid_format\n* `mandatory_missing` - mandatory_missing\n* `duplicate_slug` - duplicate_slug\n* `unknown_feature_type` - unknown_feature_type\n* `not_allowed` - not_allowed\n* `unknown_feature` - unknown_feature\n* `description_too_short` - description_too_short\n* `description_too_long` - description_too_long\n* `invalid_config` - invalid_config\n* `min_greater_than_max` - min_greater_than_max\n* `empty_options` - empty_options\n* `invalid_rules` - invalid_rules"
+      },
+      "FavoriteToggleResponse": {
+        "type": "object",
+        "description": "Result of favoriting / unfavoriting a listing.",
+        "properties": {
+          "favorited": {
+            "type": "boolean"
+          },
+          "listing_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "favorited",
+          "listing_id"
+        ]
+      },
+      "FeatureDao": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RefSelectDao"
+          },
+          {
+            "$ref": "#/components/schemas/IntDao"
+          },
+          {
+            "$ref": "#/components/schemas/FloatDao"
+          },
+          {
+            "$ref": "#/components/schemas/StringDao"
+          },
+          {
+            "$ref": "#/components/schemas/BoolDao"
+          },
+          {
+            "$ref": "#/components/schemas/HexColorDao"
+          },
+          {
+            "$ref": "#/components/schemas/SelectDao"
+          },
+          {
+            "$ref": "#/components/schemas/DateDao"
+          },
+          {
+            "$ref": "#/components/schemas/HeaderDao"
+          },
+          {
+            "$ref": "#/components/schemas/HierarchicalSelectDao"
+          },
+          {
+            "$ref": "#/components/schemas/ConvertibleUnitDao"
+          },
+          {
+            "$ref": "#/components/schemas/RefHierarchicalSelectDao"
+          },
+          {
+            "$ref": "#/components/schemas/GroupDao"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "ref_select": "#/components/schemas/RefSelectDao",
+            "int": "#/components/schemas/IntDao",
+            "float": "#/components/schemas/FloatDao",
+            "string": "#/components/schemas/StringDao",
+            "bool": "#/components/schemas/BoolDao",
+            "hex_color": "#/components/schemas/HexColorDao",
+            "select": "#/components/schemas/SelectDao",
+            "date": "#/components/schemas/DateDao",
+            "header": "#/components/schemas/HeaderDao",
+            "hierarchical_select": "#/components/schemas/HierarchicalSelectDao",
+            "convertible_unit": "#/components/schemas/ConvertibleUnitDao",
+            "ref_hierarchical_select": "#/components/schemas/RefHierarchicalSelectDao",
+            "group": "#/components/schemas/GroupDao"
+          }
+        }
+      },
+      "FeatureDto": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RefSelectDto"
+          },
+          {
+            "$ref": "#/components/schemas/IntDto"
+          },
+          {
+            "$ref": "#/components/schemas/FloatDto"
+          },
+          {
+            "$ref": "#/components/schemas/StringDto"
+          },
+          {
+            "$ref": "#/components/schemas/BoolDto"
+          },
+          {
+            "$ref": "#/components/schemas/HexColorDto"
+          },
+          {
+            "$ref": "#/components/schemas/SelectDto"
+          },
+          {
+            "$ref": "#/components/schemas/DateDto"
+          },
+          {
+            "$ref": "#/components/schemas/HeaderDto"
+          },
+          {
+            "$ref": "#/components/schemas/HierarchicalSelectDto"
+          },
+          {
+            "$ref": "#/components/schemas/ConvertibleUnitDto"
+          },
+          {
+            "$ref": "#/components/schemas/RefHierarchicalSelectDto"
+          },
+          {
+            "$ref": "#/components/schemas/GroupDto"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "ref_select": "#/components/schemas/RefSelectDto",
+            "int": "#/components/schemas/IntDto",
+            "float": "#/components/schemas/FloatDto",
+            "string": "#/components/schemas/StringDto",
+            "bool": "#/components/schemas/BoolDto",
+            "hex_color": "#/components/schemas/HexColorDto",
+            "select": "#/components/schemas/SelectDto",
+            "date": "#/components/schemas/DateDto",
+            "header": "#/components/schemas/HeaderDto",
+            "hierarchical_select": "#/components/schemas/HierarchicalSelectDto",
+            "convertible_unit": "#/components/schemas/ConvertibleUnitDto",
+            "ref_hierarchical_select": "#/components/schemas/RefHierarchicalSelectDto",
+            "group": "#/components/schemas/GroupDto"
+          }
+        }
+      },
+      "FeatureValidationResult": {
+        "type": "object",
+        "description": "Serializer for FeatureValidationResult.",
+        "properties": {
+          "id": {
+            "nullable": true
+          },
+          "slug": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FeatureValidationResultStatusEnum"
+          },
+          "error": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ErrorEnum"
+              },
+              {
+                "$ref": "#/components/schemas/NullEnum"
+              }
+            ]
+          },
+          "ref_value": {
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "localizable_error": {
+            "type": "string",
+            "nullable": true
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "required": [
+          "slug",
+          "status"
+        ]
+      },
+      "FeatureValidationResultStatusEnum": {
+        "enum": [
+          "ok",
+          "validation_failed"
+        ],
+        "type": "string",
+        "description": "* `ok` - ok\n* `validation_failed` - validation_failed"
+      },
+      "FloatDao": {
+        "type": "object",
+        "description": "Serializer for float feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/FloatTypeEnum"
+          },
+          "value": {
+            "type": "number",
+            "format": "double"
+          },
+          "prefix": {
+            "type": "string",
+            "nullable": true
+          },
+          "postfix": {
+            "type": "string",
+            "nullable": true
+          },
+          "postfix1000": {
+            "type": "string",
+            "nullable": true
+          },
+          "precision": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "FloatDto": {
+        "type": "object",
+        "description": "Serializer for float feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/FloatTypeEnum"
+          },
+          "value": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "FloatTypeEnum": {
+        "enum": [
+          "float"
+        ],
+        "type": "string",
+        "description": "* `float` - float"
+      },
+      "GroupDao": {
+        "type": "object",
+        "description": "Serializer for group feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/GroupTypeEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        }
+      },
+      "GroupDto": {
+        "type": "object",
+        "description": "Serializer for group feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/GroupTypeEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        }
+      },
+      "GroupTypeEnum": {
+        "enum": [
+          "group"
+        ],
+        "type": "string",
+        "description": "* `group` - group"
+      },
+      "HeaderDao": {
+        "type": "object",
+        "description": "Serializer for header feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/HeaderTypeEnum"
+          },
+          "style": {
+            "$ref": "#/components/schemas/StyleEnum"
+          }
+        }
+      },
+      "HeaderDto": {
+        "type": "object",
+        "description": "Serializer for header feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/HeaderTypeEnum"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "HeaderTypeEnum": {
+        "enum": [
+          "header"
+        ],
+        "type": "string",
+        "description": "* `header` - header"
+      },
+      "HexColorDao": {
+        "type": "object",
+        "description": "Serializer for hex color feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/HexColorTypeEnum"
+          },
+          "simple": {
+            "type": "string"
+          },
+          "hex": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "HexColorDto": {
+        "type": "object",
+        "description": "Serializer for hex color feature DTO.",
+        "properties": {
+          "value": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HexColorValue"
+              }
+            ],
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/HexColorTypeEnum"
+          }
+        }
+      },
+      "HexColorTypeEnum": {
+        "enum": [
+          "hex_color"
+        ],
+        "type": "string",
+        "description": "* `hex_color` - hex_color"
+      },
+      "HexColorValue": {
+        "type": "object",
+        "description": "Serializer for hex color value.",
+        "properties": {
+          "simple": {
+            "type": "string"
+          },
+          "hex": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "simple"
+        ]
+      },
+      "HierarchicalSelectDao": {
+        "type": "object",
+        "description": "Serializer for hierarchical select feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/HierarchicalSelectTypeEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "HierarchicalSelectDto": {
+        "type": "object",
+        "description": "Serializer for hierarchical select feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/HierarchicalSelectTypeEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "HierarchicalSelectTypeEnum": {
+        "enum": [
+          "hierarchical_select"
+        ],
+        "type": "string",
+        "description": "* `hierarchical_select` - hierarchical_select"
+      },
+      "IntDao": {
+        "type": "object",
+        "description": "Serializer for integer feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/IntTypeEnum"
+          },
+          "value": {
+            "type": "integer"
+          },
+          "prefix": {
+            "type": "string",
+            "nullable": true
+          },
+          "postfix": {
+            "type": "string",
+            "nullable": true
+          },
+          "postfix1000": {
+            "type": "string",
+            "nullable": true
+          },
+          "precision": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "IntDto": {
+        "type": "object",
+        "description": "Serializer for integer feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/IntTypeEnum"
+          },
+          "value": {
+            "type": "integer"
+          }
+        }
+      },
+      "IntTypeEnum": {
+        "enum": [
+          "int"
+        ],
+        "type": "string",
+        "description": "* `int` - int"
+      },
+      "ListingActionResponse": {
+        "type": "object",
+        "description": "Result of a lifecycle action (archive, complete/sold).",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "success"
+        ]
+      },
+      "ListingCard": {
+        "type": "object",
+        "description": "Compact card projection for lists.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "price": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "price_base": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 8
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "readOnly": true,
+            "nullable": true
+          },
+          "features_title": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FeatureDao"
+                    },
+                    {
+                      "type": "object",
+                      "title": "CardFeatureElement",
+                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption, name gets a trailing colon («Этаж: 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
+                      "required": [
+                        "label",
+                        "name",
+                        "presentation"
+                      ],
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "unit": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "presentation": {
+                          "enum": [
+                            "value",
+                            "value_unit",
+                            "name_value",
+                            "name"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "object",
+                  "title": "RedactedFeatureDao",
+                  "description": "A feature the catalogue marked non-public (visibility 'owner' or 'staff') read by someone without that entitlement — an identifier such as a VIN or an IMEI. Carries no value. `present` says whether the seller filled it in, which is all this system observes; `verification` is absent unless an outside check was actually run, so a UI may say the value was supplied and must not say it was verified.",
+                  "required": [
+                    "redacted",
+                    "present"
+                  ],
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "order": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "translate": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "visibility": {
+                      "enum": [
+                        "owner",
+                        "staff"
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "redacted": {
+                      "const": true
+                    },
+                    "present": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
+            },
+            "readOnly": true
+          },
+          "features_badges": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FeatureDao"
+                    },
+                    {
+                      "type": "object",
+                      "title": "CardFeatureElement",
+                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption, name gets a trailing colon («Этаж: 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
+                      "required": [
+                        "label",
+                        "name",
+                        "presentation"
+                      ],
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "unit": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "presentation": {
+                          "enum": [
+                            "value",
+                            "value_unit",
+                            "name_value",
+                            "name"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "object",
+                  "title": "RedactedFeatureDao",
+                  "description": "A feature the catalogue marked non-public (visibility 'owner' or 'staff') read by someone without that entitlement — an identifier such as a VIN or an IMEI. Carries no value. `present` says whether the seller filled it in, which is all this system observes; `verification` is absent unless an outside check was actually run, so a UI may say the value was supplied and must not say it was verified.",
+                  "required": [
+                    "redacted",
+                    "present"
+                  ],
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "order": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "translate": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "visibility": {
+                      "enum": [
+                        "owner",
+                        "staff"
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "redacted": {
+                      "const": true
+                    },
+                    "present": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
+            },
+            "readOnly": true
+          },
+          "location_label": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "geohash": {
+            "type": "string",
+            "maxLength": 12
+          },
+          "lat": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "lon": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "geo_precision_km": {
+            "type": "number",
+            "format": "double",
+            "description": "How wide the area `lat`/`lon` describe, in kilometres. On a PUBLIC read this is ~1.113 (the pair is rounded to two decimals and `geohash` comes back empty): draw a CIRCLE, never a marker — the listing is somewhere in it, and for a private seller the true point is a home address. `0` means the exact point, which only the listing's own owner, staff and the service transport get. Proximity itself is unaffected: `distance_km` on a search hit is computed server-side from the true coordinates.",
+            "readOnly": true
+          },
+          "countable": {
+            "type": "boolean"
+          },
+          "stock_quantity": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "format": "int64",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/ListingStatusEnum"
+          },
+          "is_favorited": {
+            "type": "boolean",
+            "readOnly": true,
+            "nullable": true
+          },
+          "viewed": {
+            "type": "boolean",
+            "readOnly": true,
+            "nullable": true
+          },
+          "view_count": {
+            "type": "integer",
+            "readOnly": true
+          }
+        },
+        "required": [
+          "features_badges",
+          "features_title",
+          "geo_precision_km",
+          "id",
+          "images",
+          "is_favorited",
+          "view_count",
+          "viewed"
+        ]
+      },
+      "ListingDetail": {
+        "type": "object",
+        "description": "Full listing detail.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "owner": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "category_id": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                "maxLength": 64
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "maxLength": 10
+          },
+          "price": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "price_base": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 8
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "readOnly": true,
+            "nullable": true
+          },
+          "location_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "location_label": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "geohash": {
+            "type": "string",
+            "maxLength": 12
+          },
+          "lat": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "lon": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "geo_precision_km": {
+            "type": "number",
+            "format": "double",
+            "description": "How wide the area `lat`/`lon` describe, in kilometres. On a PUBLIC read this is ~1.113 (the pair is rounded to two decimals and `geohash` comes back empty): draw a CIRCLE, never a marker — the listing is somewhere in it, and for a private seller the true point is a home address. `0` means the exact point, which only the listing's own owner, staff and the service transport get. Proximity itself is unaffected: `distance_km` on a search hit is computed server-side from the true coordinates.",
+            "readOnly": true
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/FeatureDao"
+                },
+                {
+                  "type": "object",
+                  "title": "RedactedFeatureDao",
+                  "description": "A feature the catalogue marked non-public (visibility 'owner' or 'staff') read by someone without that entitlement — an identifier such as a VIN or an IMEI. Carries no value. `present` says whether the seller filled it in, which is all this system observes; `verification` is absent unless an outside check was actually run, so a UI may say the value was supplied and must not say it was verified.",
+                  "required": [
+                    "redacted",
+                    "present"
+                  ],
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "order": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "translate": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "visibility": {
+                      "enum": [
+                        "owner",
+                        "staff"
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "redacted": {
+                      "const": true
+                    },
+                    "present": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
+            },
+            "readOnly": true
+          },
+          "features_title": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FeatureDao"
+                    },
+                    {
+                      "type": "object",
+                      "title": "CardFeatureElement",
+                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption, name gets a trailing colon («Этаж: 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
+                      "required": [
+                        "label",
+                        "name",
+                        "presentation"
+                      ],
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "unit": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "presentation": {
+                          "enum": [
+                            "value",
+                            "value_unit",
+                            "name_value",
+                            "name"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "object",
+                  "title": "RedactedFeatureDao",
+                  "description": "A feature the catalogue marked non-public (visibility 'owner' or 'staff') read by someone without that entitlement — an identifier such as a VIN or an IMEI. Carries no value. `present` says whether the seller filled it in, which is all this system observes; `verification` is absent unless an outside check was actually run, so a UI may say the value was supplied and must not say it was verified.",
+                  "required": [
+                    "redacted",
+                    "present"
+                  ],
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "order": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "translate": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "visibility": {
+                      "enum": [
+                        "owner",
+                        "staff"
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "redacted": {
+                      "const": true
+                    },
+                    "present": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
+            },
+            "readOnly": true
+          },
+          "features_badges": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FeatureDao"
+                    },
+                    {
+                      "type": "object",
+                      "title": "CardFeatureElement",
+                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption, name gets a trailing colon («Этаж: 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
+                      "required": [
+                        "label",
+                        "name",
+                        "presentation"
+                      ],
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "unit": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "presentation": {
+                          "enum": [
+                            "value",
+                            "value_unit",
+                            "name_value",
+                            "name"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "object",
+                  "title": "RedactedFeatureDao",
+                  "description": "A feature the catalogue marked non-public (visibility 'owner' or 'staff') read by someone without that entitlement — an identifier such as a VIN or an IMEI. Carries no value. `present` says whether the seller filled it in, which is all this system observes; `verification` is absent unless an outside check was actually run, so a UI may say the value was supplied and must not say it was verified.",
+                  "required": [
+                    "redacted",
+                    "present"
+                  ],
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "order": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "translate": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "visibility": {
+                      "enum": [
+                        "owner",
+                        "staff"
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "redacted": {
+                      "const": true
+                    },
+                    "present": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
+            },
+            "readOnly": true
+          },
+          "features_search": {
+            "readOnly": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/ListingStatusEnum"
+          },
+          "moderation_status": {
+            "$ref": "#/components/schemas/ModerationStatusEnum"
+          },
+          "auto_republish": {
+            "type": "boolean"
+          },
+          "countable": {
+            "type": "boolean"
+          },
+          "stock_quantity": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "format": "int64",
+            "nullable": true
+          },
+          "stock": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ListingStock"
+              }
+            ],
+            "readOnly": true
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "is_favorited": {
+            "type": "boolean",
+            "readOnly": true,
+            "nullable": true
+          },
+          "viewed": {
+            "type": "boolean",
+            "readOnly": true,
+            "nullable": true
+          },
+          "view_count": {
+            "type": "integer",
+            "readOnly": true
+          }
+        },
+        "required": [
+          "created_at",
+          "features",
+          "features_badges",
+          "features_search",
+          "features_title",
+          "geo_precision_km",
+          "id",
+          "images",
+          "is_favorited",
+          "owner",
+          "stock",
+          "updated_at",
+          "view_count",
+          "viewed"
+        ]
+      },
+      "ListingDraft": {
+        "type": "object",
+        "description": "Create/update the draft twin fields.\n\nAll user-editable content is a ``*_draft`` field promoted on publish.\nDRF's declarative field validation (max_length, decimal bounds, types)\nreplaces the source view's hand-rolled per-field checks.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "category_id": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                "maxLength": 64
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 8
+          },
+          "language": {
+            "type": "string",
+            "maxLength": 10
+          },
+          "title_draft": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "description_draft": {
+            "type": "string"
+          },
+          "price_draft": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "images_draft": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "location_id_draft": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "location_label_draft": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "geohash_draft": {
+            "type": "string",
+            "readOnly": true
+          },
+          "lat_draft": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "lon_draft": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "features_draft": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FeatureDto"
+            },
+            "description": "The WRITE shape of features_draft: an object keyed by feature slug, each value a FeatureDto — e.g. {\"mileage\":{\"type\":\"int\",\"value\":42000}}. A listing READ hands back features as a *list* of decorated DAOs instead (`features` / `features_title` / `features_badges` — `{slug, name, label, presentation, …}`); posting that same list back here is also accepted, e.g. [{\"slug\":\"mileage\",\"type\":\"int\",\"value\":42000}] — only `slug`, `type` and `value` are read back out, every other (decoration) key is ignored. A malformed payload of either shape gets a features_draft_shape / features_draft_value_shape / features_draft_unknown_slug 400 naming the shape that would have worked.",
+            "nullable": true
+          },
+          "draft_meta": {
+            "nullable": true
+          },
+          "auto_republish": {
+            "type": "boolean"
+          },
+          "countable": {
+            "type": "boolean"
+          },
+          "stock_quantity": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "format": "int64",
+            "nullable": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ListingStatusEnum"
+              }
+            ],
+            "readOnly": true
+          },
+          "moderation_status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModerationStatusEnum"
+              }
+            ],
+            "readOnly": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          }
+        },
+        "required": [
+          "created_at",
+          "geohash_draft",
+          "id",
+          "moderation_status",
+          "status",
+          "updated_at"
+        ]
+      },
+      "ListingEngagement": {
+        "type": "object",
+        "description": "The per-viewer overlay for ONE listing in a batch read.\n\nExists because a storefront's grid does not come from this module: the\nSERP is served by the search index, whose stored card can carry neither a\nflag that differs per reader nor a counter that moves faster than a\ndocument re-indexed on a listing event. So the grid draws the card from\nsearch and asks HERE, once for the whole page, for the three things that\nare about the person looking.",
+        "properties": {
+          "view_count": {
+            "type": "integer",
+            "description": "Distinct viewers who have opened this listing. Public — it is the same number for every reader."
+          },
+          "viewed": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the CALLER has opened this listing before. `null` for an anonymous caller: nothing is remembered for a stranger, and `false` would be a claim rather than an absence."
+          },
+          "is_favorited": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the CALLER has favorited it. `null` for anonymous, same reason."
+          }
+        },
+        "required": [
+          "is_favorited",
+          "view_count",
+          "viewed"
+        ]
+      },
+      "ListingEngagementBatch": {
+        "type": "object",
+        "description": "``{listing id: overlay}``. An id with no listing is simply absent.",
+        "properties": {
+          "items": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ListingEngagement"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "ListingStatus": {
+        "type": "object",
+        "description": "Lightweight status view (mirrors the listings.status comm Function).\n\nAnswered to the listing's owner and to the service transport only; every\nother caller gets ``ListingStatusPublicSerializer``. ``scope`` is the\ndiscriminator that tells the two apart on the wire.",
+        "properties": {
+          "scope": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ListingStatusScopeEnum"
+              }
+            ],
+            "description": "Always `owner`: the full body, answered to the listing's owner and to the service transport.\n\n* `owner` - owner"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ListingStatusEnum"
+          },
+          "moderation_status": {
+            "type": "string"
+          },
+          "is_deleted": {
+            "type": "boolean"
+          },
+          "is_expired": {
+            "type": "boolean"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "owner_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "is_active",
+          "is_deleted",
+          "is_expired",
+          "moderation_status",
+          "owner_id",
+          "scope",
+          "status"
+        ]
+      },
+      "ListingStatusEnum": {
+        "enum": [
+          "draft",
+          "pending",
+          "published",
+          "paused",
+          "expired",
+          "sold",
+          "rejected",
+          "blocked",
+          "archived"
+        ],
+        "type": "string",
+        "description": "* `draft` - Draft\n* `pending` - Pending Moderation\n* `published` - Published\n* `paused` - Paused\n* `expired` - Expired\n* `sold` - Sold\n* `rejected` - Rejected\n* `blocked` - Blocked (moderation takedown)\n* `archived` - Archived"
+      },
+      "ListingStatusPublic": {
+        "type": "object",
+        "description": "What a STRANGER may learn from the status probe: that a row exists.\n\nThe probe reads ``all_objects``, so it answers for soft-deleted and\nunpublished listings — that is the point: it is what lets a page say \"this\nlisting was removed\" instead of the 404 a made-up id also produces.\n\nBut the full status view carries ``owner_id`` and ``moderation_status``,\nand listing ids are sequential. Under ``AllowAny`` that made the endpoint\nan enumeration oracle: walk the ids and harvest, for every listing in the\nfleet including other people's drafts and rejected rows, who owns it and\nwhat a moderator decided about it. Verified live on a stand.\n\nDeleting the endpoint would have been the wrong fix — a real client uses\nit, and the capability it grants a stranger (learning that a listing\nexisted and is gone) is the feature. So the CAPABILITY stays and the\nDISCLOSURE goes: one boolean, which is all the removed-versus-never-existed\nsentence needs.\n\nBoth shapes carry ``scope``, so a client reads which one it got instead\nof probing for a field: the route answers two bodies and the contract\nsays so (``ListingStatusResponse``, a discriminated union on ``scope``).",
+        "properties": {
+          "scope": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ListingStatusPublicScopeEnum"
+              }
+            ],
+            "description": "Always `public`: the narrow body every caller who is neither the owner nor a service gets.\n\n* `public` - public"
+          },
+          "is_deleted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_deleted",
+          "scope"
+        ]
+      },
+      "ListingStatusPublicScopeEnum": {
+        "enum": [
+          "public"
+        ],
+        "type": "string",
+        "description": "* `public` - public"
+      },
+      "ListingStatusResponse": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ListingStatus"
+          },
+          {
+            "$ref": "#/components/schemas/ListingStatusPublic"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "scope",
+          "mapping": {
+            "owner": "#/components/schemas/ListingStatus",
+            "public": "#/components/schemas/ListingStatusPublic"
+          }
+        }
+      },
+      "ListingStatusScopeEnum": {
+        "enum": [
+          "owner"
+        ],
+        "type": "string",
+        "description": "* `owner` - owner"
+      },
+      "ListingStock": {
+        "type": "object",
+        "description": "The stock indicator of a listing detail.\n\nAttributes:\n    in_stock: Whether one more unit can be bought now.\n    quantity: Units available, or null when uncounted or unlimited.\n    source: Who answered: \"inventory\" (the inventory Function) or \"listing\" (the listing's own count).",
+        "properties": {
+          "in_stock": {
+            "type": "boolean"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          },
+          "source": {
+            "$ref": "#/components/schemas/ListingStockSourceEnum"
+          }
+        },
+        "required": [
+          "in_stock",
+          "quantity",
+          "source"
+        ]
+      },
+      "ListingStockSourceEnum": {
+        "enum": [
+          "inventory",
+          "listing"
+        ],
+        "type": "string",
+        "description": "* `inventory` - inventory\n* `listing` - listing"
+      },
+      "ListingTransitionRequest": {
+        "type": "object",
+        "description": "The body of ``POST listings/{id}/transition/``: where to move it.\n\nA ``ChoiceField`` over the whole lifecycle rather than over the moves this\nparticular listing has, because the two refusals are different sentences\nand a client should be able to tell them apart: a status that does not\nexist is a 400 (the caller is confused about the vocabulary), a status\nthat exists but is not this listing's to reach is a 409 with\n``from_status`` (the caller is confused about the row). Narrowing the\nfield to the per-row set would collapse both into 400 and lose the\n``from_status`` that tells a storefront what to re-render.",
+        "properties": {
+          "to": {
+            "$ref": "#/components/schemas/ListingStatusEnum"
+          }
+        },
+        "required": [
+          "to"
+        ]
+      },
+      "ModerationStatusEnum": {
+        "enum": [
+          "not_submitted",
+          "pending",
+          "approved",
+          "rejected",
+          "needs_review"
+        ],
+        "type": "string",
+        "description": "* `not_submitted` - Not submitted for review\n* `pending` - Pending Review\n* `approved` - Approved\n* `rejected` - Rejected\n* `needs_review` - Needs Manual Review"
+      },
+      "MyCountersResponse": {
+        "type": "object",
+        "description": "Listing counts by tab for the current user.\n\nOne integer per cabinet tab, and every lifecycle status belongs to\nexactly one of them — ``blocked`` included, so a listing a moderator\ntook down is counted somewhere instead of vanishing from the totals.",
+        "properties": {
+          "active": {
+            "type": "integer"
+          },
+          "archived": {
+            "type": "integer"
+          },
+          "drafts": {
+            "type": "integer"
+          },
+          "blocked": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "active",
+          "archived",
+          "blocked",
+          "drafts"
+        ]
+      },
+      "MyListingCard": {
+        "type": "object",
+        "description": "The owner's own card — the public card plus what only an owner sees.\n\nSame family as :class:`ListingCardSerializer` (one shape for every grid a\nproduct renders), extended along two axes and no further:\n\n- **the moderation axis** (``moderation_status``): visibility is decided\n  by ``status`` alone, but since 0.5.0 a *published* listing can be under\n  re-review, and its owner is the one person who has to be told. A\n  dashboard cannot derive that sentence from ``status``.\n- **the draft twins** (``title_draft`` / ``price_draft`` /\n  ``images_draft``): the published fields are empty on a listing that has\n  never been published, so a drafts tab built on the public card would\n  render a column of blank rows. This is the list half of the pair's\n  upstream ask #2 — the detail read is unchanged and still serializes the\n  published fields only.\n\nOwner-scoped by construction: this serializer is used by exactly one\nroute, ``my/listings``, whose queryset is ``owned_by(request.user)``.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "price": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "price_base": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 8
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "readOnly": true,
+            "nullable": true
+          },
+          "features_title": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FeatureDao"
+                    },
+                    {
+                      "type": "object",
+                      "title": "CardFeatureElement",
+                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption, name gets a trailing colon («Этаж: 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
+                      "required": [
+                        "label",
+                        "name",
+                        "presentation"
+                      ],
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "unit": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "presentation": {
+                          "enum": [
+                            "value",
+                            "value_unit",
+                            "name_value",
+                            "name"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "object",
+                  "title": "RedactedFeatureDao",
+                  "description": "A feature the catalogue marked non-public (visibility 'owner' or 'staff') read by someone without that entitlement — an identifier such as a VIN or an IMEI. Carries no value. `present` says whether the seller filled it in, which is all this system observes; `verification` is absent unless an outside check was actually run, so a UI may say the value was supplied and must not say it was verified.",
+                  "required": [
+                    "redacted",
+                    "present"
+                  ],
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "order": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "translate": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "visibility": {
+                      "enum": [
+                        "owner",
+                        "staff"
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "redacted": {
+                      "const": true
+                    },
+                    "present": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
+            },
+            "readOnly": true
+          },
+          "features_badges": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FeatureDao"
+                    },
+                    {
+                      "type": "object",
+                      "title": "CardFeatureElement",
+                      "description": "What a card needs to render one element of the summary line unambiguously, with no category schema in hand. `presentation` is decided server-side so every client draws the same line: `value` — the caption alone («Кирпичный»); `value_unit` — caption then unit («42 м²»); `name_value` — feature name then caption, name gets a trailing colon («Этаж: 3»); `name` — the feature name alone, a true boolean. A false boolean is absent from the list entirely. `label`, `unit` and `name` are translation keys or literals exactly as the catalogue wrote them — this module never translates.",
+                      "required": [
+                        "label",
+                        "name",
+                        "presentation"
+                      ],
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "unit": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "presentation": {
+                          "enum": [
+                            "value",
+                            "value_unit",
+                            "name_value",
+                            "name"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "object",
+                  "title": "RedactedFeatureDao",
+                  "description": "A feature the catalogue marked non-public (visibility 'owner' or 'staff') read by someone without that entitlement — an identifier such as a VIN or an IMEI. Carries no value. `present` says whether the seller filled it in, which is all this system observes; `verification` is absent unless an outside check was actually run, so a UI may say the value was supplied and must not say it was verified.",
+                  "required": [
+                    "redacted",
+                    "present"
+                  ],
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "order": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "translate": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "visibility": {
+                      "enum": [
+                        "owner",
+                        "staff"
+                      ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "redacted": {
+                      "const": true
+                    },
+                    "present": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
+            },
+            "readOnly": true
+          },
+          "location_label": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "geohash": {
+            "type": "string",
+            "maxLength": 12
+          },
+          "lat": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "lon": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "geo_precision_km": {
+            "type": "number",
+            "format": "double",
+            "description": "How wide the area `lat`/`lon` describe, in kilometres. On a PUBLIC read this is ~1.113 (the pair is rounded to two decimals and `geohash` comes back empty): draw a CIRCLE, never a marker — the listing is somewhere in it, and for a private seller the true point is a home address. `0` means the exact point, which only the listing's own owner, staff and the service transport get. Proximity itself is unaffected: `distance_km` on a search hit is computed server-side from the true coordinates.",
+            "readOnly": true
+          },
+          "countable": {
+            "type": "boolean"
+          },
+          "stock_quantity": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "format": "int64",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/ListingStatusEnum"
+          },
+          "is_favorited": {
+            "type": "boolean",
+            "readOnly": true,
+            "nullable": true
+          },
+          "viewed": {
+            "type": "boolean",
+            "readOnly": true,
+            "nullable": true
+          },
+          "view_count": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "moderation_status": {
+            "$ref": "#/components/schemas/ModerationStatusEnum"
+          },
+          "available_transitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvailableTransitionsEnum"
+            },
+            "readOnly": true
+          },
+          "title_draft": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "price_draft": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "images_draft": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "readOnly": true,
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          }
+        },
+        "required": [
+          "available_transitions",
+          "created_at",
+          "features_badges",
+          "features_title",
+          "geo_precision_km",
+          "id",
+          "images",
+          "images_draft",
+          "is_favorited",
+          "updated_at",
+          "view_count",
+          "viewed"
+        ]
+      },
+      "NullEnum": {
+        "enum": [
+          null
+        ]
+      },
+      "PaginatedListingCardList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ListingCard"
+            }
+          },
+          "next_anchor": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "nullable": true,
+            "description": "Anchor value for next page. The raw value of the ordering field: a string for a datetime anchor, an integer for a sequence one. Set `anchor_type` on the paginator to narrow this."
+          },
+          "prev_anchor": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "nullable": true,
+            "description": "Anchor value for previous page. The raw value of the ordering field: a string for a datetime anchor, an integer for a sequence one. Set `anchor_type` on the paginator to narrow this."
+          },
+          "has_next": {
+            "type": "boolean",
+            "description": "Whether there are more items after this page"
+          },
+          "has_prev": {
+            "type": "boolean",
+            "description": "Whether there are items before this page"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of items in current page"
+          }
+        },
+        "required": [
+          "items",
+          "has_next",
+          "has_prev",
+          "count"
+        ],
+        "x-stapel-pagination": {
+          "style": "anchor",
+          "items": "items"
+        }
+      },
+      "PaginatedMyListingCardList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyListingCard"
+            }
+          },
+          "next_anchor": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "nullable": true,
+            "description": "Anchor value for next page. The raw value of the ordering field: a string for a datetime anchor, an integer for a sequence one. Set `anchor_type` on the paginator to narrow this."
+          },
+          "prev_anchor": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "nullable": true,
+            "description": "Anchor value for previous page. The raw value of the ordering field: a string for a datetime anchor, an integer for a sequence one. Set `anchor_type` on the paginator to narrow this."
+          },
+          "has_next": {
+            "type": "boolean",
+            "description": "Whether there are more items after this page"
+          },
+          "has_prev": {
+            "type": "boolean",
+            "description": "Whether there are items before this page"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of items in current page"
+          }
+        },
+        "required": [
+          "items",
+          "has_next",
+          "has_prev",
+          "count"
+        ],
+        "x-stapel-pagination": {
+          "style": "anchor",
+          "items": "items"
+        }
+      },
+      "PatchedListingDraft": {
+        "type": "object",
+        "description": "Create/update the draft twin fields.\n\nAll user-editable content is a ``*_draft`` field promoted on publish.\nDRF's declarative field validation (max_length, decimal bounds, types)\nreplaces the source view's hand-rolled per-field checks.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "category_id": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                "maxLength": 64
+              },
+              {
+                "type": "string",
+                "maxLength": 0
+              }
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 8
+          },
+          "language": {
+            "type": "string",
+            "maxLength": 10
+          },
+          "title_draft": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "description_draft": {
+            "type": "string"
+          },
+          "price_draft": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,10}(?:\\.\\d{0,2})?$",
+            "nullable": true
+          },
+          "images_draft": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "location_id_draft": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "location_label_draft": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "geohash_draft": {
+            "type": "string",
+            "readOnly": true
+          },
+          "lat_draft": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "lon_draft": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{0,3}(?:\\.\\d{0,6})?$",
+            "nullable": true
+          },
+          "features_draft": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FeatureDto"
+            },
+            "description": "The WRITE shape of features_draft: an object keyed by feature slug, each value a FeatureDto — e.g. {\"mileage\":{\"type\":\"int\",\"value\":42000}}. A listing READ hands back features as a *list* of decorated DAOs instead (`features` / `features_title` / `features_badges` — `{slug, name, label, presentation, …}`); posting that same list back here is also accepted, e.g. [{\"slug\":\"mileage\",\"type\":\"int\",\"value\":42000}] — only `slug`, `type` and `value` are read back out, every other (decoration) key is ignored. A malformed payload of either shape gets a features_draft_shape / features_draft_value_shape / features_draft_unknown_slug 400 naming the shape that would have worked.",
+            "nullable": true
+          },
+          "draft_meta": {
+            "nullable": true
+          },
+          "auto_republish": {
+            "type": "boolean"
+          },
+          "countable": {
+            "type": "boolean"
+          },
+          "stock_quantity": {
+            "type": "integer",
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "format": "int64",
+            "nullable": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ListingStatusEnum"
+              }
+            ],
+            "readOnly": true
+          },
+          "moderation_status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModerationStatusEnum"
+              }
+            ],
+            "readOnly": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          }
+        }
+      },
+      "PublishResponse": {
+        "type": "object",
+        "description": "Result of publishing a listing.",
+        "properties": {
+          "published": {
+            "type": "boolean"
+          },
+          "listing_id": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "listing_id",
+          "published",
+          "status"
+        ]
+      },
+      "RefHierarchicalSelectDao": {
+        "type": "object",
+        "description": "Serializer for the ref_hierarchical_select feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/RefHierarchicalSelectTypeEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "vocabulary": {
+            "type": "string",
+            "nullable": true
+          },
+          "levels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RefHierarchicalSelectDto": {
+        "type": "object",
+        "description": "Serializer for the ref_hierarchical_select feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/RefHierarchicalSelectTypeEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RefHierarchicalSelectTypeEnum": {
+        "enum": [
+          "ref_hierarchical_select"
+        ],
+        "type": "string",
+        "description": "* `ref_hierarchical_select` - ref_hierarchical_select"
+      },
+      "RefSelectDao": {
+        "type": "object",
+        "description": "Serializer for the ref_select feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/RefSelectTypeEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "vocabulary": {
+            "type": "string",
+            "nullable": true
+          },
+          "level": {
+            "type": "string",
+            "nullable": true
+          },
+          "prefix": {
+            "type": "string",
+            "nullable": true
+          },
+          "postfix": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RefSelectDto": {
+        "type": "object",
+        "description": "Serializer for the ref_select feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/RefSelectTypeEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RefSelectTypeEnum": {
+        "enum": [
+          "ref_select"
+        ],
+        "type": "string",
+        "description": "* `ref_select` - ref_select"
+      },
+      "SelectDao": {
+        "type": "object",
+        "description": "Serializer for select feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/SelectTypeEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "uiStyle": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UiStyleEnum"
+              },
+              {
+                "$ref": "#/components/schemas/NullEnum"
+              }
+            ]
+          },
+          "maxSelected": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "SelectDto": {
+        "type": "object",
+        "description": "Serializer for select feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/SelectTypeEnum"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SelectTypeEnum": {
+        "enum": [
+          "select"
+        ],
+        "type": "string",
+        "description": "* `select` - select"
+      },
+      "StapelError": {
+        "type": "object",
+        "description": "Structured error returned by all Stapel API endpoints.",
+        "properties": {
+          "localizable_error": {
+            "type": "string",
+            "description": "Translation key for client-side localization",
+            "example": "error.404.not_found"
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable fallback/debug message — not reliably English,"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Context values for template placeholders",
+            "example": {
+              "retry_after": 30
+            }
+          },
+          "error_language": {
+            "type": "string",
+            "description": "The language `error` is written in (e.g. 'en', 'ru'),"
+          }
+        },
+        "required": [
+          "error",
+          "localizable_error"
+        ]
+      },
+      "StringDao": {
+        "type": "object",
+        "description": "Serializer for string feature DAO.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "nullable": true
+          },
+          "title": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "badge": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "translate": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/StringTypeEnum"
+          },
+          "value": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string",
+            "nullable": true
+          },
+          "postfix": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "StringDto": {
+        "type": "object",
+        "description": "Serializer for string feature DTO.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/StringTypeEnum"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "StringTypeEnum": {
+        "enum": [
+          "string"
+        ],
+        "type": "string",
+        "description": "* `string` - string"
+      },
+      "StyleEnum": {
+        "enum": [
+          "l",
+          "m"
+        ],
+        "type": "string",
+        "description": "* `l` - l\n* `m` - m"
+      },
+      "UiStyleEnum": {
+        "enum": [
+          "dropdown",
+          "checkboxes",
+          "chips"
+        ],
+        "type": "string",
+        "description": "* `dropdown` - dropdown\n* `checkboxes` - checkboxes\n* `chips` - chips"
+      },
+      "ValidationBatchResult": {
+        "type": "object",
+        "description": "Serializer for ValidationBatchResult.",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureValidationResult"
+            }
+          }
+        },
+        "required": [
+          "results",
+          "valid"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "JWTBearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT access token in the `Authorization: Bearer <token>` header — the credential a native client sends. When the JWT cookie is also present, the cookie wins."
+      },
+      "JWTCookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "stapel_jwt",
+        "description": "JWT token stored in cookie. Login via /auth/admin/ to get the cookie."
+      }
+    }
+  }
+}
