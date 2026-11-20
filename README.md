@@ -24,14 +24,14 @@ pip install stapel-listings
 
 | Fact | Value |
 |---|---|
-| Version | `0.30.1` |
+| Version | `0.30.2` |
 | Python | `>=3.11` (3.11, 3.12, 3.13, 3.14) |
 | Django | `djangorestframework>=3.14` |
 | HTTP operations | 20 |
 | Config axes | 3 |
 | Usage surface | 11 |
 | Extension points | 8 |
-| Error codes | 72 |
+| Error codes | 73 |
 | Fleet dependencies | [`stapel-attributes`](https://github.com/usestapel/stapel-attributes) · [`stapel-categories`](https://github.com/usestapel/stapel-categories) (optional) · [`stapel-core`](https://github.com/usestapel/stapel-core) |
 
 ## Documentation

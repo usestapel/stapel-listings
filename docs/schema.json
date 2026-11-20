@@ -3241,6 +3241,7 @@
               }
             ],
             "nullable": true,
+            "example": null,
             "description": "Anchor value for next page. The raw value of the ordering field: a string for a datetime anchor, an integer for a sequence one. Set `anchor_type` on the paginator to narrow this."
           },
           "prev_anchor": {
@@ -3253,19 +3254,23 @@
               }
             ],
             "nullable": true,
+            "example": null,
             "description": "Anchor value for previous page. The raw value of the ordering field: a string for a datetime anchor, an integer for a sequence one. Set `anchor_type` on the paginator to narrow this."
           },
           "has_next": {
             "type": "boolean",
-            "description": "Whether there are more items after this page"
+            "description": "Whether there are more items after this page",
+            "example": false
           },
           "has_prev": {
             "type": "boolean",
-            "description": "Whether there are items before this page"
+            "description": "Whether there are items before this page",
+            "example": false
           },
           "count": {
             "type": "integer",
-            "description": "Number of items in current page"
+            "description": "Number of items in current page",
+            "example": 1
           }
         },
         "required": [
@@ -3294,6 +3299,7 @@
               }
             ],
             "nullable": true,
+            "example": null,
             "description": "Anchor value for next page. The raw value of the ordering field: a string for a datetime anchor, an integer for a sequence one. Set `anchor_type` on the paginator to narrow this."
           },
           "prev_anchor": {
@@ -3306,19 +3312,23 @@
               }
             ],
             "nullable": true,
+            "example": null,
             "description": "Anchor value for previous page. The raw value of the ordering field: a string for a datetime anchor, an integer for a sequence one. Set `anchor_type` on the paginator to narrow this."
           },
           "has_next": {
             "type": "boolean",
-            "description": "Whether there are more items after this page"
+            "description": "Whether there are more items after this page",
+            "example": false
           },
           "has_prev": {
             "type": "boolean",
-            "description": "Whether there are items before this page"
+            "description": "Whether there are items before this page",
+            "example": false
           },
           "count": {
             "type": "integer",
-            "description": "Number of items in current page"
+            "description": "Number of items in current page",
+            "example": 1
           }
         },
         "required": [
