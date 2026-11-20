@@ -203,6 +203,19 @@
               }
             },
             "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.not_found"
+            ]
           }
         }
       },
@@ -301,7 +314,8 @@
             },
             "description": "Not Found",
             "x-stapel-errors": [
-              "error.404.listing_not_found"
+              "error.404.listing_not_found",
+              "error.404.not_found"
             ]
           }
         }
@@ -372,6 +386,19 @@
             "description": "Bad Request",
             "x-stapel-errors": [
               "error.400.listing_draft_meta_too_large"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StapelError"
+                }
+              }
+            },
+            "description": "Not Found",
+            "x-stapel-errors": [
+              "error.404.not_found"
             ]
           }
         }

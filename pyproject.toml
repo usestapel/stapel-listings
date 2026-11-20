@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-listings"
-version = "0.30.2"
+version = "0.30.3"
 description = "Listings and catalog for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -55,7 +55,7 @@ dependencies = [
     # is the gate.
     # 0.99.0: falsy docstring examples reach the contract (the committed
     # examples rely on it) and errors.json carries declared param_types.
-    "stapel-core>=0.99.2,<1.0",
+    "stapel-core>=0.99.3,<1.0",
     # attributes 0.3.x caps `stapel-core<0.12`, which made stapel-listings
     # unresolvable next to any modern core (stapel-categories 0.5.4 hit the
     # same wall and moved the same way).

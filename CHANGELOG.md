@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.30.3] — 2026-11-20
+
+Patch. No migration, no consumer edit. Requires stapel-core 0.99.3.
+
+- `docs/schema.v2.json` binds `error.404.not_found` on the generic-lookup
+  operations (stapel-core 0.99.3); `make contract-check` was red against it.
+- **Wire gate on every caller state** (`tests/test_contract_wire.py`): each
+  recipe request is replayed with no session, as a guest and as a stranger,
+  and every answer is validated against `schema.json` and `schema.v2.json`
+  (`tests/_contract_gates_next.py`, a verbatim copy of the stapel-tools gate
+  until it is released). No finding.
+
 ## [0.30.2] — 2026-11-20
 
 Patch. No migration, no consumer edit. Requires stapel-core 0.99.2.
